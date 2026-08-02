@@ -48,8 +48,7 @@ export default function LeaderboardTable({
         <thead className="bg-slate-100">
           <tr>
             <th className="px-4 py-3 text-left">Rank</th>
-            <th className="px-4 py-3 text-left">Team</th>
-            <th className="px-4 py-3 text-left">Manager</th>
+            <th className="px-4 py-3 text-left">Player</th>
             <th className="px-4 py-3 text-right">Points</th>
 
             {type === "round" && (
@@ -90,10 +89,6 @@ export default function LeaderboardTable({
               >
                 <td className="px-4 py-4 font-bold">
                   {rankDisplay(rank)}
-                </td>
-
-                <td className="px-4 py-4 font-semibold">
-                  {row.team_name ?? "Unnamed Team"}
                 </td>
 
                 <td className="px-4 py-4">
