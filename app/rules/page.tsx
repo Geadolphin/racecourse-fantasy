@@ -270,15 +270,29 @@ export default function RulesPage() {
                                     round.
                                 </li>
                                 <li>
-                                    Once lockout begins, teams and captains cannot be
+                                    If a round contains races across multiple days (for
+                                    example, Saturday and Sunday), separate lockout times
+                                    will apply. Horses become locked at the scheduled
+                                    lockout time for their assigned lockout group.
+                                </li>
+                                <li>
+                                    Once a lockout group has commenced, those horses
+                                    cannot be added, removed or changed, while horses in
+                                    later lockout groups remain editable until their own
+                                    lockout time.
+                                </li>
+                                <li>
+                                    Once all lockout groups for the round have
+                                    commenced, teams and captains can no longer be
                                     changed.
                                 </li>
                                 <li>
-                                    Other players&apos; teams remain private before
-                                    lockout.
+                                    Other players&apos; teams remain private before the
+                                    first lockout.
                                 </li>
                                 <li>
-                                    Team comparison becomes available after lockout.
+                                    Team comparison becomes available after the first
+                                    lockout.
                                 </li>
                             </ul>
                         </RuleSection>
