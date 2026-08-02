@@ -18,6 +18,7 @@ import {
   LogOut,
   LogIn,
   UserPlus,
+  UserCog,
   ChevronDown,
   Menu,
   X,
@@ -273,6 +274,15 @@ export default function Navbar() {
                       <span>Compare Teams</span>
                     </Link>
 
+                    <Link
+                      href="/account"
+                      role="menuitem"
+                      className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-teal-300"
+                    >
+                      <UserCog className="h-4 w-4" />
+                      <span>Account</span>
+                    </Link>
+
                     {isAdmin && (
                       <Link
                         href="/admin"
@@ -427,6 +437,14 @@ export default function Navbar() {
             >
               <Users className="h-5 w-5" />
               <span>Compare Teams</span>
+            </Link>
+
+            <Link
+              href="/account"
+              className={mobileLinkClasses("/account")}
+            >
+              <UserCog className="h-5 w-5" />
+              <span>Account</span>
             </Link>
 
             {isAdmin && (
