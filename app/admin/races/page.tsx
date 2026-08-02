@@ -11,8 +11,29 @@ import type { Race } from "@/types/race";
 import type { Round } from "@/types/round";
 import type { Racecourse } from "@/types/racecourse";
 
+type LockoutGroupKey =
+  | "main"
+  | "group_a"
+  | "group_b"
+  | "group_c"
+  | "group_d";
+
+type RoundLockout = {
+  id: string;
+  round_id: string;
+  group_key: LockoutGroupKey;
+  display_name: string;
+  lockout_at: string;
+  sort_order: number;
+};
+
+type RaceWithLockout = Race & {
+  lockout_group?: LockoutGroupKey | null;
+};
+
 type RaceForm = {
   round_id: string;
+  lockout_group: LockoutGroupKey | "";
   racecourse_id: string;
   race_number: number;
   race_name: string;
@@ -35,6 +56,7 @@ type RoundWithOptionalFields = Round & {
 
 const emptyRace: RaceForm = {
   round_id: "",
+  lockout_group: "",
   racecourse_id: "",
   race_number: 1,
   race_name: "",
@@ -45,9 +67,11 @@ const emptyRace: RaceForm = {
 };
 
 export default function RacesPage() {
-  const [races, setRaces] = useState<Race[]>([]);
+  const [races, setRaces] = useState<RaceWithLockout[]>([]);
   const [rounds, setRounds] = useState<RoundWithOptionalFields[]>([]);
   const [racecourses, setRacecourses] = useState<Racecourse[]>([]);
+  const [roundLockouts, setRoundLockouts] =
+    useState<RoundLockout[]>([]);
 
   const [expandedRoundIds, setExpandedRoundIds] = useState<Set<string>>(
     new Set()
@@ -74,6 +98,7 @@ export default function RacesPage() {
       { data: racesData, error: racesError },
       { data: roundsData, error: roundsError },
       { data: racecoursesData, error: racecoursesError },
+      { data: lockoutsData, error: lockoutsError },
     ] = await Promise.all([
       supabase
         .from("races")
@@ -89,13 +114,33 @@ export default function RacesPage() {
         .from("racecourses")
         .select("*")
         .order("name", { ascending: true }),
+
+      supabase
+        .from("round_lockouts")
+        .select(
+          `
+            id,
+            round_id,
+            group_key,
+            display_name,
+            lockout_at,
+            sort_order
+          `
+        )
+        .order("sort_order", { ascending: true }),
     ]);
 
-    if (racesError || roundsError || racecoursesError) {
+    if (
+      racesError ||
+      roundsError ||
+      racecoursesError ||
+      lockoutsError
+    ) {
       console.error({
         racesError,
         roundsError,
         racecoursesError,
+        lockoutsError,
       });
 
       setErrorMessage("Could not load race management data.");
@@ -103,13 +148,19 @@ export default function RacesPage() {
       return;
     }
 
-    const loadedRaces = (racesData ?? []) as Race[];
-    const loadedRounds = (roundsData ?? []) as RoundWithOptionalFields[];
-    const loadedRacecourses = (racecoursesData ?? []) as Racecourse[];
+    const loadedRaces =
+      (racesData ?? []) as RaceWithLockout[];
+    const loadedRounds =
+      (roundsData ?? []) as RoundWithOptionalFields[];
+    const loadedRacecourses =
+      (racecoursesData ?? []) as Racecourse[];
+    const loadedLockouts =
+      (lockoutsData ?? []) as RoundLockout[];
 
     setRaces(loadedRaces);
     setRounds(loadedRounds);
     setRacecourses(loadedRacecourses);
+    setRoundLockouts(loadedLockouts);
 
     setExpandedRoundIds((current) => {
       if (current.size > 0 || loadedRounds.length === 0) {
@@ -132,7 +183,7 @@ export default function RacesPage() {
     setLoading(false);
   }
 
-  async function deleteRace(race: Race) {
+  async function deleteRace(race: RaceWithLockout) {
     const confirmed = window.confirm(
       `Delete Race ${race.race_number} — ${race.race_name}?\n\nThis action cannot be undone.`
     );
@@ -180,6 +231,11 @@ export default function RacesPage() {
       return;
     }
 
+    if (!form.lockout_group) {
+      setErrorMessage("Please select a lockout group.");
+      return;
+    }
+
     if (!form.racecourse_id) {
       setErrorMessage("Please select a racecourse.");
       return;
@@ -209,6 +265,7 @@ export default function RacesPage() {
 
     const raceData = {
       round_id: form.round_id,
+      lockout_group: form.lockout_group,
       racecourse_id: form.racecourse_id,
       race_number: form.race_number,
       race_name: form.race_name.trim(),
@@ -259,26 +316,46 @@ export default function RacesPage() {
   function openNewRaceModal() {
     setErrorMessage("");
     setEditingRaceId(null);
-    setForm(emptyRace);
+
+    const defaultRound = rounds[0];
+    const defaultLockout = defaultRound
+      ? getLockoutsForRound(defaultRound.id)[0]
+      : undefined;
+
+    setForm({
+      ...emptyRace,
+      round_id: defaultRound?.id ?? "",
+      lockout_group: defaultLockout?.group_key ?? "",
+    });
+
     setShowModal(true);
   }
 
   function openNewRaceForRound(roundId: string) {
     setErrorMessage("");
     setEditingRaceId(null);
+
+    const defaultLockout = getLockoutsForRound(roundId)[0];
+
     setForm({
       ...emptyRace,
       round_id: roundId,
+      lockout_group: defaultLockout?.group_key ?? "",
     });
+
     setShowModal(true);
   }
 
-  function editRace(race: Race) {
+  function editRace(race: RaceWithLockout) {
     setErrorMessage("");
     setEditingRaceId(race.id);
 
     setForm({
       round_id: race.round_id,
+      lockout_group:
+        race.lockout_group ??
+        getLockoutsForRound(race.round_id)[0]?.group_key ??
+        "",
       racecourse_id: race.racecourse_id,
       race_number: race.race_number,
       race_name: race.race_name,
@@ -322,6 +399,35 @@ export default function RacesPage() {
 
   function collapseAllRounds() {
     setExpandedRoundIds(new Set());
+  }
+
+  function getLockoutsForRound(roundId: string) {
+    return roundLockouts
+      .filter((lockout) => lockout.round_id === roundId)
+      .sort(
+        (a, b) =>
+          a.sort_order - b.sort_order ||
+          new Date(a.lockout_at).getTime() -
+            new Date(b.lockout_at).getTime()
+      );
+  }
+
+  function getLockoutForRace(race: RaceWithLockout) {
+    return getLockoutsForRound(race.round_id).find(
+      (lockout) =>
+        lockout.group_key ===
+        (race.lockout_group ?? "main")
+    );
+  }
+
+  function getLockoutDisplayName(race: RaceWithLockout) {
+    return (
+      getLockoutForRace(race)?.display_name ??
+      (race.lockout_group === "main" ||
+      !race.lockout_group
+        ? "Main Lockout"
+        : race.lockout_group)
+    );
   }
 
   function getRacecourseName(racecourseId: string) {
@@ -449,7 +555,7 @@ export default function RacesPage() {
   }, [rounds]);
 
   const racesByRoundId = useMemo(() => {
-    const grouped = new Map<string, Race[]>();
+    const grouped = new Map<string, RaceWithLockout[]>();
 
     for (const race of races) {
       const current = grouped.get(race.round_id) ?? [];
@@ -683,6 +789,16 @@ export default function RacesPage() {
                               </p>
                             </div>
 
+                            <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">
+                                Lockout group
+                              </p>
+
+                              <p className="mt-1 font-semibold text-slate-900">
+                                {getLockoutDisplayName(race)}
+                              </p>
+                            </div>
+
                             <div className="mt-5 flex flex-wrap gap-2">
                               <button
                                 type="button"
@@ -721,8 +837,8 @@ export default function RacesPage() {
         title={editingRaceId ? "Edit Race" : "New Race"}
         description={
           editingRaceId
-            ? "Update the race details and status."
-            : "Add the race details and scheduled start."
+            ? "Update the race details, lockout group, and status."
+            : "Add the race details, lockout group, and scheduled start."
         }
         onClose={closeModal}
         maxWidth="lg"
@@ -740,12 +856,18 @@ export default function RacesPage() {
             <select
               required
               value={form.round_id}
-              onChange={(event) =>
+              onChange={(event) => {
+                const nextRoundId = event.target.value;
+                const defaultLockout =
+                  getLockoutsForRound(nextRoundId)[0];
+
                 setForm({
                   ...form,
-                  round_id: event.target.value,
-                })
-              }
+                  round_id: nextRoundId,
+                  lockout_group:
+                    defaultLockout?.group_key ?? "",
+                });
+              }}
               className="w-full rounded-lg border p-3"
             >
               <option value="">Select Round</option>
@@ -757,6 +879,51 @@ export default function RacesPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-medium">
+              Lockout Group
+            </label>
+
+            <select
+              required
+              value={form.lockout_group}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  lockout_group:
+                    event.target.value as RaceForm["lockout_group"],
+                })
+              }
+              disabled={!form.round_id}
+              className="w-full rounded-lg border p-3 disabled:cursor-not-allowed disabled:bg-slate-100"
+            >
+              <option value="">
+                {form.round_id
+                  ? "Select Lockout Group"
+                  : "Select a round first"}
+              </option>
+
+              {getLockoutsForRound(form.round_id).map(
+                (lockout) => (
+                  <option
+                    key={lockout.id}
+                    value={lockout.group_key}
+                  >
+                    {lockout.display_name}
+                  </option>
+                )
+              )}
+            </select>
+
+            {form.round_id &&
+              getLockoutsForRound(form.round_id).length === 0 && (
+                <p className="mt-2 text-sm text-amber-700">
+                  This round has no lockout groups. Add one in
+                  Admin → Rounds before saving a race.
+                </p>
+              )}
           </div>
 
           <div>

@@ -22,6 +22,22 @@ type Round = {
   lockout_at: string;
 };
 
+type LockoutGroupKey =
+  | "main"
+  | "group_a"
+  | "group_b"
+  | "group_c"
+  | "group_d";
+
+type RoundLockout = {
+  id: string;
+  round_id: string;
+  group_key: LockoutGroupKey;
+  display_name: string;
+  lockout_at: string;
+  sort_order: number;
+};
+
 type Horse = {
   id: string;
   name: string;
@@ -36,6 +52,7 @@ type Racecourse = {
 type Race = {
   id: string;
   round_id: string;
+  lockout_group: LockoutGroupKey;
   race_number: number;
   race_name: string;
   grade: "L" | "G3" | "G2" | "G1";
@@ -140,7 +157,11 @@ export default function EditTeamPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [salaryCap, setSalaryCap] = useState(0);
   const [entries, setEntries] = useState<RaceEntry[]>([]);
+  const [roundLockouts, setRoundLockouts] =
+    useState<RoundLockout[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
+  const [savedSelections, setSavedSelections] =
+    useState<TeamSelection[]>([]);
   const [captainEntryId, setCaptainEntryId] = useState<string | null>(
     null
   );
@@ -212,6 +233,46 @@ export default function EditTeamPage() {
     const currentRound = roundData as Round;
 
     setRound(currentRound);
+
+    const {
+      data: lockoutData,
+      error: lockoutError,
+    } = await supabase.rpc("get_round_lockouts", {
+      p_round_id: currentRound.id,
+    });
+
+    if (lockoutError) {
+      console.error("Round lockouts load error:", lockoutError);
+      setErrorMessage(
+        lockoutError.message ||
+          "Could not load this round's lockout groups."
+      );
+      setLoading(false);
+      return;
+    }
+
+    const loadedLockouts =
+      ((lockoutData ?? []) as RoundLockout[]).sort(
+        (a, b) =>
+          a.sort_order - b.sort_order ||
+          new Date(a.lockout_at).getTime() -
+            new Date(b.lockout_at).getTime()
+      );
+
+    setRoundLockouts(
+      loadedLockouts.length > 0
+        ? loadedLockouts
+        : [
+            {
+              id: "legacy-main",
+              round_id: currentRound.id,
+              group_key: "main",
+              display_name: "Main Lockout",
+              lockout_at: currentRound.lockout_at,
+              sort_order: 1,
+            },
+          ]
+    );
 
     const { data: seasonData, error: seasonError } = await supabase
       .from("seasons")
@@ -294,6 +355,7 @@ export default function EditTeamPage() {
           race:races!inner (
             id,
             round_id,
+            lockout_group,
             race_number,
             race_name,
             grade,
@@ -344,6 +406,7 @@ export default function EditTeamPage() {
     if (!teamData) {
       setTeam(null);
       setSelectedEntryIds([]);
+      setSavedSelections([]);
       setCaptainEntryId(null);
       setLoading(false);
       return;
@@ -378,6 +441,8 @@ export default function EditTeamPage() {
     const selections =
       (selectionData ?? []) as TeamSelection[];
 
+    setSavedSelections(selections);
+
     setSelectedEntryIds(
       selections.map((selection) => selection.race_entry_id)
     );
@@ -407,14 +472,122 @@ export default function EditTeamPage() {
     };
   }, []);
 
-  const lockoutHasStarted =
-    round !== null &&
-    currentTime >= new Date(round.lockout_at).getTime();
+  const lockoutByGroup = useMemo(() => {
+    return new Map(
+      roundLockouts.map((lockout) => [
+        lockout.group_key,
+        lockout,
+      ])
+    );
+  }, [roundLockouts]);
+
+  const firstLockout = useMemo(() => {
+    if (roundLockouts.length === 0) {
+      return null;
+    }
+
+    return [...roundLockouts].sort(
+      (a, b) =>
+        new Date(a.lockout_at).getTime() -
+        new Date(b.lockout_at).getTime()
+    )[0];
+  }, [roundLockouts]);
+
+  const nextLockout = useMemo(() => {
+    return (
+      [...roundLockouts]
+        .filter(
+          (lockout) =>
+            new Date(lockout.lockout_at).getTime() >
+            currentTime
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.lockout_at).getTime() -
+            new Date(b.lockout_at).getTime()
+        )[0] ?? null
+    );
+  }, [currentTime, roundLockouts]);
+
+  const firstLockoutHasStarted =
+    firstLockout !== null &&
+    currentTime >=
+      new Date(firstLockout.lockout_at).getTime();
+
+  const allLockoutsHaveStarted =
+    roundLockouts.length > 0 &&
+    roundLockouts.every(
+      (lockout) =>
+        currentTime >=
+        new Date(lockout.lockout_at).getTime()
+    );
 
   const teamIsEditable =
     round !== null &&
     round.status === "open" &&
-    !lockoutHasStarted;
+    !allLockoutsHaveStarted;
+
+  function getEntryLockout(entry: RaceEntry) {
+    const groupKey =
+      entry.race?.lockout_group ?? "main";
+
+    return (
+      lockoutByGroup.get(groupKey) ??
+      lockoutByGroup.get("main") ??
+      null
+    );
+  }
+
+  function entryIsLocked(entry: RaceEntry) {
+    const lockout = getEntryLockout(entry);
+
+    if (!lockout) {
+      return round
+        ? currentTime >=
+            new Date(round.lockout_at).getTime()
+        : true;
+    }
+
+    return (
+      currentTime >=
+      new Date(lockout.lockout_at).getTime()
+    );
+  }
+
+  function entryIdIsLocked(entryId: string) {
+    const entry = entries.find(
+      (item) => item.id === entryId
+    );
+
+    return entry ? entryIsLocked(entry) : false;
+  }
+
+  const lockedSavedEntryIds = useMemo(() => {
+    return new Set(
+      savedSelections
+        .filter((selection) =>
+          entryIdIsLocked(selection.race_entry_id)
+        )
+        .map((selection) => selection.race_entry_id)
+    );
+  }, [currentTime, entries, savedSelections]);
+
+  const lockedCaptainEntryId = useMemo(() => {
+    const savedCaptain = savedSelections.find(
+      (selection) => selection.is_captain
+    );
+
+    if (
+      savedCaptain &&
+      lockedSavedEntryIds.has(
+        savedCaptain.race_entry_id
+      )
+    ) {
+      return savedCaptain.race_entry_id;
+    }
+
+    return null;
+  }, [lockedSavedEntryIds, savedSelections]);
 
   const selectedEntries = useMemo(() => {
     return entries.filter((entry) =>
@@ -536,7 +709,21 @@ export default function EditTeamPage() {
 
     if (!teamIsEditable) {
       setErrorMessage(
-        "This team can no longer be edited because round lockout has commenced."
+        "This team can no longer be edited because all lockouts have commenced."
+      );
+      return;
+    }
+
+    if (entryIsLocked(entry)) {
+      setErrorMessage(
+        `${entry.horse?.name ?? "This horse"} is locked and can no longer be changed.`
+      );
+      return;
+    }
+
+    if (!team && firstLockoutHasStarted) {
+      setErrorMessage(
+        "A new team cannot be created after the first lockout has commenced."
       );
       return;
     }
@@ -586,7 +773,21 @@ export default function EditTeamPage() {
 
     if (!teamIsEditable) {
       setErrorMessage(
-        "The captain cannot be changed after lockout."
+        "The captain cannot be changed because all lockouts have commenced."
+      );
+      return;
+    }
+
+    if (lockedCaptainEntryId) {
+      setErrorMessage(
+        "Your captain is already locked and cannot be changed."
+      );
+      return;
+    }
+
+    if (entryIdIsLocked(entryId)) {
+      setErrorMessage(
+        "A locked horse cannot be made captain."
       );
       return;
     }
@@ -601,180 +802,31 @@ export default function EditTeamPage() {
     setCaptainEntryId(entryId);
   }
 
-  async function createOrUpdateTeam(
+  async function saveTeamRpc(
     status: "draft" | "submitted"
-  ): Promise<Team | null> {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setErrorMessage("You must be signed in to save your team.");
-      return null;
-    }
-
+  ): Promise<boolean> {
     if (!round) {
       setErrorMessage("There is no current round.");
-      return null;
+      return false;
     }
 
-    if (team) {
-      const { data: updatedTeam, error: updateError } =
-        await supabase
-          .from("teams")
-          .update({
-            status,
-            salary_used: salaryUsed,
-            salary_cap: salaryCap,
-          })
-          .eq("id", team.id)
-          .select(
-            `
-              id,
-              user_id,
-              round_id,
-              team_name,
-              status,
-              salary_used
-            `
-          )
-          .single();
-
-      if (updateError || !updatedTeam) {
-        console.error("Team update error:", updateError);
-
-        setErrorMessage(
-          updateError?.message ?? "Could not update the team."
-        );
-
-        return null;
+    const { error } = await supabase.rpc(
+      "save_my_round_team",
+      {
+        p_round_id: round.id,
+        p_entry_ids: selectedEntryIds,
+        p_captain_entry_id: captainEntryId,
+        p_status: status,
       }
-
-      const savedTeam = updatedTeam as Team;
-      setTeam(savedTeam);
-
-      return savedTeam;
-    }
-
-    const { data: createdTeam, error: createError } =
-      await supabase
-        .from("teams")
-        .insert({
-          user_id: user.id,
-          round_id: round.id,
-          status,
-          salary_used: salaryUsed,
-          salary_cap: salaryCap,
-        })
-        .select(
-          `
-            id,
-            user_id,
-            round_id,
-            team_name,
-            status,
-            salary_used
-          `
-        )
-        .single();
-
-    if (createError || !createdTeam) {
-      console.error("Team creation error:", createError);
-
-      setErrorMessage(
-        createError?.message ?? "Could not create the team."
-      );
-
-      return null;
-    }
-
-    const savedTeam = createdTeam as Team;
-    setTeam(savedTeam);
-
-    return savedTeam;
-  }
-
-  async function saveSelections(savedTeam: Team) {
-    const selectedRaceEntryIds = selectedEntries.map(
-      (entry) => entry.id
     );
 
-    const officialPointsByEntryId = new Map<string, number>();
-
-    if (selectedRaceEntryIds.length > 0) {
-      const { data: officialResults, error: resultsError } =
-        await supabase
-          .from("race_results")
-          .select("race_entry_id, fantasy_points")
-          .in("race_entry_id", selectedRaceEntryIds)
-          .eq("is_official", true);
-
-      if (resultsError) {
-        console.error(
-          "Official result points load error:",
-          resultsError
-        );
-
-        setErrorMessage(
-          "Could not load the official points for your selected horses."
-        );
-
-        return false;
-      }
-
-      for (const result of officialResults ?? []) {
-        officialPointsByEntryId.set(
-          result.race_entry_id,
-          result.fantasy_points ?? 0
-        );
-      }
-    }
-
-    const { error: deleteError } = await supabase
-      .from("team_selections")
-      .delete()
-      .eq("team_id", savedTeam.id);
-
-    if (deleteError) {
-      console.error(
-        "Old selection delete error:",
-        deleteError
-      );
-
-      setErrorMessage(deleteError.message);
+    if (error) {
+      console.error("Secure save error:", error);
+      setErrorMessage(error.message);
       return false;
     }
 
-    if (selectedEntries.length === 0) {
-      return true;
-    }
-
-    const rows = selectedEntries.map((entry) => ({
-      team_id: savedTeam.id,
-      race_entry_id: entry.id,
-      is_captain: entry.id === captainEntryId,
-      selected_price: entry.price_at_entry,
-
-      // Preserve points from races that are already official.
-      fantasy_points:
-        officialPointsByEntryId.get(entry.id) ?? 0,
-    }));
-
-    const { error: insertError } = await supabase
-      .from("team_selections")
-      .insert(rows);
-
-    if (insertError) {
-      console.error(
-        "Selection save error:",
-        insertError
-      );
-
-      setErrorMessage(insertError.message);
-      return false;
-    }
-
+    await loadPage();
     return true;
   }
 
@@ -783,7 +835,7 @@ export default function EditTeamPage() {
 
     if (!teamIsEditable) {
       setErrorMessage(
-        "Your team can no longer be edited because lockout has commenced."
+        "Your team can no longer be edited because all lockouts have commenced."
       );
       return;
     }
@@ -795,22 +847,14 @@ export default function EditTeamPage() {
 
     setSaving(true);
 
-    const savedTeam = await createOrUpdateTeam("draft");
+    const ok = await saveTeamRpc("draft");
+    setSaving(false);
 
-    if (!savedTeam) {
-      setSaving(false);
-      return;
-    }
-
-    const selectionsSaved = await saveSelections(savedTeam);
-
-    if (!selectionsSaved) {
-      setSaving(false);
+    if (!ok) {
       return;
     }
 
     setSuccessMessage("Your draft team has been saved.");
-    setSaving(false);
   }
 
   async function submitTeam() {
@@ -818,7 +862,14 @@ export default function EditTeamPage() {
 
     if (!teamIsEditable) {
       setErrorMessage(
-        "Your team can no longer be submitted because lockout has commenced."
+        "Your team can no longer be submitted because all lockouts have commenced."
+      );
+      return;
+    }
+
+    if (!team && firstLockoutHasStarted) {
+      setErrorMessage(
+        "A new team cannot be submitted after the first lockout has commenced."
       );
       return;
     }
@@ -844,21 +895,14 @@ export default function EditTeamPage() {
 
     setSubmitting(true);
 
-    const savedTeam = await createOrUpdateTeam("submitted");
-
-    if (!savedTeam) {
-      setSubmitting(false);
-      return;
-    }
-
-    const selectionsSaved = await saveSelections(savedTeam);
-
-    if (!selectionsSaved) {
-      setSubmitting(false);
-      return;
-    }
+    const ok = await saveTeamRpc("submitted");
 
     setSubmitting(false);
+
+    if (!ok) {
+      return;
+    }
+
     router.push("/team");
     router.refresh();
   }
@@ -910,8 +954,8 @@ export default function EditTeamPage() {
             </h1>
 
             <p className="mt-3 text-slate-600">
-              Round {round.round_number} locked at{" "}
-              {formatDateTime(round.lockout_at)}.
+              All lockout groups for Round {round.round_number} have
+              commenced.
             </p>
 
             <p className="mt-2 text-slate-600">
@@ -951,7 +995,11 @@ export default function EditTeamPage() {
               </p>
 
               <p className="mt-1 text-sm text-teal-100">
-                Lockout: {formatDateTime(round.lockout_at)}
+                {nextLockout
+                  ? `Next lockout: ${nextLockout.display_name} — ${formatDateTime(
+                      nextLockout.lockout_at
+                    )}`
+                  : "All lockouts have commenced"}
               </p>
             </div>
 
@@ -963,6 +1011,45 @@ export default function EditTeamPage() {
             </Link>
           </div>
         </header>
+
+        <section className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {roundLockouts.map((lockout) => {
+            const isLocked =
+              currentTime >=
+              new Date(lockout.lockout_at).getTime();
+
+            return (
+              <div
+                key={lockout.id}
+                className={`rounded-xl border p-4 ${
+                  isLocked
+                    ? "border-slate-300 bg-slate-200"
+                    : "border-teal-200 bg-white"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-bold text-slate-900">
+                    {lockout.display_name}
+                  </p>
+
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                      isLocked
+                        ? "bg-slate-700 text-white"
+                        : "bg-green-100 text-green-800"
+                    }`}
+                  >
+                    {isLocked ? "Locked" : "Open"}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-sm text-slate-600">
+                  {formatDateTime(lockout.lockout_at)}
+                </p>
+              </div>
+            );
+          })}
+        </section>
 
         {errorMessage && (
           <div className="mt-6 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
@@ -1186,6 +1273,10 @@ export default function EditTeamPage() {
                   const isUnavailable =
                     entry.entry_status !== "runner";
 
+                  const isLocked = entryIsLocked(entry);
+                  const entryLockout =
+                    getEntryLockout(entry);
+
                   const wouldExceedBudget =
                     !isSelected &&
                     salaryUsed + entry.price_at_entry >
@@ -1223,6 +1314,12 @@ export default function EditTeamPage() {
                                   )}
                                 </span>
                               )}
+
+                              {isLocked && (
+                                <span className="rounded-full bg-slate-700 px-2 py-1 text-xs font-bold text-white">
+                                  🔒 Locked
+                                </span>
+                              )}
                             </div>
 
                             <p className="mt-1 text-sm text-slate-600">
@@ -1237,6 +1334,15 @@ export default function EditTeamPage() {
                                 {entry.race.racecourse
                                   ? ` · ${entry.race.racecourse.name}`
                                   : ""}
+                              </p>
+                            )}
+
+                            {entryLockout && (
+                              <p className="mt-1 text-xs font-semibold text-slate-500">
+                                {entryLockout.display_name}:{" "}
+                                {formatDateTime(
+                                  entryLockout.lockout_at
+                                )}
                               </p>
                             )}
                           </div>
@@ -1261,6 +1367,7 @@ export default function EditTeamPage() {
                             type="button"
                             onClick={() => toggleEntry(entry)}
                             disabled={
+                              isLocked ||
                               isUnavailable ||
                               (!isSelected &&
                                 (selectedCount >= teamSize ||
@@ -1272,7 +1379,11 @@ export default function EditTeamPage() {
                                 : "bg-teal-900 text-white hover:bg-teal-700"
                             } disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500`}
                           >
-                            {isSelected ? "Remove" : "Select"}
+                            {isLocked
+                              ? "Locked"
+                              : isSelected
+                                ? "Remove"
+                                : "Select"}
                           </button>
                         </div>
                       </div>
@@ -1304,6 +1415,9 @@ export default function EditTeamPage() {
                   {selectedEntries.map((entry) => {
                     const isCaptain =
                       entry.id === captainEntryId;
+                    const isLocked = entryIsLocked(entry);
+                    const entryLockout =
+                      getEntryLockout(entry);
 
                     return (
                       <div key={entry.id} className="p-4">
@@ -1320,6 +1434,12 @@ export default function EditTeamPage() {
                                   Captain
                                 </span>
                               )}
+
+                              {isLocked && (
+                                <span className="rounded-full bg-slate-700 px-2 py-1 text-xs font-bold text-white">
+                                  🔒 Locked
+                                </span>
+                              )}
                             </div>
 
                             <p className="mt-1 text-sm text-slate-500">
@@ -1333,6 +1453,12 @@ export default function EditTeamPage() {
                                 entry.price_at_entry
                               )}
                             </p>
+
+                            {entryLockout && (
+                              <p className="mt-1 text-xs text-slate-500">
+                                {entryLockout.display_name}
+                              </p>
+                            )}
                           </div>
 
                           <button
@@ -1340,7 +1466,11 @@ export default function EditTeamPage() {
                             onClick={() =>
                               selectCaptain(entry.id)
                             }
-                            className={`rounded-lg px-3 py-2 text-xs font-bold ${
+                            disabled={
+                              isLocked ||
+                              Boolean(lockedCaptainEntryId)
+                            }
+                            className={`rounded-lg px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50 ${
                               isCaptain
                                 ? "bg-amber-500 text-white"
                                 : "border border-amber-500 text-amber-800 hover:bg-amber-50"
@@ -1348,7 +1478,9 @@ export default function EditTeamPage() {
                           >
                             {isCaptain
                               ? "Captain"
-                              : "Make Captain"}
+                              : isLocked
+                                ? "Locked"
+                                : "Make Captain"}
                           </button>
                         </div>
                       </div>

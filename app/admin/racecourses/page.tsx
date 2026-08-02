@@ -434,7 +434,7 @@ export default function AdminRacecoursesPage() {
                   }
                   placeholder="Flemington"
                   required
-                  className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                 />
               </div>
 
@@ -455,7 +455,7 @@ export default function AdminRacecoursesPage() {
                       updateForm("city", event.target.value)
                     }
                     placeholder="Melbourne"
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                   />
                 </div>
 
@@ -474,7 +474,7 @@ export default function AdminRacecoursesPage() {
                       updateForm("state", event.target.value)
                     }
                     required
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                   >
                     <option value="">Select a state</option>
 
@@ -494,7 +494,7 @@ export default function AdminRacecoursesPage() {
                   onChange={(event) =>
                     updateForm("is_active", event.target.checked)
                   }
-                  className="h-4 w-4 accent-green-800"
+                  className="h-4 w-4 accent-teal-700"
                 />
 
                 <span>
@@ -521,7 +521,7 @@ export default function AdminRacecoursesPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-lg bg-green-800 px-5 py-3 font-semibold text-white hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
                 >
                   {saving
                     ? "Saving..."
