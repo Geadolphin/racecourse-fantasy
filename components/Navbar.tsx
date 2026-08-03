@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -158,16 +157,9 @@ export default function Navbar() {
         <Link
           href="/"
           aria-label="Racecourse Fantasy home"
-          className="flex shrink-0 items-center"
+          className="shrink-0 text-lg font-bold tracking-tight text-white transition hover:text-teal-300 sm:text-xl"
         >
-          <Image
-            src="/logo.svg"
-            alt="Racecourse Fantasy"
-            width={350}
-            height={80}
-            priority
-            className="h-11 w-auto object-contain sm:h-12"
-          />
+          RACECOURSE FANTASY
         </Link>
 
         {!loading && user && (
