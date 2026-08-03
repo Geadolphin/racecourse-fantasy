@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="320" viewBox="0 0 1400 320" role="img" aria-labelledby="title desc">
+  <title id="title">Racecourse Fantasy logo</title>
+  <desc id="desc">Transparent horizontal logo with an RF horse emblem, white Racecourse text and teal Fantasy text.</desc>
+  <defs>
+    <linearGradient id="tealGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00A89A"/>
+      <stop offset="100%" stop-color="#009689"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(24,18)">
+    <path d="M70 252 C120 286, 215 292, 282 240" fill="none" stroke="#009689" stroke-width="12" stroke-linecap="round"/>
+    <path d="M286 232 C301 203, 308 171, 306 139" fill="none" stroke="#009689" stroke-width="8" stroke-linecap="round"/>
+
+    <path d="M58 94 C118 44, 199 37, 250 62 C189 57, 126 80, 82 111 Z" fill="#009689"/>
+    <path d="M43 116 C110 76, 177 66, 234 72 C168 84, 110 108, 68 132 Z" fill="#00A89A"/>
+
+    <path d="M242 61 L262 44 L263 70 C286 80, 304 98, 318 119 L340 153 L332 173 L306 182 L279 169 L268 148 C250 151, 229 145, 217 131 C228 119, 232 103, 230 87 C233 77, 237 68, 242 61 Z"
+          fill="#0f172b" stroke="#ffffff" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M259 91 C275 92, 286 101, 294 115" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+    <path d="M300 145 L320 153" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+
+    <path d="M66 126 H190 C230 126, 249 144, 249 178 C249 206, 234 223, 207 231 L245 286 H177 L144 237 H120 L106 286 H43 Z
+             M128 166 L119 205 H166 C179 205, 188 198, 188 185 C188 172, 178 166, 164 166 Z"
+          fill="#ffffff" fill-rule="evenodd"/>
+    <path d="M215 126 H336 L323 169 H269 L262 192 H311 L299 232 H250 L234 286 H176 Z" fill="url(#tealGrad)"/>
+  </g>
+
+  <line x1="390" y1="62" x2="390" y2="258" stroke="#ffffff" stroke-opacity="0.28" stroke-width="2"/>
+
+  <g transform="translate(435,0)">
+    <text x="0" y="151" fill="#ffffff"
+          font-family="Arial Black, Arial, Helvetica, sans-serif"
+          font-size="88" font-weight="900" font-style="italic" letter-spacing="1.5">RACECOURSE</text>
+
+    <line x1="4" y1="206" x2="110" y2="206" stroke="#009689" stroke-width="7" stroke-linecap="round"/>
+    <text x="145" y="226" fill="#009689"
+          font-family="Arial, Helvetica, sans-serif"
+          font-size="52" font-weight="700" letter-spacing="18">FANTASY</text>
+    <line x1="735" y1="206" x2="845" y2="206" stroke="#009689" stroke-width="7" stroke-linecap="round"/>
+  </g>
+</svg>
