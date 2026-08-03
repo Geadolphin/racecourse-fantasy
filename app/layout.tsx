@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   },
   description:
     "Build your fantasy stable and compete throughout the Spring Carnival.",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({
