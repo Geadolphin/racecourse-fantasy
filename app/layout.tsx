@@ -47,13 +47,6 @@ export default function RootLayout({
               >
                 Terms & Conditions
               </Link>
-
-              <Link
-                href="/contact"
-                className="transition hover:text-teal-600"
-              >
-                Contact
-              </Link>
             </div>
           </div>
         </footer>
