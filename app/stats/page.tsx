@@ -264,8 +264,16 @@ export default function StatsPage() {
     return rows;
   }, [data, horseSortDirection, horseSortKey]);
 
+  const participatingPlayerLeaders = useMemo(
+    () =>
+      (data?.player_leaders ?? []).filter(
+        (player) => Number(player.rounds_played) > 0
+      ),
+    [data]
+  );
+
   const sortedPlayerLeaders = useMemo(() => {
-    const rows = [...(data?.player_leaders ?? [])];
+    const rows = [...participatingPlayerLeaders];
 
     rows.sort((a, b) => {
       let comparison = 0;
@@ -315,7 +323,11 @@ export default function StatsPage() {
     });
 
     return rows;
-  }, [data, playerSortDirection, playerSortKey]);
+  }, [
+    participatingPlayerLeaders,
+    playerSortDirection,
+    playerSortKey,
+  ]);
 
   function changeHorseSort(nextKey: HorseSortKey) {
     if (horseSortKey === nextKey) {
@@ -463,7 +475,7 @@ export default function StatsPage() {
               </p>
             </div>
             <p className="mt-3 text-3xl font-black text-slate-950">
-              {summary.players}
+              {participatingPlayerLeaders.length}
             </p>
           </div>
 
@@ -633,9 +645,10 @@ export default function StatsPage() {
               </h2>
             </div>
 
-            {(data.player_leaders ?? []).length === 0 ? (
+            {participatingPlayerLeaders.length === 0 ? (
               <div className="p-10 text-center text-slate-500">
-                No player statistics are available yet.
+                Player statistics will appear after a player has a score
+                recorded in an official round.
               </div>
             ) : (
               <div className="overflow-x-auto">
