@@ -84,7 +84,7 @@ export default function TermsPage() {
             </p>
             <ul className="mt-4 list-disc space-y-2 pl-6">
               <li>Each player selects 10 horses per round.</li>
-              <li>The salary cap is $2,750,000.</li>
+              <li>The salary cap is $2,500,000.</li>
               <li>Each team must have one captain.</li>
               <li>The captain scores double fantasy points.</li>
               <li>Teams reset at the beginning of each round.</li>
