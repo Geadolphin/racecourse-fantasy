@@ -15,6 +15,13 @@ import {
 
 import { supabase } from "@/lib/supabase";
 
+type Season = {
+  id: string;
+  name: string;
+  year: number;
+  is_active: boolean;
+};
+
 type Racecourse = {
   id: string;
   name: string;
@@ -209,6 +216,8 @@ function getFinishLabel(
 
 export default function CalendarPage() {
   const [rounds, setRounds] = useState<Round[]>([]);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [expandedRoundIds, setExpandedRoundIds] = useState<Set<string>>(
     new Set()
   );
@@ -230,23 +239,36 @@ export default function CalendarPage() {
       setLoading(true);
       setErrorMessage("");
 
-      const { data, error } = await supabase.rpc(
-        "get_calendar_data"
-      );
+      const [calendarResponse, seasonsResponse] = await Promise.all([
+        supabase.rpc("get_calendar_data"),
+        supabase
+          .from("seasons")
+          .select("id, name, year, is_active")
+          .order("year", { ascending: false }),
+      ]);
 
       if (!active) {
         return;
       }
 
-      if (error) {
-        console.error("Calendar load error:", error);
-        setErrorMessage(
-          error.message || "The season calendar could not be loaded."
+      if (calendarResponse.error || seasonsResponse.error) {
+        const message =
+          calendarResponse.error?.message ||
+          seasonsResponse.error?.message ||
+          "The season calendar could not be loaded.";
+
+        console.error(
+          "Calendar load error:",
+          calendarResponse.error || seasonsResponse.error
         );
+        setErrorMessage(message);
         setRounds([]);
+        setSeasons([]);
         setLoading(false);
         return;
       }
+
+      const data = calendarResponse.data;
 
       const calendarData = data as unknown as {
         success: boolean;
@@ -272,14 +294,31 @@ export default function CalendarPage() {
 
       setRounds(loadedRounds);
 
+      const loadedSeasons = (seasonsResponse.data ?? []) as Season[];
+      setSeasons(loadedSeasons);
+
+      const preferredSeason =
+        loadedSeasons.find((season) => season.is_active) ??
+        loadedSeasons[0] ??
+        null;
+
+      const preferredSeasonId = preferredSeason?.id ?? "";
+      setSelectedSeasonId(preferredSeasonId);
+
+      const seasonRounds = preferredSeasonId
+        ? loadedRounds.filter(
+            (round) => round.season_id === preferredSeasonId
+          )
+        : [];
+
       const activeRound =
-        loadedRounds.find((round) =>
+        seasonRounds.find((round) =>
           ["open", "locked", "scoring"].includes(round.status)
         ) ??
-        [...loadedRounds]
+        [...seasonRounds]
           .reverse()
           .find((round) => round.status === "completed") ??
-        loadedRounds[0];
+        seasonRounds[0];
 
       setExpandedRoundIds(
         activeRound ? new Set([activeRound.id]) : new Set()
@@ -295,16 +334,56 @@ export default function CalendarPage() {
     };
   }, []);
 
+  const filteredRounds = useMemo(() => {
+    if (!selectedSeasonId) {
+      return [];
+    }
+
+    return rounds.filter(
+      (round) => round.season_id === selectedSeasonId
+    );
+  }, [rounds, selectedSeasonId]);
+
+  const selectedSeason = useMemo(() => {
+    return (
+      seasons.find((season) => season.id === selectedSeasonId) ?? null
+    );
+  }, [seasons, selectedSeasonId]);
+
   const totalRaces = useMemo(() => {
-    return rounds.reduce(
+    return filteredRounds.reduce(
       (total, round) => total + round.races.length,
       0
     );
-  }, [rounds]);
+  }, [filteredRounds]);
 
   const completedRounds = useMemo(() => {
-    return rounds.filter((round) => round.status === "completed").length;
-  }, [rounds]);
+    return filteredRounds.filter(
+      (round) => round.status === "completed"
+    ).length;
+  }, [filteredRounds]);
+
+  function handleSeasonChange(seasonId: string) {
+    setSelectedSeasonId(seasonId);
+    setSelectedRaceId(null);
+
+    const seasonRounds = rounds.filter(
+      (round) => round.season_id === seasonId
+    );
+
+    const activeRound =
+      seasonRounds.find((round) =>
+        ["open", "locked", "scoring"].includes(round.status)
+      ) ??
+      [...seasonRounds]
+        .reverse()
+        .find((round) => round.status === "completed") ??
+      seasonRounds[0];
+
+    setExpandedRoundIds(
+      activeRound ? new Set([activeRound.id]) : new Set()
+    );
+  }
 
   function toggleRound(roundId: string) {
     setExpandedRoundIds((current) => {
@@ -321,7 +400,7 @@ export default function CalendarPage() {
   }
 
   function expandAll() {
-    setExpandedRoundIds(new Set(rounds.map((round) => round.id)));
+    setExpandedRoundIds(new Set(filteredRounds.map((round) => round.id)));
   }
 
   function collapseAll() {
@@ -450,13 +529,21 @@ export default function CalendarPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="flex flex-col gap-3">
+              {selectedSeason && (
+                <p className="text-sm font-bold text-teal-300 lg:text-right">
+                  {selectedSeason.name} {selectedSeason.year}
+                  {selectedSeason.is_active ? " — Active" : ""}
+                </p>
+              )}
+
+              <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                   Rounds
                 </p>
                 <p className="mt-1 text-2xl font-black">
-                  {rounds.length}
+                  {filteredRounds.length}
                 </p>
               </div>
 
@@ -477,6 +564,7 @@ export default function CalendarPage() {
                   {totalRaces}
                 </p>
               </div>
+              </div>
             </div>
           </div>
         </header>
@@ -485,6 +573,40 @@ export default function CalendarPage() {
           <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
             {errorMessage}
           </div>
+        )}
+
+        {seasons.length > 0 && (
+          <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <label
+                  htmlFor="season-filter"
+                  className="block text-sm font-bold text-slate-800"
+                >
+                  Season
+                </label>
+                <p className="mt-1 text-sm text-slate-500">
+                  Choose which season&apos;s calendar you want to view.
+                </p>
+              </div>
+
+              <select
+                id="season-filter"
+                value={selectedSeasonId}
+                onChange={(event) =>
+                  handleSeasonChange(event.target.value)
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 sm:w-80"
+              >
+                {seasons.map((season) => (
+                  <option key={season.id} value={season.id}>
+                    {season.name} {season.year}
+                    {season.is_active ? " — Active" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </section>
         )}
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -517,20 +639,19 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {rounds.length === 0 ? (
+        {filteredRounds.length === 0 ? (
           <section className="mt-5 rounded-2xl border bg-white p-10 text-center shadow-sm">
             <CalendarDays className="mx-auto h-10 w-10 text-slate-400" />
             <h2 className="mt-4 text-2xl font-black text-slate-950">
               No rounds available
             </h2>
             <p className="mt-2 text-slate-600">
-              The season calendar will appear once rounds have been
-              created.
+              No rounds are available for the selected season yet.
             </p>
           </section>
         ) : (
           <div className="mt-5 space-y-4">
-            {rounds.map((round) => {
+            {filteredRounds.map((round) => {
               const expanded = expandedRoundIds.has(round.id);
               const racecourseGroups = groupRacesByRacecourse(round.races);
 
