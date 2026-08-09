@@ -1163,7 +1163,7 @@ export default function EditTeamPage() {
           </div>
         </details>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(300px,0.7fr)_minmax(0,1.3fr)] xl:grid-cols-[minmax(320px,0.62fr)_minmax(0,1.38fr)]">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(280px,0.62fr)_minmax(0,1.38fr)] xl:grid-cols-[minmax(300px,0.55fr)_minmax(0,1.45fr)]">
           <section className="min-w-0">
             <div className="rounded-xl border bg-white p-4 shadow-sm">
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1368,7 +1368,7 @@ export default function EditTeamPage() {
 
           <aside className="hidden lg:block">
             <div className="sticky top-4 overflow-hidden rounded-xl border bg-white shadow-sm">
-              <div className="border-b bg-slate-50 px-5 py-4">
+              <div className="border-b bg-slate-50 px-4 py-3">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-xl font-bold text-slate-900">
@@ -1384,8 +1384,8 @@ export default function EditTeamPage() {
                   </span>
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-white p-2.5 ring-1 ring-slate-200">
                     <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                       Remaining
                     </p>
@@ -1398,7 +1398,7 @@ export default function EditTeamPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                  <div className="rounded-lg bg-white p-2.5 ring-1 ring-slate-200">
                     <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                       Used
                     </p>
@@ -1407,7 +1407,7 @@ export default function EditTeamPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                  <div className="rounded-lg bg-white p-2.5 ring-1 ring-slate-200">
                     <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                       Captain
                     </p>
@@ -1417,7 +1417,7 @@ export default function EditTeamPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
                   <div
                     className={`h-full rounded-full ${
                       salaryUsed > salaryCap ? "bg-red-600" : "bg-green-700"
@@ -1433,13 +1433,13 @@ export default function EditTeamPage() {
                 </div>
               </div>
 
-              <div className="max-h-[calc(100vh-330px)] overflow-y-auto p-4">
+              <div className="p-3">
                 {selectedEntries.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
                     No horses selected.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
                     {selectedEntries.map((entry, index) => {
                       const isCaptain = entry.id === captainEntryId;
                       const isLocked = entryIsLocked(entry);
@@ -1448,7 +1448,7 @@ export default function EditTeamPage() {
                       return (
                         <article
                           key={entry.id}
-                          className={`rounded-xl border p-4 ${
+                          className={`rounded-lg border p-3 ${
                             isCaptain
                               ? "border-amber-300 bg-amber-50"
                               : "border-slate-200 bg-white"
@@ -1457,7 +1457,7 @@ export default function EditTeamPage() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500">
                                   {index + 1}
                                 </span>
 
@@ -1495,52 +1495,55 @@ export default function EditTeamPage() {
                                 </div>
                               </div>
 
-                              <p className="mt-3 text-sm font-semibold text-slate-700">
+                              <p className="mt-2 text-xs font-semibold text-slate-700">
                                 {entry.race
                                   ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}`
                                   : "Race unavailable"}
                               </p>
 
                               {entry.race && (
-                                <p className="mt-1 truncate text-xs text-slate-500">
+                                <p className="mt-0.5 truncate text-[11px] text-slate-500">
                                   {entry.race.race_name}
                                 </p>
                               )}
 
                               {entryLockout && (
-                                <p className="mt-2 text-[11px] text-slate-400">
+                                <p className="mt-1 text-[10px] text-slate-400">
                                   {entryLockout.display_name} ·{" "}
                                   {formatDateTime(entryLockout.lockout_at)}
                                 </p>
                               )}
                             </div>
 
-                            <p className="shrink-0 text-base font-bold text-slate-900">
+                            <p className="shrink-0 text-sm font-bold text-slate-900">
                               {formatCurrency(entry.price_at_entry)}
                             </p>
                           </div>
 
-                          <div className="mt-4 grid grid-cols-2 gap-2">
+                          <div className="mt-2 flex items-center justify-end gap-1.5">
                             <button
                               type="button"
                               onClick={() => selectCaptain(entry.id)}
                               disabled={isLocked || Boolean(lockedCaptainEntryId)}
-                              className={`rounded-lg px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
+                              className={`inline-flex h-7 items-center justify-center rounded-md px-2 text-[10px] font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
                                 isCaptain
                                   ? "bg-amber-500 text-white"
                                   : "border border-amber-400 bg-white text-amber-800 hover:bg-amber-50"
                               }`}
+                              title={isCaptain ? "Captain" : "Make captain"}
                             >
-                              {isCaptain ? "Captain" : "Make Captain"}
+                              {isCaptain ? "C" : "Make C"}
                             </button>
 
                             <button
                               type="button"
                               onClick={() => toggleEntry(entry)}
                               disabled={isLocked}
-                              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              title="Remove horse"
+                              aria-label={`Remove ${entry.horse?.name ?? "horse"}`}
                             >
-                              Remove
+                              ×
                             </button>
                           </div>
                         </article>
@@ -1550,7 +1553,7 @@ export default function EditTeamPage() {
                 )}
               </div>
 
-              <div className="border-t bg-slate-50 p-4">
+              <div className="border-t bg-slate-50 p-3">
                 {!teamIsComplete && (
                   <p className="mb-3 text-xs leading-5 text-amber-800">
                     Select {teamSize} horses, stay under the cap and choose a captain.
