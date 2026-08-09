@@ -112,6 +112,22 @@ type SortOption =
   | "price-low"
   | "name";
 
+const priceFilterOptions = [
+  30000,
+  50000,
+  100000,
+  150000,
+  200000,
+  250000,
+  300000,
+  350000,
+  400000,
+  450000,
+  500000,
+  550000,
+  600000,
+];
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -170,6 +186,8 @@ export default function EditTeamPage() {
   const [raceTypeFilter, setRaceTypeFilter] =
     useState<RaceTypeFilter>("all");
   const [raceFilter, setRaceFilter] = useState("all");
+  const [minPriceFilter, setMinPriceFilter] = useState("any");
+  const [maxPriceFilter, setMaxPriceFilter] = useState("any");
   const [sortOption, setSortOption] =
     useState<SortOption>("race");
 
@@ -656,7 +674,21 @@ export default function EditTeamPage() {
         raceFilter === "all" ||
         entry.race_id === raceFilter;
 
-      return matchesSearch && matchesGrade && matchesRace;
+      const matchesMinPrice =
+        minPriceFilter === "any" ||
+        entry.price_at_entry >= Number(minPriceFilter);
+
+      const matchesMaxPrice =
+        maxPriceFilter === "any" ||
+        entry.price_at_entry <= Number(maxPriceFilter);
+
+      return (
+        matchesSearch &&
+        matchesGrade &&
+        matchesRace &&
+        matchesMinPrice &&
+        matchesMaxPrice
+      );
     });
 
     return [...filtered].sort((a, b) => {
@@ -693,6 +725,8 @@ export default function EditTeamPage() {
     });
   }, [
     entries,
+    maxPriceFilter,
+    minPriceFilter,
     raceFilter,
     raceTypeFilter,
     searchTerm,
@@ -1191,7 +1225,7 @@ export default function EditTeamPage() {
                 Available Horses
               </h2>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                 <input
                   type="search"
                   value={searchTerm}
@@ -1235,6 +1269,54 @@ export default function EditTeamPage() {
                       {raceOption.racecourse?.name ?? "Racecourse"} R
                       {raceOption.race_number} —{" "}
                       {raceOption.race_name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={minPriceFilter}
+                  onChange={(event) => {
+                    const nextMin = event.target.value;
+                    setMinPriceFilter(nextMin);
+
+                    if (
+                      nextMin !== "any" &&
+                      maxPriceFilter !== "any" &&
+                      Number(nextMin) > Number(maxPriceFilter)
+                    ) {
+                      setMaxPriceFilter("any");
+                    }
+                  }}
+                  className="rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700"
+                >
+                  <option value="any">Any minimum price</option>
+                  {priceFilterOptions.map((price) => (
+                    <option key={`min-${price}`} value={price}>
+                      {formatCurrency(price)}+
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={maxPriceFilter}
+                  onChange={(event) => {
+                    const nextMax = event.target.value;
+                    setMaxPriceFilter(nextMax);
+
+                    if (
+                      nextMax !== "any" &&
+                      minPriceFilter !== "any" &&
+                      Number(nextMax) < Number(minPriceFilter)
+                    ) {
+                      setMinPriceFilter("any");
+                    }
+                  }}
+                  className="rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700"
+                >
+                  <option value="any">Any maximum price</option>
+                  {priceFilterOptions.map((price) => (
+                    <option key={`max-${price}`} value={price}>
+                      Up to {formatCurrency(price)}
                     </option>
                   ))}
                 </select>
