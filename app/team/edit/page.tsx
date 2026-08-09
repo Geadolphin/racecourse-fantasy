@@ -1439,7 +1439,7 @@ export default function EditTeamPage() {
                     No horses selected.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
                     {selectedEntries.map((entry) => {
                       const isCaptain = entry.id === captainEntryId;
                       const isLocked = entryIsLocked(entry);
@@ -1448,96 +1448,78 @@ export default function EditTeamPage() {
                       return (
                         <article
                           key={entry.id}
-                          className={`rounded-lg border px-3 py-2.5 ${
+                          className={`rounded-xl border px-4 py-3 ${
                             isCaptain
                               ? "border-amber-300 bg-amber-50"
                               : "border-slate-200 bg-white"
                           }`}
                         >
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-center justify-between gap-4">
                             <div className="min-w-0 flex-1">
-                              <div className="flex min-w-0 items-center gap-2">
-                                {entry.horse?.id ? (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setSelectedHorseId(entry.horse!.id)
-                                    }
-                                    className="min-w-0 truncate text-left text-lg font-black leading-tight text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
-                                    aria-label={`View statistics for ${entry.horse.name}`}
-                                  >
-                                    {entry.horse.name}
-                                  </button>
-                                ) : (
-                                  <p className="truncate text-lg font-black leading-tight text-slate-950">
-                                    Unknown horse
-                                  </p>
-                                )}
+                              {entry.horse?.id ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedHorseId(entry.horse!.id)
+                                  }
+                                  className="truncate text-left text-lg font-semibold leading-tight text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                  aria-label={`View statistics for ${entry.horse.name}`}
+                                >
+                                  {entry.horse.name}
+                                </button>
+                              ) : (
+                                <p className="truncate text-lg font-semibold leading-tight text-slate-950">
+                                  Unknown horse
+                                </p>
+                              )}
+                            </div>
 
-                                {isCaptain && (
-                                  <span className="shrink-0 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                                    C
-                                  </span>
-                                )}
+                            <p className="shrink-0 text-lg font-semibold leading-tight text-slate-950">
+                              {formatCurrency(entry.price_at_entry)}
+                            </p>
+                          </div>
 
-                                {isLocked && (
-                                  <span className="shrink-0 rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-bold text-slate-800">
-                                    LOCKED
-                                  </span>
-                                )}
-                              </div>
-
-                              <p className="mt-1 text-xs font-bold text-slate-950">
+                          <div className="mt-2 flex items-center gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-slate-950">
                                 {entry.race
-                                  ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}`
+                                  ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number} · ${entry.race.race_name}`
                                   : "Race unavailable"}
                               </p>
 
-                              {entry.race && (
-                                <p className="mt-0.5 truncate text-[11px] font-medium text-slate-950">
-                                  {entry.race.race_name}
-                                </p>
-                              )}
-
                               {entryLockout && (
-                                <p className="mt-0.5 text-[10px] font-medium text-slate-800">
+                                <p className="mt-0.5 truncate text-[10px] font-medium text-slate-700">
                                   {entryLockout.display_name} ·{" "}
                                   {formatDateTime(entryLockout.lockout_at)}
                                 </p>
                               )}
                             </div>
 
-                            <div className="flex shrink-0 flex-col items-end gap-1.5">
-                              <p className="text-lg font-black leading-tight text-slate-950">
-                                {formatCurrency(entry.price_at_entry)}
-                              </p>
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => selectCaptain(entry.id)}
+                                disabled={isLocked || Boolean(lockedCaptainEntryId)}
+                                className={`inline-flex h-7 items-center justify-center rounded-md px-2.5 text-[10px] font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
+                                  isCaptain
+                                    ? "bg-amber-500 text-white"
+                                    : "border border-amber-400 bg-white text-amber-800 hover:bg-amber-50"
+                                }`}
+                                title={isCaptain ? "Captain" : "Make captain"}
+                              >
+                                {isCaptain ? "Captain" : "Make C"}
+                              </button>
 
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => selectCaptain(entry.id)}
-                                  disabled={isLocked || Boolean(lockedCaptainEntryId)}
-                                  className={`inline-flex h-6 items-center justify-center rounded px-2 text-[10px] font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
-                                    isCaptain
-                                      ? "bg-amber-500 text-white"
-                                      : "border border-amber-400 bg-white text-amber-800 hover:bg-amber-50"
-                                  }`}
-                                  title={isCaptain ? "Captain" : "Make captain"}
-                                >
-                                  {isCaptain ? "Captain" : "Make C"}
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => toggleEntry(entry)}
-                                  disabled={isLocked}
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded border border-red-200 bg-white text-sm font-bold leading-none text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                  title="Remove horse"
-                                  aria-label={`Remove ${entry.horse?.name ?? "horse"}`}
-                                >
-                                  ×
-                                </button>
-                              </div>
+                              <button
+                                type="button"
+                                onClick={() => toggleEntry(entry)}
+                                disabled={isLocked}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-sm font-bold leading-none text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Remove horse"
+                                aria-label={`Remove ${entry.horse?.name ?? "horse"}`}
+                              >
+                                ×
+                              </button>
                             </div>
                           </div>
                         </article>
