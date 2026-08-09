@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import HorseProfileModal from "@/components/HorseProfileModal";
+
 import { supabase } from "@/lib/supabase";
 
 type Season = {
@@ -185,6 +187,8 @@ export default function EditTeamPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [raceTypeFilter, setRaceTypeFilter] =
     useState<RaceTypeFilter>("all");
+  const [selectedHorseId, setSelectedHorseId] = useState<string | null>(null);
+
   const [raceFilter, setRaceFilter] = useState("all");
   const [minPriceFilter, setMinPriceFilter] = useState("any");
   const [maxPriceFilter, setMaxPriceFilter] = useState("any");
@@ -1378,10 +1382,22 @@ export default function EditTeamPage() {
 
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-bold text-slate-900">
-                                {entry.horse?.name ??
-                                  "Unknown horse"}
-                              </h3>
+                              {entry.horse?.id ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedHorseId(entry.horse!.id)
+                                  }
+                                  className="text-left text-lg font-bold text-slate-900 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                  aria-label={`View statistics for ${entry.horse.name}`}
+                                >
+                                  {entry.horse.name}
+                                </button>
+                              ) : (
+                                <h3 className="text-lg font-bold text-slate-900">
+                                  Unknown horse
+                                </h3>
+                              )}
 
                               {isSelected && (
                                 <span className="rounded-full bg-teal-700 px-2 py-1 text-xs font-bold text-white">
@@ -1575,6 +1591,11 @@ export default function EditTeamPage() {
           </aside>
         </div>
       </div>
+
+      <HorseProfileModal
+        horseId={selectedHorseId}
+        onClose={() => setSelectedHorseId(null)}
+      />
     </main>
   );
 }
