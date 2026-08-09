@@ -364,8 +364,22 @@ export default function RulesPage() {
                         >
                             <p>
                                 Horse prices change after official results according to
-                                race grade and finishing result.
+                                race grade and finishing result, provided the race had at
+                                least 8 official starters.
                             </p>
+
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                <p className="font-bold text-amber-900">
+                                    Minimum field size for price changes
+                                </p>
+
+                                <p className="mt-2 text-sm text-amber-900">
+                                    A race must have at least 8 official starters for any
+                                    horse price changes to apply. If fewer than 8 horses
+                                    start the race, all horse prices remain unchanged.
+                                    Fantasy points are still awarded normally.
+                                </p>
+                            </div>
 
                             <div className="overflow-hidden rounded-xl border border-slate-200">
                                 <table className="w-full divide-y divide-slate-200">
@@ -416,11 +430,25 @@ export default function RulesPage() {
                             <ul className="list-disc space-y-2 pl-5">
                                 <li>Horse prices never fall below $30,000.</li>
                                 <li>
-                                    Results not listed in the table create no price
-                                    movement.
+                                    Price changes only apply when there are at least 8
+                                    official starters in the race.
                                 </li>
                                 <li>
-                                    Non-finishers and scratched horses create no price
+                                    If fewer than 8 horses officially start, every horse in
+                                    the race has no price movement, regardless of finishing
+                                    position.
+                                </li>
+                                <li>
+                                    Non-finishers count as official starters for the
+                                    8-starter minimum, but still receive no fantasy points
+                                    and no price movement themselves.
+                                </li>
+                                <li>
+                                    Scratched horses do not count as official starters and
+                                    create no price movement.
+                                </li>
+                                <li>
+                                    Results not listed in the table create no price
                                     movement.
                                 </li>
                             </ul>
@@ -448,8 +476,9 @@ export default function RulesPage() {
                                     </h3>
                                     <p className="mt-2 text-sm text-slate-700">
                                         Dead-heated horses receive the full fantasy points
-                                        and price movement attached to their official
-                                        finishing position.
+                                        attached to their official finishing position. Any
+                                        applicable price movement also applies, provided the
+                                        race had at least 8 official starters.
                                     </p>
                                 </div>
 
@@ -459,7 +488,9 @@ export default function RulesPage() {
                                     </h3>
                                     <p className="mt-2 text-sm text-slate-700">
                                         Non-finishers receive zero fantasy points and no
-                                        price movement.
+                                        price movement. They still count as official
+                                        starters when determining whether the race meets the
+                                        8-starter minimum for price changes.
                                     </p>
                                 </div>
 

@@ -786,10 +786,13 @@ export default function ResultsPage() {
           distinctFinishedPositions
         );
 
-        const priceChange = getPriceChange(
-          selectedRace.grade,
-          priceResultKey
-        );
+        const priceChange =
+          runnerCount >= 8
+            ? getPriceChange(
+                selectedRace.grade,
+                priceResultKey
+              )
+            : 0;
 
         const priceAfter = Math.max(
           30000,
@@ -1057,7 +1060,7 @@ export default function ResultsPage() {
           </h3>
 
           <p className="mt-1 text-sm text-slate-500">
-            Enter a position for every finished horse. Non-finishers and scratched horses receive zero fantasy points and no price change.
+            Enter a position for every finished horse. Non-finishers and scratched horses receive zero fantasy points and no price change. Horse price changes only apply when there are at least 8 official starters.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-3">
@@ -1073,6 +1076,14 @@ export default function ResultsPage() {
               Scratched: {scratchedCount}
             </span>
           </div>
+
+          {runnerCount < 8 && (
+            <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-800">
+              No horse price changes will apply because this race has fewer
+              than 8 official starters. Fantasy points will still be awarded
+              normally.
+            </div>
+          )}
 
           {isRaceOfficial && (
             <div className="mt-4 rounded-lg border border-green-300 bg-green-50 p-3 text-sm font-medium text-green-800">
@@ -1269,9 +1280,11 @@ export default function ResultsPage() {
 
                     <td className="px-4 py-4 text-sm font-medium text-slate-700">
                       {calculatedResult
-                        ? getPriceRuleLabel(
-                            calculatedResult.price_result_key
-                          )
+                        ? runnerCount < 8
+                          ? "No change (< 8 starters)"
+                          : getPriceRuleLabel(
+                              calculatedResult.price_result_key
+                            )
                         : "—"}
                     </td>
 
