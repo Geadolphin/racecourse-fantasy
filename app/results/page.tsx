@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import RaceCard from "./RaceCard";
 import RoundSummary from "./RoundSummary";
@@ -87,6 +88,9 @@ export default function ResultsPage() {
     useState<ScoreRecord | null>(null);
 
   const [teamStatus, setTeamStatus] = useState<string | null>(null);
+  const [expandedRaceIds, setExpandedRaceIds] = useState<Set<string>>(
+    new Set()
+  );
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -155,6 +159,17 @@ export default function ResultsPage() {
       setRoundScoreRecord(resultsData.round_score);
       setSeasonScoreRecord(resultsData.season_score);
       setTeamStatus(resultsData.team?.status ?? null);
+
+      const loadedRaces = resultsData.races ?? [];
+      const firstRelevantRace =
+        loadedRaces.find((race) => race.status === "running") ??
+        loadedRaces.find((race) => race.status === "official") ??
+        loadedRaces[0];
+
+      setExpandedRaceIds(
+        firstRelevantRace ? new Set([firstRelevantRace.id]) : new Set()
+      );
+
       setLoading(false);
     }
 
@@ -256,6 +271,28 @@ export default function ResultsPage() {
   const officialRaceCount = races.filter(
     (race) => race.status === "official"
   ).length;
+
+  function toggleRace(raceId: string) {
+    setExpandedRaceIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(raceId)) {
+        next.delete(raceId);
+      } else {
+        next.add(raceId);
+      }
+
+      return next;
+    });
+  }
+
+  function expandAllRaces() {
+    setExpandedRaceIds(new Set(races.map((race) => race.id)));
+  }
+
+  function collapseAllRaces() {
+    setExpandedRaceIds(new Set());
+  }
 
   if (loading) {
     return (
@@ -371,18 +408,116 @@ export default function ResultsPage() {
             </p>
           </div>
         ) : (
-          <div className="mt-6 space-y-6">
-            {races.map((race) => (
-              <RaceCard
-                key={race.id}
-                race={race}
-                entries={entriesByRaceId.get(race.id) ?? []}
-                results={resultsByRaceId.get(race.id) ?? []}
-                selections={
-                  selectionsByRaceId.get(race.id) ?? []
-                }
-              />
-            ))}
+          <div className="mt-6">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  Race Results
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Select a race to expand or collapse its full results.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={expandAllRaces}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Expand all
+                </button>
+
+                <button
+                  type="button"
+                  onClick={collapseAllRaces}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Collapse all
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {races.map((race) => {
+                const expanded = expandedRaceIds.has(race.id);
+                const raceEntries = entriesByRaceId.get(race.id) ?? [];
+                const raceResults = resultsByRaceId.get(race.id) ?? [];
+                const raceSelections =
+                  selectionsByRaceId.get(race.id) ?? [];
+
+                return (
+                  <section
+                    key={race.id}
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleRace(race.id)}
+                      className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-slate-50 sm:px-5"
+                      aria-expanded={expanded}
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="shrink-0 text-slate-500">
+                          {expanded ? (
+                            <ChevronDown className="h-5 w-5" />
+                          ) : (
+                            <ChevronRight className="h-5 w-5" />
+                          )}
+                        </span>
+
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="truncate font-bold text-slate-950">
+                              R{race.race_number} — {race.race_name}
+                            </h3>
+
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${
+                                race.status === "official"
+                                  ? "bg-green-100 text-green-800"
+                                  : race.status === "running"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : race.status === "cancelled" ||
+                                        race.status === "abandoned"
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-slate-100 text-slate-700"
+                              }`}
+                            >
+                              {race.status}
+                            </span>
+                          </div>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            {raceResults.length} results
+                            {raceSelections.length > 0
+                              ? ` · ${raceSelections.length} selected runner${
+                                  raceSelections.length === 1 ? "" : "s"
+                                }`
+                              : ""}
+                          </p>
+                        </div>
+                      </div>
+
+                      <span className="shrink-0 text-xs font-semibold text-slate-500">
+                        {expanded ? "Hide" : "View"}
+                      </span>
+                    </button>
+
+                    {expanded && (
+                      <div className="border-t border-slate-200">
+                        <RaceCard
+                          race={race}
+                          entries={raceEntries}
+                          results={raceResults}
+                          selections={raceSelections}
+                        />
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
