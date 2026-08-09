@@ -1163,7 +1163,7 @@ export default function EditTeamPage() {
           </div>
         </details>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(300px,0.7fr)_minmax(0,1.3fr)] xl:grid-cols-[minmax(320px,0.62fr)_minmax(0,1.38fr)]">
           <section className="min-w-0">
             <div className="rounded-xl border bg-white p-4 shadow-sm">
               <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -1179,7 +1179,7 @@ export default function EditTeamPage() {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 <input
                   type="search"
                   value={searchTerm}
@@ -1274,47 +1274,71 @@ export default function EditTeamPage() {
                   return (
                     <article
                       key={entry.id}
-                      className={`rounded-xl border px-4 py-3 shadow-sm transition ${
-                        isSelected ? "border-teal-600 bg-teal-50" : "bg-white hover:border-slate-300"
+                      className={`rounded-lg border px-3 py-2.5 transition ${
+                        isSelected
+                          ? "border-teal-600 bg-teal-50"
+                          : "bg-white hover:border-slate-300"
                       }`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2.5">
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex min-w-0 items-center gap-1.5">
                             {entry.horse?.id ? (
                               <button
                                 type="button"
                                 onClick={() => setSelectedHorseId(entry.horse!.id)}
-                                className="truncate text-left font-bold text-slate-900 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                className="min-w-0 truncate text-left text-sm font-bold text-slate-900 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
                                 aria-label={`View statistics for ${entry.horse.name}`}
                               >
                                 {entry.horse.name}
                               </button>
                             ) : (
-                              <span className="font-bold text-slate-900">Unknown horse</span>
+                              <span className="truncate text-sm font-bold text-slate-900">
+                                Unknown horse
+                              </span>
                             )}
 
-                            {isSelected && <span className="rounded-full bg-teal-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Selected</span>}
-                            {isUnavailable && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800">{getEntryStatusLabel(entry.entry_status)}</span>}
-                            {isLocked && <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-bold text-white">🔒 Locked</span>}
+                            {isSelected && (
+                              <span className="shrink-0 rounded bg-teal-700 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+                                Selected
+                              </span>
+                            )}
+
+                            {isUnavailable && (
+                              <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-800">
+                                {getEntryStatusLabel(entry.entry_status)}
+                              </span>
+                            )}
+
+                            {isLocked && (
+                              <span className="shrink-0 rounded bg-slate-700 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                                Locked
+                              </span>
+                            )}
                           </div>
 
-                          <p className="mt-1 truncate text-sm text-slate-600">
+                          <p className="mt-0.5 truncate text-[11px] text-slate-500">
                             {entry.race
-                              ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number} · ${entry.race.race_name}`
+                              ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}`
                               : "Race unavailable"}
                           </p>
 
-                          {entryLockout && (
-                            <p className="mt-1 text-xs text-slate-400">
-                              {entryLockout.display_name} · {formatDateTime(entryLockout.lockout_at)}
+                          {entry.race && (
+                            <p className="mt-0.5 truncate text-[10px] text-slate-400">
+                              {entry.race.race_name}
                             </p>
                           )}
                         </div>
 
                         <div className="shrink-0 text-right">
-                          <p className="font-bold text-slate-900">{formatCurrency(entry.price_at_entry)}</p>
-                          {wouldExceedBudget && <p className="mt-0.5 text-[11px] font-bold text-red-700">Over budget</p>}
+                          <p className="text-sm font-bold text-slate-900">
+                            {formatCurrency(entry.price_at_entry)}
+                          </p>
+                          {wouldExceedBudget && (
+                            <p className="text-[10px] font-bold text-red-700">
+                              Over budget
+                            </p>
+                          )}
                         </div>
 
                         <button
@@ -1323,9 +1347,10 @@ export default function EditTeamPage() {
                           disabled={
                             isLocked ||
                             isUnavailable ||
-                            (!isSelected && (selectedCount >= teamSize || wouldExceedBudget))
+                            (!isSelected &&
+                              (selectedCount >= teamSize || wouldExceedBudget))
                           }
-                          className={`w-[82px] shrink-0 rounded-lg px-3 py-2 text-sm font-bold ${
+                          className={`w-[64px] shrink-0 rounded-md px-2 py-1.5 text-xs font-bold ${
                             isSelected
                               ? "bg-red-100 text-red-800 hover:bg-red-200"
                               : "bg-teal-900 text-white hover:bg-teal-700"
@@ -1343,106 +1368,216 @@ export default function EditTeamPage() {
 
           <aside className="hidden lg:block">
             <div className="sticky top-4 overflow-hidden rounded-xl border bg-white shadow-sm">
-              <div className="border-b bg-slate-50 px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
+              <div className="border-b bg-slate-50 px-5 py-4">
+                <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-900">Your Team</h2>
-                    <p className="mt-0.5 text-xs text-slate-500">Choose one selected horse as captain.</p>
+                    <h2 className="text-xl font-bold text-slate-900">
+                      Your Team
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Review your selections, open horse profiles and choose your captain.
+                    </p>
                   </div>
-                  <span className="rounded-full bg-slate-900 px-2.5 py-1 text-xs font-bold text-white">{selectedCount}/{teamSize}</span>
+
+                  <span className="rounded-full bg-slate-900 px-3 py-1.5 text-sm font-bold text-white">
+                    {selectedCount}/{teamSize}
+                  </span>
                 </div>
 
-                <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-white p-2.5 ring-1 ring-slate-200">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Remaining</p>
-                    <p className={`mt-0.5 font-bold ${salaryRemaining < 0 ? "text-red-700" : "text-green-800"}`}>{formatCurrency(salaryRemaining)}</p>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Remaining
+                    </p>
+                    <p
+                      className={`mt-1 text-lg font-bold ${
+                        salaryRemaining < 0 ? "text-red-700" : "text-green-800"
+                      }`}
+                    >
+                      {formatCurrency(salaryRemaining)}
+                    </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Used</p>
-                    <p className="mt-0.5 font-bold text-slate-800">{formatCurrency(salaryUsed)}</p>
+
+                  <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Used
+                    </p>
+                    <p className="mt-1 text-lg font-bold text-slate-800">
+                      {formatCurrency(salaryUsed)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Captain
+                    </p>
+                    <p className="mt-1 truncate text-sm font-bold text-slate-800">
+                      {entries.find((entry) => entry.id === captainEntryId)?.horse?.name ?? "Not selected"}
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
                   <div
-                    className={`h-full rounded-full ${salaryUsed > salaryCap ? "bg-red-600" : "bg-green-700"}`}
-                    style={{ width: `${salaryCap > 0 ? Math.min((salaryUsed / salaryCap) * 100, 100) : 0}%` }}
+                    className={`h-full rounded-full ${
+                      salaryUsed > salaryCap ? "bg-red-600" : "bg-green-700"
+                    }`}
+                    style={{
+                      width: `${
+                        salaryCap > 0
+                          ? Math.min((salaryUsed / salaryCap) * 100, 100)
+                          : 0
+                      }%`,
+                    }}
                   />
                 </div>
               </div>
 
-              <div className="max-h-[calc(100vh-300px)] overflow-y-auto">
+              <div className="max-h-[calc(100vh-330px)] overflow-y-auto p-4">
                 {selectedEntries.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-slate-500">No horses selected.</div>
+                  <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+                    No horses selected.
+                  </div>
                 ) : (
-                  <div className="divide-y">
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                     {selectedEntries.map((entry, index) => {
                       const isCaptain = entry.id === captainEntryId;
                       const isLocked = entryIsLocked(entry);
+                      const entryLockout = getEntryLockout(entry);
 
                       return (
-                        <div key={entry.id} className="flex items-center gap-2.5 px-3 py-2.5">
-                          <span className="w-5 text-center text-xs font-bold text-slate-400">{index + 1}</span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <p className="truncate text-sm font-bold text-slate-900">{entry.horse?.name ?? "Unknown horse"}</p>
-                              {isCaptain && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">C</span>}
-                              {isLocked && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-bold text-slate-700">LOCKED</span>}
+                        <article
+                          key={entry.id}
+                          className={`rounded-xl border p-4 ${
+                            isCaptain
+                              ? "border-amber-300 bg-amber-50"
+                              : "border-slate-200 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                                  {index + 1}
+                                </span>
+
+                                <div className="min-w-0">
+                                  <div className="flex min-w-0 items-center gap-1.5">
+                                    {entry.horse?.id ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setSelectedHorseId(entry.horse!.id)
+                                        }
+                                        className="min-w-0 truncate text-left font-bold text-slate-900 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                        aria-label={`View statistics for ${entry.horse.name}`}
+                                      >
+                                        {entry.horse.name}
+                                      </button>
+                                    ) : (
+                                      <p className="truncate font-bold text-slate-900">
+                                        Unknown horse
+                                      </p>
+                                    )}
+
+                                    {isCaptain && (
+                                      <span className="shrink-0 rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                        C
+                                      </span>
+                                    )}
+
+                                    {isLocked && (
+                                      <span className="shrink-0 rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-bold text-slate-700">
+                                        LOCKED
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <p className="mt-3 text-sm font-semibold text-slate-700">
+                                {entry.race
+                                  ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}`
+                                  : "Race unavailable"}
+                              </p>
+
+                              {entry.race && (
+                                <p className="mt-1 truncate text-xs text-slate-500">
+                                  {entry.race.race_name}
+                                </p>
+                              )}
+
+                              {entryLockout && (
+                                <p className="mt-2 text-[11px] text-slate-400">
+                                  {entryLockout.display_name} ·{" "}
+                                  {formatDateTime(entryLockout.lockout_at)}
+                                </p>
+                              )}
                             </div>
-                            <p className="mt-0.5 truncate text-[11px] text-slate-500">
-                              {entry.race ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}` : "Race unavailable"}
+
+                            <p className="shrink-0 text-base font-bold text-slate-900">
+                              {formatCurrency(entry.price_at_entry)}
                             </p>
                           </div>
-                          <p className="w-[72px] shrink-0 text-right text-xs font-bold text-slate-800">{formatCurrency(entry.price_at_entry)}</p>
-                          <button
-                            type="button"
-                            onClick={() => selectCaptain(entry.id)}
-                            disabled={isLocked || Boolean(lockedCaptainEntryId)}
-                            className={`h-8 w-8 shrink-0 rounded-md text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
-                              isCaptain ? "bg-amber-500 text-white" : "border border-amber-400 text-amber-800 hover:bg-amber-50"
-                            }`}
-                            title={isCaptain ? "Captain" : "Make captain"}
-                          >
-                            C
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleEntry(entry)}
-                            disabled={isLocked}
-                            className="h-8 w-8 shrink-0 rounded-md border border-red-200 text-sm font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Remove horse"
-                          >
-                            ×
-                          </button>
-                        </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => selectCaptain(entry.id)}
+                              disabled={isLocked || Boolean(lockedCaptainEntryId)}
+                              className={`rounded-lg px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
+                                isCaptain
+                                  ? "bg-amber-500 text-white"
+                                  : "border border-amber-400 bg-white text-amber-800 hover:bg-amber-50"
+                              }`}
+                            >
+                              {isCaptain ? "Captain" : "Make Captain"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => toggleEntry(entry)}
+                              disabled={isLocked}
+                              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </article>
                       );
                     })}
                   </div>
                 )}
               </div>
 
-              <div className="border-t bg-slate-50 p-3">
+              <div className="border-t bg-slate-50 p-4">
                 {!teamIsComplete && (
-                  <p className="mb-2 text-xs leading-5 text-amber-800">
+                  <p className="mb-3 text-xs leading-5 text-amber-800">
                     Select {teamSize} horses, stay under the cap and choose a captain.
                   </p>
                 )}
-                <div className="grid grid-cols-2 gap-2">
+
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => void saveDraft()}
                     disabled={saving || submitting}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {saving ? "Saving..." : "Save Draft"}
                   </button>
+
                   <button
                     type="button"
                     onClick={() => void submitTeam()}
                     disabled={!teamIsComplete || submitting || saving}
-                    className="rounded-lg bg-teal-700 px-3 py-2.5 text-sm font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                    className="rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
                   >
-                    {submitting ? "Submitting..." : team?.status === "submitted" ? "Update Team" : "Submit Team"}
+                    {submitting
+                      ? "Submitting..."
+                      : team?.status === "submitted"
+                        ? "Update Team"
+                        : "Submit Team"}
                   </button>
                 </div>
               </div>
