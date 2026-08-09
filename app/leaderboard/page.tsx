@@ -22,12 +22,22 @@ type RoundOption = {
   status: string;
 };
 
+type SeasonOption = {
+  id: string;
+  name: string;
+  year: number;
+  is_active: boolean;
+};
+
 export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"round" | "season">("round");
 
   const [rounds, setRounds] = useState<RoundOption[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState("");
+
+  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
 
   const [roundLeaderboard, setRoundLeaderboard] = useState<
     RoundLeaderboardRow[]
@@ -49,6 +59,7 @@ export default function LeaderboardPage() {
       const [
         { data: leaderboardDataRaw, error: rpcError },
         { data: roundsData, error: roundsError },
+        { data: seasonsData, error: seasonsError },
       ] = await Promise.all([
         supabase.rpc("get_leaderboard_data"),
 
@@ -56,26 +67,35 @@ export default function LeaderboardPage() {
           .from("rounds")
           .select("id, round_number, name, status")
           .order("round_number", { ascending: false }),
+
+        supabase
+          .from("seasons")
+          .select("id, name, year, is_active")
+          .order("year", { ascending: false }),
       ]);
 
       if (!active) {
         return;
       }
 
-      if (rpcError || roundsError) {
+      if (rpcError || roundsError || seasonsError) {
         console.error({
           leaderboardError: rpcError,
           roundsError,
+          seasonsError,
         });
 
         setError(
           rpcError?.message ||
             roundsError?.message ||
+            seasonsError?.message ||
             "Unable to load leaderboard."
         );
 
         setRounds([]);
         setSelectedRoundId("");
+        setSeasons([]);
+        setSelectedSeasonId("");
         setRoundLeaderboard([]);
         setSeasonLeaderboard([]);
         setLoading(false);
@@ -117,6 +137,15 @@ export default function LeaderboardPage() {
         ) ?? availableRounds[0];
 
       setSelectedRoundId(preferredRound?.id ?? "");
+
+      const loadedSeasons = (seasonsData ?? []) as SeasonOption[];
+      setSeasons(loadedSeasons);
+
+      const preferredSeason =
+        loadedSeasons.find((season) => season.is_active) ??
+        loadedSeasons[0];
+
+      setSelectedSeasonId(preferredSeason?.id ?? "");
       setLoading(false);
     }
 
@@ -142,6 +171,22 @@ export default function LeaderboardPage() {
       .filter((row) => row.round_id === selectedRoundId)
       .sort((a, b) => a.round_rank - b.round_rank);
   }, [roundLeaderboard, selectedRoundId]);
+
+  const selectedSeason = useMemo(() => {
+    return seasons.find(
+      (season) => season.id === selectedSeasonId
+    );
+  }, [seasons, selectedSeasonId]);
+
+  const selectedSeasonRows = useMemo(() => {
+    if (!selectedSeasonId) {
+      return [];
+    }
+
+    return seasonLeaderboard
+      .filter((row) => row.season_id === selectedSeasonId)
+      .sort((a, b) => a.overall_rank - b.overall_rank);
+  }, [seasonLeaderboard, selectedSeasonId]);
 
   if (loading) {
     return (
@@ -265,10 +310,71 @@ export default function LeaderboardPage() {
             />
           </>
         ) : (
-          <LeaderboardTable
-            type="season"
-            rows={seasonLeaderboard}
-          />
+          <>
+            <section className="mb-6 rounded-xl border bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <label
+                    htmlFor="leaderboard-season"
+                    className="block text-sm font-bold text-slate-800"
+                  >
+                    Select season
+                  </label>
+
+                  <select
+                    id="leaderboard-season"
+                    value={selectedSeasonId}
+                    onChange={(event) =>
+                      setSelectedSeasonId(event.target.value)
+                    }
+                    disabled={seasons.length === 0}
+                    className="mt-2 min-w-64 rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  >
+                    {seasons.length === 0 ? (
+                      <option value="">
+                        No seasons available
+                      </option>
+                    ) : (
+                      seasons.map((season) => (
+                        <option
+                          key={season.id}
+                          value={season.id}
+                        >
+                          {season.name} {season.year}
+                          {season.is_active
+                            ? " — Active"
+                            : ""}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {selectedSeason && (
+                  <div className="text-sm text-slate-600 sm:text-right">
+                    <p className="font-semibold text-slate-900">
+                      {selectedSeason.name} {selectedSeason.year}
+                      {selectedSeason.is_active
+                        ? " — Active"
+                        : ""}
+                    </p>
+
+                    <p className="mt-1">
+                      {selectedSeasonRows.length}{" "}
+                      {selectedSeasonRows.length === 1
+                        ? "team"
+                        : "teams"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <LeaderboardTable
+              type="season"
+              rows={selectedSeasonRows}
+            />
+          </>
         )}
       </div>
     </main>
