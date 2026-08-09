@@ -73,6 +73,14 @@ type TeamSelection = {
   race_entry: RaceEntry | null;
 };
 
+type RaceResult = {
+  id: string;
+  race_id: string;
+  horse_id: string;
+  result_status: "finished" | "non_finisher" | "scratched";
+  points_awarded: number;
+};
+
 type MyTeamData = {
   success: boolean;
   message?: string;
@@ -185,6 +193,7 @@ export default function MyTeamPage() {
   const [selections, setSelections] = useState<
     TeamSelection[]
   >([]);
+  const [raceResults, setRaceResults] = useState<RaceResult[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -211,6 +220,7 @@ export default function MyTeamPage() {
       setSeason(null);
       setTeam(null);
       setSelections([]);
+      setRaceResults([]);
 
       setErrorMessage(
         error.message ||
@@ -228,6 +238,7 @@ export default function MyTeamPage() {
       setSeason(null);
       setTeam(null);
       setSelections([]);
+      setRaceResults([]);
 
       setErrorMessage(
         teamData?.message ||
@@ -238,10 +249,60 @@ export default function MyTeamPage() {
       return;
     }
 
+    const loadedSelections = teamData.selections ?? [];
+
     setRound(teamData.round);
     setSeason(teamData.season);
     setTeam(teamData.team);
-    setSelections(teamData.selections ?? []);
+    setSelections(loadedSelections);
+
+    const selectedRaceIds = [
+      ...new Set(
+        loadedSelections
+          .map((selection) => selection.race_entry?.race_id)
+          .filter((raceId): raceId is string => Boolean(raceId))
+      ),
+    ];
+
+    const selectedHorseIds = [
+      ...new Set(
+        loadedSelections
+          .map((selection) => selection.race_entry?.horse_id)
+          .filter((horseId): horseId is string => Boolean(horseId))
+      ),
+    ];
+
+    if (selectedRaceIds.length === 0 || selectedHorseIds.length === 0) {
+      setRaceResults([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: resultData, error: resultError } = await supabase
+      .from("race_results")
+      .select(
+        `
+          id,
+          race_id,
+          horse_id,
+          result_status,
+          points_awarded
+        `
+      )
+      .in("race_id", selectedRaceIds)
+      .in("horse_id", selectedHorseIds);
+
+    if (resultError) {
+      console.error("My Team results load error:", resultError);
+      setRaceResults([]);
+      setErrorMessage(
+        "Your team loaded, but official race results could not be loaded."
+      );
+      setLoading(false);
+      return;
+    }
+
+    setRaceResults((resultData ?? []) as RaceResult[]);
     setLoading(false);
   }, []);
 
@@ -299,6 +360,15 @@ export default function MyTeamPage() {
     });
   }, [selections]);
 
+  const resultByHorseRace = useMemo(() => {
+    return new Map(
+      raceResults.map((result) => [
+        `${result.race_id}:${result.horse_id}`,
+        result,
+      ])
+    );
+  }, [raceResults]);
+
   const salaryUsed = useMemo(() => {
     return selections.reduce((total, selection) => {
       return total + selection.selected_price;
@@ -308,11 +378,25 @@ export default function MyTeamPage() {
 
   const totalPoints = useMemo(() => {
     return selections.reduce((total, selection) => {
-      const basePoints = selection.fantasy_points ?? 0;
+      const entry = selection.race_entry;
+
+      if (!entry) {
+        return total;
+      }
+
+      const result = resultByHorseRace.get(
+        `${entry.race_id}:${entry.horse_id}`
+      );
+
+      if (!result) {
+        return total;
+      }
+
+      const basePoints = result.points_awarded ?? 0;
 
       return total + (selection.is_captain ? basePoints * 2 : basePoints);
     }, 0);
-  }, [selections]);
+  }, [resultByHorseRace, selections]);
 
   const captainName = useMemo(() => {
     return (
@@ -551,13 +635,18 @@ export default function MyTeamPage() {
                 const horse = entry?.horse;
                 const race = entry?.race;
 
-                const displayedPoints = selection.is_captain
-                  ? (selection.fantasy_points ?? 0) * 2
-                  : selection.fantasy_points ?? 0;
+                const result = entry
+                  ? resultByHorseRace.get(
+                      `${entry.race_id}:${entry.horse_id}`
+                    )
+                  : undefined;
 
-                const raceIsUpcoming = race
-                  ? new Date(race.scheduled_start).getTime() > currentTime
-                  : false;
+                const hasOfficialResult = Boolean(result);
+                const basePoints = result?.points_awarded ?? 0;
+
+                const displayedPoints = selection.is_captain
+                  ? basePoints * 2
+                  : basePoints;
 
                 const cardClasses = selection.is_captain
                   ? "border-amber-300 border-l-4 bg-amber-50/60 shadow-sm"
@@ -638,7 +727,7 @@ export default function MyTeamPage() {
                       </div>
 
                       <div className="flex min-w-[108px] flex-col items-end">
-                        {raceIsUpcoming ? (
+                        {!hasOfficialResult ? (
                           <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600">
                             Upcoming
                           </span>
