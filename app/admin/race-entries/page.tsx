@@ -21,10 +21,18 @@ type HorseOption = {
 
 type RoundOption = {
   id: string;
+  season_id: string;
   round_number: number;
   name: string | null;
   round_date: string | null;
   status: string;
+};
+
+type SeasonOption = {
+  id: string;
+  name: string;
+  year: number;
+  is_active: boolean;
 };
 
 type RaceOption = {
@@ -64,6 +72,8 @@ export default function RaceEntriesPage() {
   const [horses, setHorses] = useState<HorseOption[]>([]);
   const [races, setRaces] = useState<RaceOption[]>([]);
   const [rounds, setRounds] = useState<RoundOption[]>([]);
+  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
 
   const [expandedRoundIds, setExpandedRoundIds] = useState<Set<string>>(
     new Set()
@@ -108,6 +118,7 @@ export default function RaceEntriesPage() {
       horsesResult,
       racesResult,
       roundsResult,
+      seasonsResult,
     ] = await Promise.all([
       supabase
         .from("race_entries")
@@ -175,12 +186,18 @@ export default function RaceEntriesPage() {
         .from("rounds")
         .select(`
           id,
+          season_id,
           round_number,
           name,
           round_date,
           status
         `)
         .order("round_number", { ascending: false }),
+
+      supabase
+        .from("seasons")
+        .select("id, name, year, is_active")
+        .order("year", { ascending: false }),
     ]);
 
     if (entriesResult.error) {
@@ -211,6 +228,13 @@ export default function RaceEntriesPage() {
       return;
     }
 
+    if (seasonsResult.error) {
+      console.error(seasonsResult.error);
+      setErrorMessage("Could not load seasons.");
+      setLoading(false);
+      return;
+    }
+
     const loadedEntries =
       (entriesResult.data ?? []) as unknown as RaceEntry[];
 
@@ -223,10 +247,28 @@ export default function RaceEntriesPage() {
     const loadedRounds =
       (roundsResult.data ?? []) as RoundOption[];
 
+    const loadedSeasons =
+      (seasonsResult.data ?? []) as SeasonOption[];
+
     setEntries(loadedEntries);
     setHorses(loadedHorses);
     setRaces(loadedRaces);
     setRounds(loadedRounds);
+    setSeasons(loadedSeasons);
+    setSelectedSeasonId((current) => {
+      if (
+        current &&
+        loadedSeasons.some((season) => season.id === current)
+      ) {
+        return current;
+      }
+
+      const preferredSeason =
+        loadedSeasons.find((season) => season.is_active) ??
+        loadedSeasons[0];
+
+      return preferredSeason?.id ?? "";
+    });
 
     setExpandedRoundIds((current) => {
       if (current.size > 0 || loadedRounds.length === 0) {
@@ -340,8 +382,12 @@ export default function RaceEntriesPage() {
   }
 
   function expandAll() {
-    setExpandedRoundIds(new Set(rounds.map((round) => round.id)));
-    setExpandedRaceIds(new Set(races.map((race) => race.id)));
+    setExpandedRoundIds(
+      new Set(filteredRounds.map((round) => round.id))
+    );
+    setExpandedRaceIds(
+      new Set(filteredRaces.map((race) => race.id))
+    );
   }
 
   function collapseAll() {
@@ -750,19 +796,40 @@ export default function RaceEntriesPage() {
     return labels[grade];
   }
 
+  const filteredRounds = useMemo(() => {
+    if (!selectedSeasonId) {
+      return [];
+    }
+
+    return rounds.filter(
+      (round) => round.season_id === selectedSeasonId
+    );
+  }, [rounds, selectedSeasonId]);
+
+  const selectedSeasonRoundIds = useMemo(
+    () => new Set(filteredRounds.map((round) => round.id)),
+    [filteredRounds]
+  );
+
+  const filteredRaces = useMemo(() => {
+    return races.filter((race) =>
+      selectedSeasonRoundIds.has(race.round_id)
+    );
+  }, [races, selectedSeasonRoundIds]);
+
   const sortedRounds = useMemo(() => {
-    return [...rounds].sort(
+    return [...filteredRounds].sort(
       (a, b) => b.round_number - a.round_number
     );
-  }, [rounds]);
+  }, [filteredRounds]);
 
   const sortedRaces = useMemo(() => {
-    return [...races].sort(
+    return [...filteredRaces].sort(
       (firstRace, secondRace) =>
         new Date(firstRace.scheduled_start).getTime() -
         new Date(secondRace.scheduled_start).getTime()
     );
-  }, [races]);
+  }, [filteredRaces]);
 
   const racesByRoundId = useMemo(() => {
     const map = new Map<string, RaceOption[]>();
@@ -873,7 +940,7 @@ export default function RaceEntriesPage() {
       return matching;
     }
 
-    for (const race of races) {
+    for (const race of filteredRaces) {
       const raceMatches =
         getRaceLabel(race)
           .toLowerCase()
@@ -894,7 +961,7 @@ export default function RaceEntriesPage() {
 
     return matching;
   }, [
-    races,
+    filteredRaces,
     entriesByRaceId,
     normalisedSearchTerm,
   ]);
@@ -925,7 +992,7 @@ export default function RaceEntriesPage() {
 
     const roundIdsToOpen = new Set<string>();
 
-    for (const race of races) {
+    for (const race of filteredRaces) {
       if (matchingRaceIds.has(race.id)) {
         roundIdsToOpen.add(race.round_id);
       }
@@ -952,7 +1019,7 @@ export default function RaceEntriesPage() {
     });
   }, [
     normalisedSearchTerm,
-    races,
+    filteredRaces,
     matchingRaceIds,
   ]);
 
@@ -965,6 +1032,44 @@ export default function RaceEntriesPage() {
         buttonLabel="New Entry"
         onButtonClick={() => openNewEntryModal()}
       />
+
+      {seasons.length > 0 && (
+        <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <label
+                htmlFor="season-filter"
+                className="block text-sm font-semibold text-slate-700"
+              >
+                Season
+              </label>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Choose which season&apos;s race entries you want to manage.
+              </p>
+            </div>
+
+            <select
+              id="season-filter"
+              value={selectedSeasonId}
+              onChange={(event) => {
+                setSelectedSeasonId(event.target.value);
+                setSearchTerm("");
+                setExpandedRoundIds(new Set());
+                setExpandedRaceIds(new Set());
+              }}
+              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 sm:w-80"
+            >
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.name} {season.year}
+                  {season.is_active ? " — Active" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+      )}
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
@@ -994,8 +1099,12 @@ export default function RaceEntriesPage() {
         </div>
 
         <p className="text-sm text-slate-500">
-          {entries.length}{" "}
-          {entries.length === 1 ? "entry" : "entries"}
+          {filteredRaces.reduce(
+            (total, race) =>
+              total + (entriesByRaceId.get(race.id)?.length ?? 0),
+            0
+          )}{" "}
+          entries
         </p>
       </div>
 
@@ -1025,7 +1134,7 @@ export default function RaceEntriesPage() {
         <div className="rounded-lg border bg-white p-8 text-center text-slate-500">
           {normalisedSearchTerm
             ? "No race entries match your search."
-            : "No rounds are available."}
+            : "No rounds are available for this season."}
         </div>
       ) : (
         <div className="space-y-4">
