@@ -9,6 +9,7 @@ import AdminModal from "@/components/admin/AdminModal";
 
 import type { Race } from "@/types/race";
 import type { Round } from "@/types/round";
+import type { Season } from "@/types/season";
 import type { Racecourse } from "@/types/racecourse";
 
 type LockoutGroupKey =
@@ -69,6 +70,8 @@ const emptyRace: RaceForm = {
 export default function RacesPage() {
   const [races, setRaces] = useState<RaceWithLockout[]>([]);
   const [rounds, setRounds] = useState<RoundWithOptionalFields[]>([]);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [racecourses, setRacecourses] = useState<Racecourse[]>([]);
   const [roundLockouts, setRoundLockouts] =
     useState<RoundLockout[]>([]);
@@ -97,6 +100,7 @@ export default function RacesPage() {
     const [
       { data: racesData, error: racesError },
       { data: roundsData, error: roundsError },
+      { data: seasonsData, error: seasonsError },
       { data: racecoursesData, error: racecoursesError },
       { data: lockoutsData, error: lockoutsError },
     ] = await Promise.all([
@@ -109,6 +113,11 @@ export default function RacesPage() {
         .from("rounds")
         .select("*")
         .order("round_number", { ascending: true }),
+
+      supabase
+        .from("seasons")
+        .select("*")
+        .order("year", { ascending: false }),
 
       supabase
         .from("racecourses")
@@ -133,12 +142,14 @@ export default function RacesPage() {
     if (
       racesError ||
       roundsError ||
+      seasonsError ||
       racecoursesError ||
       lockoutsError
     ) {
       console.error({
         racesError,
         roundsError,
+        seasonsError,
         racecoursesError,
         lockoutsError,
       });
@@ -152,6 +163,8 @@ export default function RacesPage() {
       (racesData ?? []) as RaceWithLockout[];
     const loadedRounds =
       (roundsData ?? []) as RoundWithOptionalFields[];
+    const loadedSeasons =
+      (seasonsData ?? []) as Season[];
     const loadedRacecourses =
       (racecoursesData ?? []) as Racecourse[];
     const loadedLockouts =
@@ -159,6 +172,21 @@ export default function RacesPage() {
 
     setRaces(loadedRaces);
     setRounds(loadedRounds);
+    setSeasons(loadedSeasons);
+    setSelectedSeasonId((current) => {
+      if (
+        current &&
+        loadedSeasons.some((season) => season.id === current)
+      ) {
+        return current;
+      }
+
+      const preferredSeason =
+        loadedSeasons.find((season) => season.is_active) ??
+        loadedSeasons[0];
+
+      return preferredSeason?.id ?? "";
+    });
     setRacecourses(loadedRacecourses);
     setRoundLockouts(loadedLockouts);
 
@@ -317,7 +345,7 @@ export default function RacesPage() {
     setErrorMessage("");
     setEditingRaceId(null);
 
-    const defaultRound = rounds[0];
+    const defaultRound = filteredRounds[0] ?? rounds[0];
     const defaultLockout = defaultRound
       ? getLockoutsForRound(defaultRound.id)[0]
       : undefined;
@@ -394,7 +422,7 @@ export default function RacesPage() {
   }
 
   function expandAllRounds() {
-    setExpandedRoundIds(new Set(rounds.map((round) => round.id)));
+    setExpandedRoundIds(new Set(filteredRounds.map((round) => round.id)));
   }
 
   function collapseAllRounds() {
@@ -548,11 +576,31 @@ export default function RacesPage() {
     }
   }
 
+  const filteredRounds = useMemo(() => {
+    if (!selectedSeasonId) {
+      return [];
+    }
+
+    return rounds.filter(
+      (round) => round.season_id === selectedSeasonId
+    );
+  }, [rounds, selectedSeasonId]);
+
   const sortedRounds = useMemo(() => {
-    return [...rounds].sort(
+    return [...filteredRounds].sort(
       (a, b) => b.round_number - a.round_number
     );
-  }, [rounds]);
+  }, [filteredRounds]);
+
+  const visibleRoundIds = useMemo(
+    () => new Set(filteredRounds.map((round) => round.id)),
+    [filteredRounds]
+  );
+
+  const visibleRaces = useMemo(
+    () => races.filter((race) => visibleRoundIds.has(race.round_id)),
+    [races, visibleRoundIds]
+  );
 
   const racesByRoundId = useMemo(() => {
     const grouped = new Map<string, RaceWithLockout[]>();
@@ -609,10 +657,49 @@ export default function RacesPage() {
         </div>
       )}
 
+      {seasons.length > 0 && (
+        <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <label
+                htmlFor="season-filter"
+                className="block text-sm font-semibold text-slate-700"
+              >
+                Season
+              </label>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Choose which season&apos;s races you want to manage.
+                New races automatically use a round from the selected season.
+              </p>
+            </div>
+
+            <select
+              id="season-filter"
+              value={selectedSeasonId}
+              onChange={(event) => {
+                setSelectedSeasonId(event.target.value);
+                setExpandedRoundIds(new Set());
+              }}
+              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 sm:w-80"
+            >
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.name} {season.year}
+                  {season.is_active ? " — Active" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+      )}
+
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-500">
-          {rounds.length} {rounds.length === 1 ? "round" : "rounds"} ·{" "}
-          {races.length} {races.length === 1 ? "race" : "races"}
+          {filteredRounds.length}{" "}
+          {filteredRounds.length === 1 ? "round" : "rounds"} ·{" "}
+          {visibleRaces.length}{" "}
+          {visibleRaces.length === 1 ? "race" : "races"}
         </p>
 
         <div className="flex gap-2">
@@ -636,7 +723,7 @@ export default function RacesPage() {
 
       {sortedRounds.length === 0 ? (
         <div className="rounded-lg border bg-white p-8 text-center text-slate-500">
-          No rounds have been created yet.
+          No rounds have been created for this season.
         </div>
       ) : (
         <div className="space-y-4">
@@ -872,7 +959,14 @@ export default function RacesPage() {
             >
               <option value="">Select Round</option>
 
-              {rounds.map((round) => (
+              {(editingRaceId
+                ? rounds.filter(
+                    (round) =>
+                      round.season_id === selectedSeasonId ||
+                      round.id === form.round_id
+                  )
+                : filteredRounds
+              ).map((round) => (
                 <option key={round.id} value={round.id}>
                   Round {round.round_number}
                   {round.name ? ` — ${round.name}` : ""}
