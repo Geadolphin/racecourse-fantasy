@@ -11,6 +11,7 @@ export type LeagueLeaderboardRow = {
   team_name: string;
   score: number;
   rank: number;
+  overall_rank?: number | null;
   rank_change?: number | null;
 };
 
@@ -30,6 +31,29 @@ function rankDisplay(rank: number) {
       return "🥉";
     default:
       return rank;
+  }
+}
+
+function ordinalRank(rank: number | null | undefined) {
+  if (rank == null) {
+    return "—";
+  }
+
+  const mod100 = rank % 100;
+
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${rank}th`;
+  }
+
+  switch (rank % 10) {
+    case 1:
+      return `${rank}st`;
+    case 2:
+      return `${rank}nd`;
+    case 3:
+      return `${rank}rd`;
+    default:
+      return `${rank}th`;
   }
 }
 
@@ -104,7 +128,7 @@ export default function LeagueLeaderboardTable({
 
   return (
     <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
-      <table className="w-full min-w-[520px]">
+      <table className="w-full min-w-[640px]">
         <thead className="bg-slate-50">
           <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-600">
             <th className="px-4 py-3">
@@ -113,6 +137,10 @@ export default function LeagueLeaderboardTable({
 
             <th className="px-4 py-3">
               Team
+            </th>
+
+            <th className="px-4 py-3 text-right">
+              Overall Rank
             </th>
 
             {type === "season" && (
@@ -160,6 +188,10 @@ export default function LeagueLeaderboardTable({
                       </span>
                     )}
                   </div>
+                </td>
+
+                <td className="px-4 py-4 text-right font-semibold text-slate-700">
+                  {ordinalRank(row.overall_rank)}
                 </td>
 
                 {type === "season" && (

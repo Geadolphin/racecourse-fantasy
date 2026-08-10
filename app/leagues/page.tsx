@@ -139,49 +139,124 @@ export default function PrivateLeaguesPage() {
                 loadedData.season_id &&
                 loadedData.selected_league?.id
             ) {
-                const {
-                    data: rankChangesRaw,
-                    error: rankChangesError,
-                } = await supabase.rpc(
-                    "get_private_league_rank_changes",
+                const [
                     {
-                        p_league_id: loadedData.selected_league.id,
-                        p_season_id: loadedData.season_id,
-                    }
-                );
+                        data: rankChangesRaw,
+                        error: rankChangesError,
+                    },
+                    {
+                        data: overallRanksRaw,
+                        error: overallRanksError,
+                    },
+                ] = await Promise.all([
+                    supabase.rpc(
+                        "get_private_league_rank_changes",
+                        {
+                            p_league_id:
+                                loadedData.selected_league.id,
+                            p_season_id:
+                                loadedData.season_id,
+                        }
+                    ),
+                    supabase.rpc(
+                        "get_private_league_overall_ranks",
+                        {
+                            p_league_id:
+                                loadedData.selected_league.id,
+                            p_season_id:
+                                loadedData.season_id,
+                            p_round_id:
+                                loadedData.selected_round_id,
+                        }
+                    ),
+                ]);
 
                 if (rankChangesError) {
                     console.error(
                         "Private league rank changes error:",
                         rankChangesError
                     );
-                } else {
-                    const rankChangeMap = new Map<
-                        string,
-                        number | null
-                    >(
-                        (
-                            (rankChangesRaw ?? []) as {
-                                user_id: string;
-                                rank_change: number | null;
-                            }[]
-                        ).map((row) => [
-                            row.user_id,
-                            row.rank_change,
-                        ])
+                }
+
+                if (overallRanksError) {
+                    console.error(
+                        "Private league overall ranks error:",
+                        overallRanksError
+                    );
+                }
+
+                const rankChangeMap = new Map<
+                    string,
+                    number | null
+                >(
+                    (
+                        (rankChangesRaw ?? []) as {
+                            user_id: string;
+                            rank_change: number | null;
+                        }[]
+                    ).map((row) => [
+                        row.user_id,
+                        row.rank_change,
+                    ])
+                );
+
+                const roundOverallRankMap = new Map<
+                    string,
+                    number | null
+                >(
+                    (
+                        (overallRanksRaw ?? []) as {
+                            user_id: string;
+                            round_overall_rank: number | null;
+                            season_overall_rank: number | null;
+                        }[]
+                    ).map((row) => [
+                        row.user_id,
+                        row.round_overall_rank,
+                    ])
+                );
+
+                const seasonOverallRankMap = new Map<
+                    string,
+                    number | null
+                >(
+                    (
+                        (overallRanksRaw ?? []) as {
+                            user_id: string;
+                            round_overall_rank: number | null;
+                            season_overall_rank: number | null;
+                        }[]
+                    ).map((row) => [
+                        row.user_id,
+                        row.season_overall_rank,
+                    ])
+                );
+
+                loadedData.round_leaderboard =
+                    loadedData.round_leaderboard.map(
+                        (row) => ({
+                            ...row,
+                            overall_rank:
+                                roundOverallRankMap.get(
+                                    row.user_id
+                                ) ?? null,
+                        })
                     );
 
-                    loadedData.season_leaderboard =
-                        loadedData.season_leaderboard.map(
-                            (row) => ({
-                                ...row,
-                                rank_change:
-                                    rankChangeMap.get(
-                                        row.user_id
-                                    ) ?? null,
-                            })
-                        );
-                }
+                loadedData.season_leaderboard =
+                    loadedData.season_leaderboard.map(
+                        (row) => ({
+                            ...row,
+                            overall_rank:
+                                seasonOverallRankMap.get(
+                                    row.user_id
+                                ) ?? null,
+                            rank_change:
+                                rankChangeMap.get(
+                                    row.user_id
+                                ) ?? null,
+                        })
+                    );
             }
 
             setData(loadedData);
