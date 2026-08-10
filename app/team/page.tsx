@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import HorseProfileModal from "@/components/HorseProfileModal";
@@ -189,6 +190,102 @@ function getCountdown(lockoutAt: string, currentTime: number) {
   return `${hours}h ${minutes}m ${seconds}s`;
 }
 
+
+type IconName =
+  | "trophy"
+  | "wallet"
+  | "horse"
+  | "star"
+  | "clock"
+  | "calendar"
+  | "flag"
+  | "edit"
+  | "chevron";
+
+function Icon({
+  name,
+  className = "h-4 w-4",
+}: {
+  name: IconName;
+  className?: string;
+}) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  const paths: Record<IconName, ReactNode> = {
+    trophy: (
+      <>
+        <path {...common} d="M8 4h8v3a4 4 0 0 1-8 0V4Z" />
+        <path {...common} d="M8 6H5v1a3 3 0 0 0 3 3" />
+        <path {...common} d="M16 6h3v1a3 3 0 0 1-3 3" />
+        <path {...common} d="M12 11v4" />
+        <path {...common} d="M9 19h6" />
+        <path {...common} d="M10 15h4v4h-4z" />
+      </>
+    ),
+    wallet: (
+      <>
+        <rect {...common} x="3" y="6" width="18" height="13" rx="2" />
+        <path {...common} d="M16 10h5v5h-5a2.5 2.5 0 0 1 0-5Z" />
+        <path {...common} d="M5 6V5a2 2 0 0 1 2-2h10" />
+      </>
+    ),
+    horse: (
+      <>
+        <path {...common} d="M6 19v-5l2-4 4-2 2-4 4 2-1 4 2 3v6" />
+        <path {...common} d="M9 19v-4h7v4" />
+        <path {...common} d="M14 8l3 2" />
+      </>
+    ),
+    star: (
+      <path
+        {...common}
+        d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.9L12 3Z"
+      />
+    ),
+    clock: (
+      <>
+        <circle {...common} cx="12" cy="12" r="8.5" />
+        <path {...common} d="M12 7v5l3 2" />
+      </>
+    ),
+    calendar: (
+      <>
+        <rect {...common} x="3" y="5" width="18" height="16" rx="2" />
+        <path {...common} d="M7 3v4M17 3v4M3 9h18" />
+      </>
+    ),
+    flag: (
+      <>
+        <path {...common} d="M5 21V4" />
+        <path {...common} d="M5 5h11l-2 3 2 3H5" />
+      </>
+    ),
+    edit: (
+      <>
+        <path {...common} d="M4 20h4l11-11-4-4L4 16v4Z" />
+        <path {...common} d="m13.5 6.5 4 4" />
+      </>
+    ),
+    chevron: <path {...common} d="m9 6 6 6-6 6" />,
+  };
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={className}
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
 export default function MyTeamPage() {
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
@@ -371,11 +468,6 @@ export default function MyTeamPage() {
     }, 0);
   }, [selections]);
 
-  const completedFixtureCount = useMemo(() => {
-    return fixtureRaces.filter((race) =>
-      ["official", "abandoned", "cancelled"].includes(race.status)
-    ).length;
-  }, [fixtureRaces]);
 
   const latestResultSelection = useMemo(() => {
     return [...selections]
@@ -523,38 +615,73 @@ export default function MyTeamPage() {
               </h1>
             </div>
 
-            <div className="grid flex-1 grid-cols-2 gap-x-3 gap-y-4 lg:grid-cols-5 xl:max-w-4xl">
-              <div className="border-l-2 border-teal-600 pl-3">
-                <p className="text-xs font-medium text-slate-500">Total score</p>
-                <p className="mt-0.5 text-2xl font-bold text-teal-700">
+            <div className="grid flex-1 grid-cols-2 gap-2 lg:grid-cols-5 xl:max-w-4xl">
+              <div className="rounded-xl bg-teal-50 px-3 py-3 ring-1 ring-teal-100">
+                <div className="flex items-center gap-2 text-teal-700">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-teal-100">
+                    <Icon name="trophy" />
+                  </span>
+                  <p className="text-[11px] font-bold uppercase tracking-wide">
+                    Total score
+                  </p>
+                </div>
+                <p className="mt-2 text-2xl font-bold text-teal-700">
                   {totalPoints} <span className="text-sm font-semibold">pts</span>
                 </p>
               </div>
 
-              <div className="border-l border-slate-200 pl-3">
-                <p className="text-xs font-medium text-slate-500">Team salary</p>
-                <p className="mt-1 text-lg font-bold text-slate-950">
+              <div className="rounded-xl bg-slate-50 px-3 py-3 ring-1 ring-slate-200">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-slate-200">
+                    <Icon name="wallet" />
+                  </span>
+                  <p className="text-[11px] font-bold uppercase tracking-wide">
+                    Team salary
+                  </p>
+                </div>
+                <p className="mt-2 text-lg font-bold text-slate-950">
                   {formatCurrency(salaryUsed)}
                 </p>
               </div>
 
-              <div className="border-l border-slate-200 pl-3">
-                <p className="text-xs font-medium text-slate-500">Salary remaining</p>
-                <p className="mt-1 text-lg font-bold text-teal-700">
+              <div className="rounded-xl bg-slate-50 px-3 py-3 ring-1 ring-slate-200">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-slate-200">
+                    <Icon name="wallet" />
+                  </span>
+                  <p className="text-[11px] font-bold uppercase tracking-wide">
+                    Remaining
+                  </p>
+                </div>
+                <p className="mt-2 text-lg font-bold text-teal-700">
                   {formatCurrency(salaryRemaining)}
                 </p>
               </div>
 
-              <div className="border-l border-slate-200 pl-3">
-                <p className="text-xs font-medium text-slate-500">Horses</p>
-                <p className="mt-1 text-lg font-bold text-slate-950">
+              <div className="rounded-xl bg-slate-50 px-3 py-3 ring-1 ring-slate-200">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-slate-200">
+                    <Icon name="horse" />
+                  </span>
+                  <p className="text-[11px] font-bold uppercase tracking-wide">
+                    Horses
+                  </p>
+                </div>
+                <p className="mt-2 text-lg font-bold text-slate-950">
                   {selections.length} / {season.team_size}
                 </p>
               </div>
 
-              <div className="border-l border-slate-200 pl-3">
-                <p className="text-xs font-medium text-slate-500">Captain</p>
-                <p className="mt-1 truncate text-lg font-bold text-slate-950">
+              <div className="rounded-xl bg-amber-50 px-3 py-3 ring-1 ring-amber-100">
+                <div className="flex items-center gap-2 text-amber-700">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-amber-100">
+                    <Icon name="star" />
+                  </span>
+                  <p className="text-[11px] font-bold uppercase tracking-wide">
+                    Captain
+                  </p>
+                </div>
+                <p className="mt-2 truncate text-lg font-bold text-slate-950">
                   {captainName}
                 </p>
               </div>
@@ -565,6 +692,7 @@ export default function MyTeamPage() {
                 href="/team/edit"
                 className="inline-flex shrink-0 items-center justify-center rounded-lg bg-slate-950 px-5 py-3 font-bold text-white transition hover:bg-slate-800"
               >
+                <Icon name="edit" className="mr-2 h-4 w-4" />
                 Edit Team
               </Link>
             )}
@@ -575,8 +703,9 @@ export default function MyTeamPage() {
               {getStatusLabel(team.status)}
             </span>
 
-            <span className="text-slate-600">
-              {lockoutHasStarted ? "🔒 Round locked" : "Next lockout"}: {" "}
+            <span className="inline-flex items-center gap-1.5 text-slate-600">
+              <Icon name="clock" className="h-4 w-4 text-teal-700" />
+              {lockoutHasStarted ? "Round locked" : "Next lockout"}:{" "}
               <strong>{getCountdown(round.lockout_at, currentTime)}</strong>
             </span>
 
@@ -592,18 +721,20 @@ export default function MyTeamPage() {
           </div>
         )}
 
-        {lockoutHasStarted && (
-          <div className="mt-4 rounded-lg border border-slate-300 bg-slate-200 px-4 py-3 text-sm text-slate-800">
-            Round lockout has commenced. Your team can no longer be edited.
-          </div>
-        )}
 
         <section className="mt-5">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <div className="min-w-0">
               <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-950">Selected Horses</h2>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700 ring-1 ring-teal-100">
+                      <Icon name="horse" className="h-4.5 w-4.5" />
+                    </span>
+                    <h2 className="text-xl font-bold text-slate-950">
+                      Selected Horses
+                    </h2>
+                  </div>
                   <p className="text-sm text-slate-600">
                     Your team for Round {round.round_number}. Select a horse card to view its statistics.
                   </p>
@@ -637,7 +768,7 @@ export default function MyTeamPage() {
                             setSelectedHorseId(horse.id);
                           }
                         }}
-                        className={`cursor-pointer rounded-xl border px-4 py-3.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
+                        className={`cursor-pointer rounded-xl border px-4 py-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:bg-teal-50/30 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
                           selection.is_captain
                             ? "border-amber-300 bg-amber-50/50"
                             : "border-slate-200 bg-white"
@@ -647,12 +778,14 @@ export default function MyTeamPage() {
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-2">
-                              {selection.is_captain && (
-                                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950">C</span>
-                              )}
                               <h3 className="truncate text-base font-bold text-slate-950 sm:text-lg">
                                 {horse?.name ?? "Unknown horse"}
                               </h3>
+                              {selection.is_captain && (
+                                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950 shadow-sm">
+                                  C
+                                </span>
+                              )}
                             </div>
 
                             <p className="mt-1 truncate text-sm font-medium text-slate-800">
@@ -666,11 +799,23 @@ export default function MyTeamPage() {
                                 </span>
                               )}
                               {race?.racecourse && <span className="text-sm font-medium text-slate-700">{race.racecourse.name}</span>}
-                              {race && <><span className="text-slate-300">•</span><span className="text-sm font-medium text-slate-700">{formatRaceTime(race.scheduled_start)}</span></>}
+                              {race && (
+                                <>
+                                  <span className="text-slate-300">•</span>
+                                  <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-700">
+                                    <Icon name="clock" className="h-3.5 w-3.5 text-slate-400" />
+                                    {formatRaceTime(race.scheduled_start)}
+                                  </span>
+                                </>
+                              )}
                             </div>
                           </div>
 
                           <div className="flex min-w-[108px] flex-col items-end">
+                            <Icon
+                              name="chevron"
+                              className="mb-1 hidden h-4 w-4 text-slate-300 sm:block"
+                            />
                             {!selection.has_result ? (
                               <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600">Upcoming</span>
                             ) : (
@@ -691,8 +836,20 @@ export default function MyTeamPage() {
 
             <aside className="space-y-4">
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 px-4 py-3">
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">Round {round.round_number} Fixture</h2>
+                <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-teal-700 ring-1 ring-slate-200">
+                      <Icon name="calendar" />
+                    </span>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700">
+                        Race day
+                      </p>
+                      <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">
+                        Round {round.round_number} Fixture
+                      </h2>
+                    </div>
+                  </div>
                 </div>
                 {fixtureRaces.length === 0 ? (
                   <div className="px-4 py-6 text-sm text-slate-500">Fixture details are not available yet.</div>
@@ -701,7 +858,7 @@ export default function MyTeamPage() {
                     {fixtureRaces.map((fixtureRace) => {
                       const isComplete = ["official", "abandoned", "cancelled"].includes(fixtureRace.status);
                       return (
-                        <div key={fixtureRace.id} className="grid grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3">
+                        <div key={fixtureRace.id} className="grid grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
                           <p className="text-sm font-bold text-slate-950">{formatRaceTime(fixtureRace.scheduled_start)}</p>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-slate-950">R{fixtureRace.race_number} · {fixtureRace.race_name}</p>
@@ -724,18 +881,14 @@ export default function MyTeamPage() {
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">Race Day Progress</h2>
-                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-teal-600" style={{ width: `${fixtureRaces.length ? Math.min((completedFixtureCount / fixtureRaces.length) * 100, 100) : 0}%` }} />
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700 ring-1 ring-teal-100">
+                    <Icon name="flag" />
+                  </span>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">
+                    Latest Result
+                  </h2>
                 </div>
-                <div className="mt-3 flex items-end justify-between gap-4">
-                  <div><p className="text-2xl font-bold text-slate-950">{completedFixtureCount} / {fixtureRaces.length}</p><p className="text-xs text-slate-500">races completed</p></div>
-                  <p className="text-sm font-semibold text-slate-600">{Math.max(fixtureRaces.length - completedFixtureCount, 0)} remaining</p>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">Latest Result</h2>
                 {latestResultSelection?.race_entry?.horse && latestResultSelection.race_entry.race ? (
                   <div className="mt-3 flex items-center justify-between gap-4">
                     <div className="min-w-0">
