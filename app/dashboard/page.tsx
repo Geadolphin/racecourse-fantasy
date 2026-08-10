@@ -45,6 +45,7 @@ type UpcomingRace = {
   race_number: number;
   race_name: string;
   grade: "G1" | "G2" | "G3" | "L" | "Listed";
+  distance_metres?: number | null;
   scheduled_start: string;
   status: string;
   racecourse: {
@@ -112,6 +113,14 @@ function formatDateTime(value: string | null) {
   return new Intl.DateTimeFormat("en-AU", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Australia/Melbourne",
+  }).format(new Date(value));
+}
+
+function formatRaceTime(value: string) {
+  return new Intl.DateTimeFormat("en-AU", {
+    hour: "numeric",
+    minute: "2-digit",
     timeZone: "Australia/Melbourne",
   }).format(new Date(value));
 }
@@ -701,7 +710,7 @@ export default function Dashboard() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2 text-teal-700">
+                <div className="flex items-center gap-2 text-amber-700">
                   <Clock3 className="h-4 w-4" />
 
                   <p className="text-xs font-bold uppercase tracking-wide">
@@ -731,8 +740,8 @@ export default function Dashboard() {
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
                   Lockout
                 </p>
 
@@ -761,19 +770,67 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="rounded-xl bg-slate-50 p-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Round Status
+                  Next Race
                 </p>
 
-                <p className="mt-1 font-bold capitalize text-slate-900">
-                  {round.status}
-                </p>
+                {upcomingRace ? (
+                  <>
+                    <p className="mt-1 font-bold text-slate-900">
+                      {upcomingRace.race_name}
+                    </p>
 
-                {upcomingRace && (
-                  <p className="mt-2 text-sm text-slate-500">
-                    Next:{" "}
-                    {upcomingRace.race_name}
+                    <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Distance
+                        </p>
+
+                        <p className="mt-0.5 font-semibold text-slate-700">
+                          {upcomingRace.distance_metres
+                            ? `${upcomingRace.distance_metres}m`
+                            : "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Track
+                        </p>
+
+                        <p className="mt-0.5 font-semibold text-slate-700">
+                          {upcomingRace.racecourse?.name ??
+                            "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Time
+                        </p>
+
+                        <p className="mt-0.5 font-semibold text-slate-700">
+                          {formatRaceTime(
+                            upcomingRace.scheduled_start
+                          )}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Race
+                        </p>
+
+                        <p className="mt-0.5 font-semibold text-slate-700">
+                          Race {upcomingRace.race_number}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-500">
+                    No upcoming race.
                   </p>
                 )}
               </div>
@@ -1004,7 +1061,7 @@ export default function Dashboard() {
               <div className="p-7 text-center text-slate-500">
                 No leaderboard scores are available yet.
               </div>
-            )}
+            )}a
           </div>
         </section>
       </div>
