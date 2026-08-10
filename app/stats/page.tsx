@@ -17,6 +17,13 @@ import {
 
 import { supabase } from "@/lib/supabase";
 
+type SeasonOption = {
+  id: string;
+  name: string;
+  year: number;
+  is_active: boolean;
+};
+
 type SeasonSummary = {
   rounds: number;
   completed_rounds: number;
@@ -140,7 +147,10 @@ export default function StatsPage() {
   const [data, setData] = useState<StatsData | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("horses");
   const [selectedRoundId, setSelectedRoundId] = useState("");
+  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [seasonLoading, setSeasonLoading] = useState(false);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
 
   const [horseSortKey, setHorseSortKey] =
@@ -162,28 +172,51 @@ export default function StatsPage() {
       setLoading(true);
       setErrorMessage("");
 
-      const { data: statsData, error } = await supabase.rpc(
-        "get_stats_page_data",
-        {
+      const [
+        { data: seasonsData, error: seasonsError },
+        { data: statsData, error: statsError },
+      ] = await Promise.all([
+        supabase
+          .from("seasons")
+          .select("id, name, year, is_active")
+          .order("year", { ascending: false }),
+        supabase.rpc("get_stats_page_data", {
           p_round_id: null,
-        }
-      );
+          p_season_id: null,
+        }),
+      ]);
 
       if (!active) return;
 
-      if (error) {
-        console.error("Stats page RPC error:", error);
+      if (seasonsError || statsError) {
+        console.error("Stats page load error:", {
+          seasonsError,
+          statsError,
+        });
+
         setErrorMessage(
-          error.message || "The Stats Centre could not be loaded."
+          statsError?.message ||
+            seasonsError?.message ||
+            "The Stats Centre could not be loaded."
         );
         setData(null);
+        setSeasons([]);
+        setSelectedSeasonId("");
         setLoading(false);
         return;
       }
 
       const loadedData = statsData as unknown as StatsData;
+      const loadedSeasons = (seasonsData ?? []) as SeasonOption[];
 
       setData(loadedData);
+      setSeasons(loadedSeasons);
+      setSelectedSeasonId(
+        loadedData.season?.id ??
+          loadedSeasons.find((season) => season.is_active)?.id ??
+          loadedSeasons[0]?.id ??
+          ""
+      );
       setSelectedRoundId(loadedData.selected_round_id ?? "");
       setLoading(false);
     }
@@ -195,6 +228,36 @@ export default function StatsPage() {
     };
   }, []);
 
+  async function changeSeason(seasonId: string) {
+    setSelectedSeasonId(seasonId);
+    setSeasonLoading(true);
+    setErrorMessage("");
+
+    const { data: statsData, error } = await supabase.rpc(
+      "get_stats_page_data",
+      {
+        p_round_id: null,
+        p_season_id: seasonId || null,
+      }
+    );
+
+    if (error) {
+      console.error("Stats season change error:", error);
+      setErrorMessage(
+        error.message || "The selected season statistics could not be loaded."
+      );
+      setSeasonLoading(false);
+      return;
+    }
+
+    const loadedData = statsData as unknown as StatsData;
+
+    setData(loadedData);
+    setSelectedSeasonId(loadedData.season?.id ?? seasonId);
+    setSelectedRoundId(loadedData.selected_round_id ?? "");
+    setSeasonLoading(false);
+  }
+
   async function changeOwnershipRound(roundId: string) {
     setSelectedRoundId(roundId);
     setOwnershipLoading(true);
@@ -204,6 +267,7 @@ export default function StatsPage() {
       "get_stats_page_data",
       {
         p_round_id: roundId || null,
+        p_season_id: selectedSeasonId || null,
       }
     );
 
@@ -415,6 +479,10 @@ export default function StatsPage() {
     );
   }
 
+  const selectedSeason = seasons.find(
+    (season) => season.id === selectedSeasonId
+  );
+
   const summary = data.season_summary;
 
   const tabs: { id: Tab; label: string }[] = [
@@ -428,19 +496,65 @@ export default function StatsPage() {
     <main className="min-h-screen bg-slate-100 p-4 md:p-8">
       <div className="mx-auto max-w-7xl">
         <header className="rounded-2xl bg-slate-950 p-6 text-white shadow-sm md:p-8">
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-teal-300">
-            {data.season.name}
-          </p>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.18em] text-teal-300">
+                {data.season.name}
+              </p>
 
-          <h1 className="mt-2 text-3xl font-black md:text-4xl">
-            Stats Centre
-          </h1>
+              <h1 className="mt-2 text-3xl font-black md:text-4xl">
+                Stats Centre
+              </h1>
 
-          <p className="mt-3 max-w-2xl text-slate-300">
-            Explore the season's leading horses, managers, ownership
-            trends and biggest price movements.
-          </p>
+              <p className="mt-3 max-w-2xl text-slate-300">
+                Explore the season's leading horses, managers, ownership
+                trends and biggest price movements.
+              </p>
+            </div>
+
+            <div className="w-full lg:w-80">
+              <label
+                htmlFor="stats-season"
+                className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-300"
+              >
+                Season
+              </label>
+
+              <select
+                id="stats-season"
+                value={selectedSeasonId}
+                onChange={(event) =>
+                  void changeSeason(event.target.value)
+                }
+                disabled={seasonLoading || seasons.length === 0}
+                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 font-semibold text-white outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {seasons.length === 0 ? (
+                  <option value="">No seasons available</option>
+                ) : (
+                  seasons.map((season) => (
+                    <option key={season.id} value={season.id}>
+                      {season.name} {season.year}
+                      {season.is_active ? " — Active" : ""}
+                    </option>
+                  ))
+                )}
+              </select>
+
+              {selectedSeason && (
+                <p className="mt-2 text-xs text-slate-400">
+                  Viewing {selectedSeason.name} {selectedSeason.year}
+                </p>
+              )}
+            </div>
+          </div>
         </header>
+
+        {seasonLoading && (
+          <div className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-800">
+            Loading season statistics...
+          </div>
+        )}
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border bg-white p-5 shadow-sm">
