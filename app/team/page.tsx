@@ -506,9 +506,9 @@ export default function MyTeamPage() {
   return (
     <main className="min-h-screen bg-slate-100 p-3 sm:p-4 md:p-6">
       <div className="mx-auto max-w-7xl">
-        <header className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="grid xl:grid-cols-[minmax(300px,1.15fr)_minmax(0,2fr)_auto]">
-            <div className="border-b border-slate-200 px-5 py-5 md:px-7 xl:border-b-0 xl:border-r">
+        <header className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-5 px-5 py-5 md:px-7 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0 xl:max-w-sm">
               <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                 <span className="text-teal-700">{season.name}</span>
                 <span className="text-slate-300">•</span>
@@ -521,88 +521,80 @@ export default function MyTeamPage() {
               <h1 className="mt-1 truncate text-3xl font-bold tracking-tight text-slate-950">
                 {team.team_name?.trim() || "My Team"}
               </h1>
-
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                <span className="font-semibold text-slate-700">
-                  {getStatusLabel(team.status)}
-                </span>
-
-                <span className="text-slate-600">
-                  {lockoutHasStarted ? "🔒 Round locked" : "Next lockout"}:{" "}
-                  <strong>{getCountdown(round.lockout_at, currentTime)}</strong>
-                </span>
-              </div>
-
-              <p className="mt-1 text-xs text-slate-500">
-                {formatDateTime(round.lockout_at)}
-              </p>
             </div>
 
-            <div className="grid grid-cols-2 divide-x divide-y divide-slate-200 sm:grid-cols-4 sm:divide-y-0">
-              <div className="px-4 py-5 md:px-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Round score
-                </p>
-                <p className="mt-1 text-3xl font-bold leading-none text-teal-700">
-                  {totalPoints}
-                  <span className="ml-1 text-sm font-semibold">pts</span>
+            <div className="grid flex-1 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 xl:max-w-4xl xl:grid-cols-5">
+              <div className="border-l-2 border-teal-600 pl-3">
+                <p className="text-xs font-medium text-slate-500">Total score</p>
+                <p className="mt-0.5 text-2xl font-bold text-teal-700">
+                  {totalPoints} <span className="text-sm font-semibold">pts</span>
                 </p>
               </div>
 
-              <div className="px-4 py-5 md:px-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Team salary
-                </p>
-                <p className="mt-1 text-xl font-bold text-slate-950">
+              <div className="border-l border-slate-200 pl-3">
+                <p className="text-xs font-medium text-slate-500">Team salary</p>
+                <p className="mt-1 text-lg font-bold text-slate-950">
                   {formatCurrency(salaryUsed)}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {formatCurrency(salaryRemaining)} remaining
+              </div>
+
+              <div className="border-l border-slate-200 pl-3">
+                <p className="text-xs font-medium text-slate-500">Salary remaining</p>
+                <p className="mt-1 text-lg font-bold text-teal-700">
+                  {formatCurrency(salaryRemaining)}
                 </p>
               </div>
 
-              <div className="px-4 py-5 md:px-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Horses
-                </p>
-                <p className="mt-1 text-xl font-bold text-slate-950">
+              <div className="border-l border-slate-200 pl-3">
+                <p className="text-xs font-medium text-slate-500">Horses</p>
+                <p className="mt-1 text-lg font-bold text-slate-950">
                   {selections.length} / {season.team_size}
                 </p>
               </div>
 
-              <div className="px-4 py-5 md:px-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Captain
-                </p>
-                <p className="mt-1 truncate text-xl font-bold text-slate-950">
+              <div className="border-l border-slate-200 pl-3">
+                <p className="text-xs font-medium text-slate-500">Captain</p>
+                <p className="mt-1 truncate text-lg font-bold text-slate-950">
                   {captainName}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Scores 2× points
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center justify-end border-t border-slate-200 px-5 py-4 xl:border-l xl:border-t-0">
-              {editButtonVisible ? (
-                <Link
-                  href="/team/edit"
-                  className="inline-flex w-full items-center justify-center rounded-lg bg-slate-950 px-5 py-3 font-bold text-white transition hover:bg-slate-800 xl:w-auto"
-                >
-                  Edit Team
-                </Link>
-              ) : (
-                <span className="text-sm font-semibold text-slate-500">
-                  {getStatusLabel(team.status)}
-                </span>
-              )}
-            </div>
+            {editButtonVisible && (
+              <Link
+                href="/team/edit"
+                className="inline-flex shrink-0 items-center justify-center rounded-lg bg-slate-950 px-5 py-3 font-bold text-white transition hover:bg-slate-800"
+              >
+                Edit Team
+              </Link>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-200 bg-slate-50/70 px-5 py-3 text-sm md:px-7">
+            <span className="font-semibold text-slate-700">
+              {getStatusLabel(team.status)}
+            </span>
+
+            <span className="text-slate-600">
+              {lockoutHasStarted ? "🔒 Round locked" : "Next lockout"}: {" "}
+              <strong>{getCountdown(round.lockout_at, currentTime)}</strong>
+            </span>
+
+            <span className="text-slate-500">
+              {formatDateTime(round.lockout_at)}
+            </span>
           </div>
         </header>
 
         {errorMessage && (
           <div className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
             {errorMessage}
+          </div>
+        )}
+
+        {lockoutHasStarted && (
+          <div className="mt-4 rounded-lg border border-slate-300 bg-slate-200 px-4 py-3 text-sm text-slate-800">
+            Round lockout has commenced. Your team can no longer be edited.
           </div>
         )}
 
@@ -729,6 +721,17 @@ export default function MyTeamPage() {
                     })}
                   </div>
                 )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">Race Day Progress</h2>
+                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full rounded-full bg-teal-600" style={{ width: `${fixtureRaces.length ? Math.min((completedFixtureCount / fixtureRaces.length) * 100, 100) : 0}%` }} />
+                </div>
+                <div className="mt-3 flex items-end justify-between gap-4">
+                  <div><p className="text-2xl font-bold text-slate-950">{completedFixtureCount} / {fixtureRaces.length}</p><p className="text-xs text-slate-500">races completed</p></div>
+                  <p className="text-sm font-semibold text-slate-600">{Math.max(fixtureRaces.length - completedFixtureCount, 0)} remaining</p>
+                </div>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
