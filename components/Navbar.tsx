@@ -7,6 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   LayoutDashboard,
   Users,
+  Network,
   Medal,
   History,
   Trophy,
@@ -195,6 +196,14 @@ export default function Navbar() {
               >
                 <Trophy className="h-4 w-4" />
                 <span>Leaderboard</span>
+              </Link>
+
+              <Link
+                href="/leagues"
+                className={desktopLinkClasses("/leagues")}
+              >
+                <Network className="h-4 w-4" />
+                <span>Leagues</span>
               </Link>
 
               <div ref={moreMenuRef} className="relative">
@@ -390,6 +399,14 @@ export default function Navbar() {
             >
               <Trophy className="h-5 w-5" />
               <span>Leaderboard</span>
+            </Link>
+
+            <Link
+              href="/leagues"
+              className={mobileLinkClasses("/leagues")}
+            >
+              <Network className="h-5 w-5" />
+              <span>Leagues</span>
             </Link>
 
             <Link
