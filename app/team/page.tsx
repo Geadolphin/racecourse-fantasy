@@ -523,7 +523,7 @@ export default function MyTeamPage() {
               </h1>
             </div>
 
-            <div className="grid flex-1 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 xl:max-w-4xl xl:grid-cols-5">
+            <div className="grid flex-1 grid-cols-2 gap-x-3 gap-y-4 lg:grid-cols-5 xl:max-w-4xl">
               <div className="border-l-2 border-teal-600 pl-3">
                 <p className="text-xs font-medium text-slate-500">Total score</p>
                 <p className="mt-0.5 text-2xl font-bold text-teal-700">
@@ -647,12 +647,12 @@ export default function MyTeamPage() {
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-2">
-                              <h3 className="truncate text-base font-bold text-slate-950 sm:text-lg">
-                                {horse?.name ?? "Unknown horse"}
-                              </h3>
                               {selection.is_captain && (
                                 <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950">C</span>
                               )}
+                              <h3 className="truncate text-base font-bold text-slate-950 sm:text-lg">
+                                {horse?.name ?? "Unknown horse"}
+                              </h3>
                             </div>
 
                             <p className="mt-1 truncate text-sm font-medium text-slate-800">
