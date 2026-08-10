@@ -13,15 +13,16 @@ const links = [
   { href: "/admin/race-entries", label: "Race Entries" },
   { href: "/admin/results", label: "Results" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/leagues", label: "Leagues" },
 ];
 
 export default function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-full bg-slate-950 text-white md:min-h-[calc(100vh-73px)] md:w-64">
-      <div className="border-b border-slate-800 px-6 py-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
+    <aside className="w-full bg-slate-950 text-white md:min-h-screen md:w-64">
+      <div className="border-b border-slate-800 p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-400">
           Administration
         </p>
 
