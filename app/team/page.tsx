@@ -647,12 +647,12 @@ export default function MyTeamPage() {
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-2">
-                              {selection.is_captain && (
-                                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950">C</span>
-                              )}
                               <h3 className="truncate text-base font-bold text-slate-950 sm:text-lg">
                                 {horse?.name ?? "Unknown horse"}
                               </h3>
+                              {selection.is_captain && (
+                                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950">C</span>
+                              )}
                             </div>
 
                             <p className="mt-1 truncate text-sm font-medium text-slate-800">
