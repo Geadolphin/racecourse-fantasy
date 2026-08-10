@@ -42,6 +42,17 @@ type Race = {
   racecourse: Racecourse | null;
 };
 
+type FixtureRace = {
+  id: string;
+  race_number: number;
+  race_name: string;
+  grade: "L" | "G3" | "G2" | "G1";
+  distance_metres: number | null;
+  scheduled_start: string;
+  status: string;
+  racecourse: Racecourse | null;
+};
+
 type RaceEntry = {
   id: string;
   race_id: string;
@@ -186,6 +197,7 @@ export default function MyTeamPage() {
   const [selections, setSelections] = useState<
     TeamSelection[]
   >([]);
+  const [fixtureRaces, setFixtureRaces] = useState<FixtureRace[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -212,6 +224,7 @@ export default function MyTeamPage() {
       setSeason(null);
       setTeam(null);
       setSelections([]);
+      setFixtureRaces([]);
 
       setErrorMessage(
         error.message ||
@@ -229,6 +242,7 @@ export default function MyTeamPage() {
       setSeason(null);
       setTeam(null);
       setSelections([]);
+      setFixtureRaces([]);
 
       setErrorMessage(
         teamData?.message ||
@@ -243,6 +257,48 @@ export default function MyTeamPage() {
     setSeason(teamData.season);
     setTeam(teamData.team);
     setSelections(teamData.selections ?? []);
+
+    const { data: fixtureData, error: fixtureError } = await supabase
+      .from("races")
+      .select(`
+        id,
+        race_number,
+        race_name,
+        grade,
+        distance_metres,
+        scheduled_start,
+        status,
+        racecourse:racecourses (id, name)
+      `)
+      .eq("round_id", teamData.round.id)
+      .order("scheduled_start", { ascending: true })
+      .order("race_number", { ascending: true });
+
+    if (fixtureError) {
+      console.error("My Team fixture error:", fixtureError);
+      setFixtureRaces([]);
+    } else {
+      const loadedFixture = ((fixtureData ?? []) as Array<Record<string, unknown>>).map((race) => {
+        const rawRacecourse = race.racecourse;
+        const racecourse = Array.isArray(rawRacecourse)
+          ? (rawRacecourse[0] as Racecourse | undefined) ?? null
+          : (rawRacecourse as Racecourse | null);
+
+        return {
+          id: String(race.id),
+          race_number: Number(race.race_number),
+          race_name: String(race.race_name),
+          grade: race.grade as FixtureRace["grade"],
+          distance_metres: race.distance_metres == null ? null : Number(race.distance_metres),
+          scheduled_start: String(race.scheduled_start),
+          status: String(race.status),
+          racecourse,
+        };
+      });
+
+      setFixtureRaces(loadedFixture);
+    }
+
     setLoading(false);
   }, []);
 
@@ -313,6 +369,21 @@ export default function MyTeamPage() {
 
       return total + (selection.is_captain ? basePoints * 2 : basePoints);
     }, 0);
+  }, [selections]);
+
+  const completedFixtureCount = useMemo(() => {
+    return fixtureRaces.filter((race) =>
+      ["official", "abandoned", "cancelled"].includes(race.status)
+    ).length;
+  }, [fixtureRaces]);
+
+  const latestResultSelection = useMemo(() => {
+    return [...selections]
+      .filter((selection) => selection.has_result && selection.race_entry?.race?.scheduled_start)
+      .sort((a, b) =>
+        new Date(b.race_entry!.race!.scheduled_start).getTime() -
+        new Date(a.race_entry!.race!.scheduled_start).getTime()
+      )[0] ?? null;
   }, [selections]);
 
   const captainName = useMemo(() => {
@@ -528,139 +599,158 @@ export default function MyTeamPage() {
         )}
 
         <section className="mt-5">
-          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-slate-950">Selected Horses</h2>
-              <p className="text-sm text-slate-600">
-                Your team for Round {round.round_number}. Select a horse card to view its statistics.
-              </p>
-            </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="min-w-0">
+              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-950">Selected Horses</h2>
+                  <p className="text-sm text-slate-600">
+                    Your team for Round {round.round_number}. Select a horse card to view its statistics.
+                  </p>
+                </div>
+                <p className="text-xs font-medium text-slate-500">Captain scores 2× points</p>
+              </div>
 
-            <p className="text-xs font-medium text-slate-500">
-              Captain scores 2× points
-            </p>
-          </div>
+              {sortedSelections.length === 0 ? (
+                <div className="rounded-xl border bg-white p-10 text-center text-slate-500 shadow-sm">
+                  No horses have been selected.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  {sortedSelections.map((selection) => {
+                    const entry = selection.race_entry;
+                    const horse = entry?.horse;
+                    const race = entry?.race;
+                    const displayedPoints = selection.is_captain
+                      ? (selection.fantasy_points ?? 0) * 2
+                      : selection.fantasy_points ?? 0;
 
-          {sortedSelections.length === 0 ? (
-            <div className="rounded-xl border bg-white p-10 text-center text-slate-500 shadow-sm">
-              No horses have been selected.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {sortedSelections.map((selection) => {
-                const entry = selection.race_entry;
-                const horse = entry?.horse;
-                const race = entry?.race;
+                    return (
+                      <article
+                        key={selection.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => horse?.id && setSelectedHorseId(horse.id)}
+                        onKeyDown={(event) => {
+                          if ((event.key === "Enter" || event.key === " ") && horse?.id) {
+                            event.preventDefault();
+                            setSelectedHorseId(horse.id);
+                          }
+                        }}
+                        className={`cursor-pointer rounded-xl border px-4 py-3.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
+                          selection.is_captain
+                            ? "border-amber-300 bg-amber-50/50"
+                            : "border-slate-200 bg-white"
+                        }`}
+                        aria-label={horse ? `View statistics for ${horse.name}` : "Horse statistics unavailable"}
+                      >
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
+                              {selection.is_captain && (
+                                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950">C</span>
+                              )}
+                              <h3 className="truncate text-base font-bold text-slate-950 sm:text-lg">
+                                {horse?.name ?? "Unknown horse"}
+                              </h3>
+                            </div>
 
-                const displayedPoints = selection.is_captain
-                  ? (selection.fantasy_points ?? 0) * 2
-                  : selection.fantasy_points ?? 0;
-
-
-                const cardClasses = selection.is_captain
-                  ? "border-amber-300 border-l-4 bg-amber-50/60 shadow-sm"
-                  : "border-slate-200 bg-white shadow-sm";
-
-                return (
-                  <article
-                    key={selection.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      if (horse?.id) {
-                        setSelectedHorseId(horse.id);
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (
-                        (event.key === "Enter" || event.key === " ") &&
-                        horse?.id
-                      ) {
-                        event.preventDefault();
-                        setSelectedHorseId(horse.id);
-                      }
-                    }}
-                    className={`cursor-pointer rounded-xl border px-4 py-3.5 transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${cardClasses}`}
-                    aria-label={
-                      horse
-                        ? `View statistics for ${horse.name}`
-                        : "Horse statistics unavailable"
-                    }
-                  >
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-2">
-                          {selection.is_captain && (
-                            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-black text-amber-950">
-                              C
-                            </span>
-                          )}
-
-                          <h3 className="truncate text-base font-bold text-slate-950 sm:text-lg">
-                            {horse?.name ?? "Unknown horse"}
-                          </h3>
-                        </div>
-
-                        <p className="mt-1 truncate text-sm font-medium text-slate-700">
-                          {race
-                            ? `R${race.race_number} • ${race.race_name}`
-                            : "Race unavailable"}
-                        </p>
-
-                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                          {race && (
-                            <span
-                              className={`rounded-full px-2.5 py-1 text-xs font-bold ${getGradeClasses(
-                                race.grade
-                              )}`}
-                            >
-                              {getGradeLabel(race.grade)}
-                            </span>
-                          )}
-
-                          {race?.racecourse && (
-                            <span className="text-sm text-slate-600">
-                              {race.racecourse.name}
-                            </span>
-                          )}
-
-                          {race && (
-                            <>
-                              <span className="text-slate-300">•</span>
-                              <span className="text-sm font-medium text-slate-600">
-                                {formatRaceTime(race.scheduled_start)}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex min-w-[108px] flex-col items-end">
-                        {!selection.has_result ? (
-                          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600">
-                            Upcoming
-                          </span>
-                        ) : (
-                          <div className="text-right">
-                            <p className="text-2xl font-black leading-none text-teal-700 sm:text-3xl">
-                              {displayedPoints}
+                            <p className="mt-1 truncate text-sm font-medium text-slate-800">
+                              {race ? `R${race.race_number} • ${race.race_name}` : "Race unavailable"}
                             </p>
-                            <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">
-                              {selection.is_captain ? "pts · 2×" : "pts"}
-                            </p>
+
+                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                              {race && (
+                                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${getGradeClasses(race.grade)}`}>
+                                  {getGradeLabel(race.grade)}
+                                </span>
+                              )}
+                              {race?.racecourse && <span className="text-sm font-medium text-slate-700">{race.racecourse.name}</span>}
+                              {race && <><span className="text-slate-300">•</span><span className="text-sm font-medium text-slate-700">{formatRaceTime(race.scheduled_start)}</span></>}
+                            </div>
                           </div>
-                        )}
 
-                        <p className="mt-3 text-sm font-bold text-slate-950">
-                          {formatCurrency(selection.selected_price)}
-                        </p>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
+                          <div className="flex min-w-[108px] flex-col items-end">
+                            {!selection.has_result ? (
+                              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600">Upcoming</span>
+                            ) : (
+                              <div className="text-right">
+                                <p className="text-2xl font-bold leading-none text-teal-700 sm:text-3xl">{displayedPoints}</p>
+                                <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{selection.is_captain ? "pts · 2×" : "pts"}</p>
+                              </div>
+                            )}
+                            <p className="mt-3 text-sm font-bold text-slate-950">{formatCurrency(selection.selected_price)}</p>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+
+            <aside className="space-y-4">
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 px-4 py-3">
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">Round {round.round_number} Fixture</h2>
+                </div>
+                {fixtureRaces.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-slate-500">Fixture details are not available yet.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {fixtureRaces.map((fixtureRace) => {
+                      const isComplete = ["official", "abandoned", "cancelled"].includes(fixtureRace.status);
+                      return (
+                        <div key={fixtureRace.id} className="grid grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3">
+                          <p className="text-sm font-bold text-slate-950">{formatRaceTime(fixtureRace.scheduled_start)}</p>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-950">R{fixtureRace.race_number} · {fixtureRace.race_name}</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+                              <span className={`rounded px-1.5 py-0.5 font-bold ${getGradeClasses(fixtureRace.grade)}`}>{getGradeLabel(fixtureRace.grade)}</span>
+                              {fixtureRace.distance_metres && <span>{fixtureRace.distance_metres}m</span>}
+                              {fixtureRace.racecourse && <><span>•</span><span>{fixtureRace.racecourse.name}</span></>}
+                            </div>
+                          </div>
+                          <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                            isComplete ? "bg-emerald-100 text-emerald-800" : fixtureRace.status === "running" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"
+                          }`}>
+                            {fixtureRace.status === "official" ? "Complete" : fixtureRace.status}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">Race Day Progress</h2>
+                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full rounded-full bg-teal-600" style={{ width: `${fixtureRaces.length ? Math.min((completedFixtureCount / fixtureRaces.length) * 100, 100) : 0}%` }} />
+                </div>
+                <div className="mt-3 flex items-end justify-between gap-4">
+                  <div><p className="text-2xl font-bold text-slate-950">{completedFixtureCount} / {fixtureRaces.length}</p><p className="text-xs text-slate-500">races completed</p></div>
+                  <p className="text-sm font-semibold text-slate-600">{Math.max(fixtureRaces.length - completedFixtureCount, 0)} remaining</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">Latest Result</h2>
+                {latestResultSelection?.race_entry?.horse && latestResultSelection.race_entry.race ? (
+                  <div className="mt-3 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-slate-950">{latestResultSelection.race_entry.horse.name}</p>
+                      <p className="mt-1 truncate text-sm text-slate-600">R{latestResultSelection.race_entry.race.race_number} · {latestResultSelection.race_entry.race.race_name}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-2xl font-bold text-teal-700">{latestResultSelection.is_captain ? latestResultSelection.fantasy_points * 2 : latestResultSelection.fantasy_points}</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">pts</p>
+                    </div>
+                  </div>
+                ) : <p className="mt-3 text-sm text-slate-500">No official results yet.</p>}
+              </div>
+            </aside>
+          </div>
         </section>
       </div>
 
