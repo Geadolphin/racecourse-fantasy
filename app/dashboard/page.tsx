@@ -836,16 +836,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {!lockoutHasPassed && (
-              <div className="mt-4">
-                <Link
-                  href="/team/edit"
-                  className="inline-flex rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-amber-400"
-                >
-                  Edit Team
-                </Link>
-              </div>
-            )}
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -924,15 +914,14 @@ export default function Dashboard() {
                 View Team
               </Link>
 
-              {!lockoutHasPassed &&
-                team?.status !== "submitted" && (
-                  <Link
-                    href="/team/edit"
-                    className="rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-700"
-                  >
-                    Edit Team
-                  </Link>
-                )}
+              {!lockoutHasPassed && (
+                <Link
+                  href="/team/edit"
+                  className="rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-700"
+                >
+                  Edit Team
+                </Link>
+              )}
             </div>
           </div>
         </section>
@@ -1061,7 +1050,7 @@ export default function Dashboard() {
               <div className="p-7 text-center text-slate-500">
                 No leaderboard scores are available yet.
               </div>
-            )}a
+            )}
           </div>
         </section>
       </div>
