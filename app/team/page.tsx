@@ -286,6 +286,46 @@ function Icon({
   );
 }
 
+
+function OfficialTeamStat({
+  icon,
+  label,
+  value,
+  emphasis = "default",
+}: {
+  icon: IconName;
+  label: string;
+  value: string;
+  emphasis?: "default" | "teal" | "amber";
+}) {
+  const valueClasses =
+    emphasis === "teal"
+      ? "text-teal-300"
+      : emphasis === "amber"
+        ? "text-amber-300"
+        : "text-white";
+
+  const iconClasses =
+    emphasis === "amber"
+      ? "text-amber-300"
+      : "text-teal-300";
+
+  return (
+    <div className="min-w-0 bg-slate-900 px-4 py-3.5">
+      <div className={`flex items-center gap-2 ${iconClasses}`}>
+        <Icon name={icon} className="h-4 w-4" />
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+          {label}
+        </p>
+      </div>
+
+      <p className={`mt-1.5 truncate text-lg font-black ${valueClasses}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 export default function MyTeamPage() {
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
@@ -596,150 +636,134 @@ export default function MyTeamPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 p-3 sm:p-4 md:p-6">
-      <div className="mx-auto max-w-7xl">
-        <header className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-5 px-5 py-5 md:px-7 xl:flex-row xl:items-center xl:justify-between">
-            <div className="min-w-0 xl:max-w-sm">
-              <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                <span className="text-teal-700">{season.name}</span>
-                <span className="text-slate-300">•</span>
-                <span className="text-slate-600">
-                  Round {round.round_number}
-                  {round.name ? ` — ${round.name}` : ""}
+    <main className="min-h-screen bg-slate-100">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10">
+        <header className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white shadow-lg">
+          <div className="border-b border-slate-800 px-5 py-3 md:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-teal-300">
+                  Official Team Sheet
+                </p>
+
+                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                  <span className="font-semibold text-slate-400">
+                    {season.name} · Round {round.round_number}
+                    {round.name ? ` — ${round.name}` : ""}
+                  </span>
+
+                  <span className="inline-flex items-center gap-1.5 text-slate-300">
+                    <Icon name="clock" className="h-3.5 w-3.5 text-teal-300" />
+                    {lockoutHasStarted ? "Round locked" : "Next lockout"}:
+                    <strong className="text-white">
+                      {getCountdown(round.lockout_at, currentTime)}
+                    </strong>
+                  </span>
+
+                  <span className="text-slate-500">
+                    {formatDateTime(round.lockout_at)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-slate-200">
+                  {getStatusLabel(team.status)}
                 </span>
-              </div>
 
-              <h1 className="mt-1 truncate text-3xl font-bold tracking-tight text-slate-950">
-                {team.team_name?.trim() || "My Team"}
-              </h1>
-            </div>
-
-            <div className="grid flex-1 grid-cols-2 gap-2 lg:grid-cols-5 xl:max-w-4xl">
-              <div className="rounded-xl bg-teal-50 px-3 py-3 ring-1 ring-teal-100">
-                <div className="flex items-center gap-2 text-teal-700">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-teal-100">
-                    <Icon name="trophy" />
-                  </span>
-                  <p className="text-[11px] font-bold uppercase tracking-wide">
-                    Total score
-                  </p>
-                </div>
-                <p className="mt-2 text-2xl font-bold text-teal-700">
-                  {totalPoints} <span className="text-sm font-semibold">pts</span>
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-slate-50 px-3 py-3 ring-1 ring-slate-200">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-slate-200">
-                    <Icon name="wallet" />
-                  </span>
-                  <p className="text-[11px] font-bold uppercase tracking-wide">
-                    Team salary
-                  </p>
-                </div>
-                <p className="mt-2 text-lg font-bold text-slate-950">
-                  {formatCurrency(salaryUsed)}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-slate-50 px-3 py-3 ring-1 ring-slate-200">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-slate-200">
-                    <Icon name="wallet" />
-                  </span>
-                  <p className="text-[11px] font-bold uppercase tracking-wide">
-                    Remaining
-                  </p>
-                </div>
-                <p className="mt-2 text-lg font-bold text-teal-700">
-                  {formatCurrency(salaryRemaining)}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-slate-50 px-3 py-3 ring-1 ring-slate-200">
-                <div className="flex items-center gap-2 text-slate-600">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-slate-200">
-                    <Icon name="horse" />
-                  </span>
-                  <p className="text-[11px] font-bold uppercase tracking-wide">
-                    Horses
-                  </p>
-                </div>
-                <p className="mt-2 text-lg font-bold text-slate-950">
-                  {selections.length} / {season.team_size}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-amber-50 px-3 py-3 ring-1 ring-amber-100">
-                <div className="flex items-center gap-2 text-amber-700">
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-amber-100">
-                    <Icon name="star" />
-                  </span>
-                  <p className="text-[11px] font-bold uppercase tracking-wide">
-                    Captain
-                  </p>
-                </div>
-                <p className="mt-2 truncate text-lg font-bold text-slate-950">
-                  {captainName}
-                </p>
+                {editButtonVisible && (
+                  <Link
+                    href="/team/edit"
+                    className="inline-flex items-center justify-center rounded-lg bg-teal-500 px-3 py-1.5 text-xs font-black text-slate-950 transition hover:bg-teal-400"
+                  >
+                    <Icon name="edit" className="mr-1.5 h-3.5 w-3.5" />
+                    Edit Team
+                  </Link>
+                )}
               </div>
             </div>
-
-            {editButtonVisible && (
-              <Link
-                href="/team/edit"
-                className="inline-flex shrink-0 items-center justify-center rounded-lg bg-slate-950 px-5 py-3 font-bold text-white transition hover:bg-slate-800"
-              >
-                <Icon name="edit" className="mr-2 h-4 w-4" />
-                Edit Team
-              </Link>
-            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-200 bg-slate-50/70 px-5 py-3 text-sm md:px-7">
-            <span className="font-semibold text-slate-700">
-              {getStatusLabel(team.status)}
-            </span>
+          <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(620px,1.5fr)]">
+            <div className="p-5 md:p-6">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
+                  My Team
+                </p>
 
-            <span className="inline-flex items-center gap-1.5 text-slate-600">
-              <Icon name="clock" className="h-4 w-4 text-teal-700" />
-              {lockoutHasStarted ? "Round locked" : "Next lockout"}:{" "}
-              <strong>{getCountdown(round.lockout_at, currentTime)}</strong>
-            </span>
+                <h1 className="mt-1 truncate text-2xl font-black tracking-tight md:text-3xl">
+                  {team.team_name?.trim() || "My Team"}
+                </h1>
+              </div>
 
-            <span className="text-slate-500">
-              {formatDateTime(round.lockout_at)}
-            </span>
+
+            </div>
+
+            <div className="grid grid-cols-2 gap-px border-t border-slate-800 bg-slate-800 lg:grid-cols-4 xl:border-l xl:border-t-0">
+              <OfficialTeamStat
+                icon="trophy"
+                label="Total Score"
+                value={`${totalPoints} pts`}
+                emphasis="teal"
+              />
+
+              <OfficialTeamStat
+                icon="wallet"
+                label="Team Salary"
+                value={formatCurrency(salaryUsed)}
+              />
+
+              <OfficialTeamStat
+                icon="wallet"
+                label="Remaining"
+                value={formatCurrency(salaryRemaining)}
+                emphasis="teal"
+              />
+
+              <OfficialTeamStat
+                icon="star"
+                label="Captain"
+                value={captainName}
+                emphasis="amber"
+              />
+            </div>
           </div>
         </header>
 
         {errorMessage && (
-          <div className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
+          <div className="mt-5 rounded-xl border border-red-300 bg-red-50 p-4 font-medium text-red-800">
             {errorMessage}
           </div>
         )}
 
 
-        <section className="mt-5">
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="mt-7">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="min-w-0">
-              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div className="mb-4 flex flex-col gap-2 border-b border-slate-300 pb-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700 ring-1 ring-teal-100">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">
+                    Stable Line-up
+                  </p>
+
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-950 text-teal-300">
                       <Icon name="horse" className="h-4.5 w-4.5" />
                     </span>
-                    <h2 className="text-xl font-bold text-slate-950">
+
+                    <h2 className="text-2xl font-black text-slate-950">
                       Selected Horses
                     </h2>
                   </div>
-                  <p className="text-sm text-slate-600">
+
+                  <p className="mt-1 text-sm text-slate-600">
                     Your team for Round {round.round_number}. Select a horse card to view its statistics.
                   </p>
                 </div>
-                <p className="text-xs font-medium text-slate-500">Captain scores 2× points</p>
+
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Captain scores 2× points
+                </p>
               </div>
 
               {sortedSelections.length === 0 ? (
@@ -768,7 +792,7 @@ export default function MyTeamPage() {
                             setSelectedHorseId(horse.id);
                           }
                         }}
-                        className={`cursor-pointer rounded-xl border px-4 py-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-200 hover:bg-teal-50/30 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
+                        className={`cursor-pointer overflow-hidden rounded-xl border px-4 py-3.5 shadow-sm transition hover:border-teal-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
                           selection.is_captain
                             ? "border-amber-300 bg-amber-50/50"
                             : "border-slate-200 bg-white"
@@ -836,16 +860,16 @@ export default function MyTeamPage() {
 
             <aside className="space-y-4">
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
+                <div className="border-b border-slate-800 bg-slate-950 px-4 py-3 text-white">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white text-teal-700 ring-1 ring-slate-200">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-teal-300 ring-1 ring-slate-700">
                       <Icon name="calendar" />
                     </span>
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-300">
                         Race day
                       </p>
-                      <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">
+                      <h2 className="text-sm font-black uppercase tracking-wide text-white">
                         Round {round.round_number} Fixture
                       </h2>
                     </div>
@@ -880,15 +904,17 @@ export default function MyTeamPage() {
                 )}
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700 ring-1 ring-teal-100">
+              <div className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
+                <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-950 px-4 py-3 text-white">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-teal-300 ring-1 ring-slate-700">
                     <Icon name="flag" />
                   </span>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-950">
+                  <h2 className="text-sm font-black uppercase tracking-wide text-white">
                     Latest Result
                   </h2>
                 </div>
+
+                <div className="p-4">
                 {latestResultSelection?.race_entry?.horse && latestResultSelection.race_entry.race ? (
                   <div className="mt-3 flex items-center justify-between gap-4">
                     <div className="min-w-0">
@@ -901,6 +927,7 @@ export default function MyTeamPage() {
                     </div>
                   </div>
                 ) : <p className="mt-3 text-sm text-slate-500">No official results yet.</p>}
+                </div>
               </div>
             </aside>
           </div>
