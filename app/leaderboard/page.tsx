@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Trophy } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 import LeaderboardTable from "./LeaderboardTable";
@@ -17,6 +18,7 @@ type LeaderboardData = {
 
 type RoundOption = {
   id: string;
+  season_id: string;
   round_number: number;
   name: string | null;
   status: string;
@@ -65,7 +67,7 @@ export default function LeaderboardPage() {
 
         supabase
           .from("rounds")
-          .select("id, round_number, name, status")
+          .select("id, season_id, round_number, name, status")
           .order("round_number", { ascending: false }),
 
         supabase
@@ -131,13 +133,6 @@ export default function LeaderboardPage() {
        * Open the active round when possible. Otherwise, use the
        * highest round number that already has leaderboard data.
        */
-      const preferredRound =
-        availableRounds.find((round) =>
-          ["open", "locked"].includes(round.status)
-        ) ?? availableRounds[0];
-
-      setSelectedRoundId(preferredRound?.id ?? "");
-
       const loadedSeasons = (seasonsData ?? []) as SeasonOption[];
       setSeasons(loadedSeasons);
 
@@ -145,7 +140,19 @@ export default function LeaderboardPage() {
         loadedSeasons.find((season) => season.is_active) ??
         loadedSeasons[0];
 
-      setSelectedSeasonId(preferredSeason?.id ?? "");
+      const preferredSeasonId = preferredSeason?.id ?? "";
+      setSelectedSeasonId(preferredSeasonId);
+
+      const seasonRounds = availableRounds.filter(
+        (round) => round.season_id === preferredSeasonId
+      );
+
+      const preferredRound =
+        seasonRounds.find((round) =>
+          ["open", "locked"].includes(round.status)
+        ) ?? seasonRounds[0];
+
+      setSelectedRoundId(preferredRound?.id ?? "");
       setLoading(false);
     }
 
@@ -156,11 +163,43 @@ export default function LeaderboardPage() {
     };
   }, []);
 
-  const selectedRound = useMemo(() => {
-    return rounds.find(
+  const seasonRounds = useMemo(() => {
+    if (!selectedSeasonId) {
+      return [];
+    }
+
+    return rounds.filter(
+      (round) => round.season_id === selectedSeasonId
+    );
+  }, [rounds, selectedSeasonId]);
+
+  useEffect(() => {
+    if (!selectedSeasonId || seasonRounds.length === 0) {
+      setSelectedRoundId("");
+      return;
+    }
+
+    const currentRoundStillValid = seasonRounds.some(
       (round) => round.id === selectedRoundId
     );
-  }, [rounds, selectedRoundId]);
+
+    if (currentRoundStillValid) {
+      return;
+    }
+
+    const preferredRound =
+      seasonRounds.find((round) =>
+        ["open", "locked"].includes(round.status)
+      ) ?? seasonRounds[0];
+
+    setSelectedRoundId(preferredRound?.id ?? "");
+  }, [selectedSeasonId, seasonRounds, selectedRoundId]);
+
+  const selectedRound = useMemo(() => {
+    return seasonRounds.find(
+      (round) => round.id === selectedRoundId
+    );
+  }, [seasonRounds, selectedRoundId]);
 
   const selectedRoundRows = useMemo(() => {
     if (!selectedRoundId) {
@@ -199,58 +238,109 @@ export default function LeaderboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8 rounded-xl bg-teal-700 p-6 text-white">
-          <h1 className="text-3xl font-bold">
-            Leaderboard
-          </h1>
+    <main className="min-h-screen bg-slate-100">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10">
+        <header className="mb-7 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white shadow-lg">
+          <div className="border-b border-slate-800 px-6 py-4 md:px-8">
+            <div className="flex items-center gap-2 text-teal-300">
+              <Trophy className="h-5 w-5" />
+              <p className="text-xs font-black uppercase tracking-[0.22em]">
+                Racecourse Fantasy
+              </p>
+            </div>
+          </div>
 
-          <p className="mt-2 text-teal-100">
-            See how your team compares against everyone else.
-          </p>
-        </div>
+          <div className="p-6 md:p-8">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
+              Official Rankings
+            </p>
+
+            <h1 className="mt-2 text-4xl font-black tracking-tight md:text-5xl">
+              Leaderboard
+            </h1>
+
+            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
+              See how your team ranks against the Racecourse Fantasy field across each round and the full season.
+            </p>
+          </div>
+        </header>
 
         {error && (
-          <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-red-700">
+          <div className="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 font-medium text-red-700">
             {error}
           </div>
         )}
 
-        <div className="mb-6 flex gap-3">
+        <div className="mb-6 inline-flex overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
           <button
             type="button"
             onClick={() => setTab("round")}
-            className={`rounded-lg px-5 py-3 font-semibold ${
+            className={`px-6 py-3 text-sm font-black transition ${
               tab === "round"
-                ? "bg-teal-700 text-white"
-                : "border bg-white"
+                ? "bg-slate-950 text-teal-300"
+                : "bg-white text-slate-700 hover:bg-slate-50"
             }`}
           >
-            Round
+            Round Rankings
           </button>
 
           <button
             type="button"
             onClick={() => setTab("season")}
-            className={`rounded-lg px-5 py-3 font-semibold ${
+            className={`border-l border-slate-300 px-6 py-3 text-sm font-black transition ${
               tab === "season"
-                ? "bg-teal-700 text-white"
-                : "border bg-white"
+                ? "bg-slate-950 text-teal-300"
+                : "bg-white text-slate-700 hover:bg-slate-50"
             }`}
           >
-            Season
+            Season Rankings
           </button>
         </div>
 
         {tab === "round" ? (
           <>
-            <section className="mb-6 rounded-xl border bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <section className="mb-6 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
+              <div className="border-b border-slate-800 bg-slate-950 px-5 py-3 text-white">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
+                  Round Competition
+                </p>
+              </div>
+
+              <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+                <div>
+                  <label
+                    htmlFor="leaderboard-round-season"
+                    className="block text-xs font-black uppercase tracking-wide text-slate-600"
+                  >
+                    Select season
+                  </label>
+
+                  <select
+                    id="leaderboard-round-season"
+                    value={selectedSeasonId}
+                    onChange={(event) =>
+                      setSelectedSeasonId(event.target.value)
+                    }
+                    disabled={seasons.length === 0}
+                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  >
+                    {seasons.length === 0 ? (
+                      <option value="">No seasons available</option>
+                    ) : (
+                      seasons.map((season) => (
+                        <option key={season.id} value={season.id}>
+                          {season.name} {season.year}
+                          {season.is_active ? " — Active" : ""}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
                 <div>
                   <label
                     htmlFor="leaderboard-round"
-                    className="block text-sm font-bold text-slate-800"
+                    className="block text-xs font-black uppercase tracking-wide text-slate-600"
                   >
                     Select round
                   </label>
@@ -261,15 +351,15 @@ export default function LeaderboardPage() {
                     onChange={(event) =>
                       setSelectedRoundId(event.target.value)
                     }
-                    disabled={rounds.length === 0}
+                    disabled={seasonRounds.length === 0}
                     className="mt-2 min-w-64 rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
                   >
-                    {rounds.length === 0 ? (
+                    {seasonRounds.length === 0 ? (
                       <option value="">
                         No round results available
                       </option>
                     ) : (
-                      rounds.map((round) => (
+                      seasonRounds.map((round) => (
                         <option
                           key={round.id}
                           value={round.id}
@@ -285,7 +375,7 @@ export default function LeaderboardPage() {
                 </div>
 
                 {selectedRound && (
-                  <div className="text-sm text-slate-600 sm:text-right">
+                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200 lg:text-right">
                     <p className="font-semibold text-slate-900">
                       Round {selectedRound.round_number}
                       {selectedRound.name
@@ -311,12 +401,18 @@ export default function LeaderboardPage() {
           </>
         ) : (
           <>
-            <section className="mb-6 rounded-xl border bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <section className="mb-6 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
+              <div className="border-b border-slate-800 bg-slate-950 px-5 py-3 text-white">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
+                  Season Competition
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <label
                     htmlFor="leaderboard-season"
-                    className="block text-sm font-bold text-slate-800"
+                    className="block text-xs font-black uppercase tracking-wide text-slate-600"
                   >
                     Select season
                   </label>
@@ -351,7 +447,7 @@ export default function LeaderboardPage() {
                 </div>
 
                 {selectedSeason && (
-                  <div className="text-sm text-slate-600 sm:text-right">
+                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200 sm:text-right">
                     <p className="font-semibold text-slate-900">
                       {selectedSeason.name} {selectedSeason.year}
                       {selectedSeason.is_active
