@@ -5,16 +5,16 @@ import { usePathname } from "next/navigation";
 
 const links = [
   { href: "/admin", label: "Dashboard" },
-  { href: "/admin/seasons", label: "Seasons" },
-  { href: "/admin/rounds", label: "Rounds" },
+  { href: "/admin/cups", label: "Cups" },
+  { href: "/admin/horses", label: "Horses" },
+  { href: "/admin/leagues", label: "Leagues" },
+  { href: "/admin/race-entries", label: "Race Entries" },
   { href: "/admin/racecourses", label: "Racecourses" },
   { href: "/admin/races", label: "Races" },
-  { href: "/admin/horses", label: "Horses" },
-  { href: "/admin/race-entries", label: "Race Entries" },
   { href: "/admin/results", label: "Results" },
+  { href: "/admin/rounds", label: "Rounds" },
+  { href: "/admin/seasons", label: "Seasons" },
   { href: "/admin/users", label: "Users" },
-  { href: "/admin/leagues", label: "Leagues" },
-  { href: "/admin/cups", label: "Cups" },
 ];
 
 export default function AdminSidebar() {
