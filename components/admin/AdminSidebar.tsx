@@ -14,6 +14,7 @@ const links = [
   { href: "/admin/results", label: "Results" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/leagues", label: "Leagues" },
+  { href: "/admin/cups", label: "Cups" },
 ];
 
 export default function AdminSidebar() {

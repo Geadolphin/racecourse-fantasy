@@ -23,9 +23,38 @@ import {
   ChevronDown,
   Menu,
   X,
+  GitCompareArrows,
 } from "lucide-react";
 
 import { supabase } from "../lib/supabase";
+
+
+function PodiumIcon({
+  className = "",
+}: {
+  className?: string;
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M3 21h18" />
+      <path d="M4 21v-6h5v6" />
+      <path d="M9 21V9h6v12" />
+      <path d="M15 21v-8h5v8" />
+      <path d="M11 6h2" />
+      <path d="M6 12h1" />
+      <path d="M17 10h1" />
+    </svg>
+  );
+}
 
 export default function Navbar() {
   const router = useRouter();
@@ -194,7 +223,7 @@ export default function Navbar() {
                 href="/leaderboard"
                 className={desktopLinkClasses("/leaderboard")}
               >
-                <Trophy className="h-4 w-4" />
+                <PodiumIcon className="h-4 w-4" />
                 <span>Leaderboard</span>
               </Link>
 
@@ -204,6 +233,14 @@ export default function Navbar() {
               >
                 <Network className="h-4 w-4" />
                 <span>Leagues</span>
+              </Link>
+
+              <Link
+                href="/cups"
+                className={desktopLinkClasses("/cups")}
+              >
+                <Trophy className="h-4 w-4" />
+                <span>Cups</span>
               </Link>
 
               <div ref={moreMenuRef} className="relative">
@@ -280,7 +317,7 @@ export default function Navbar() {
                       role="menuitem"
                       className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-teal-300"
                     >
-                      <Users className="h-4 w-4" />
+                      <GitCompareArrows className="h-4 w-4" />
                       <span>Compare Teams</span>
                     </Link>
 
@@ -343,7 +380,7 @@ export default function Navbar() {
               href="/leaderboard"
               className="hidden items-center gap-2 transition hover:text-teal-300 sm:flex"
             >
-              <Trophy className="h-4 w-4" />
+              <PodiumIcon className="h-4 w-4" />
               <span>Leaderboard</span>
             </Link>
 
@@ -397,7 +434,7 @@ export default function Navbar() {
               href="/leaderboard"
               className={mobileLinkClasses("/leaderboard")}
             >
-              <Trophy className="h-5 w-5" />
+              <PodiumIcon className="h-5 w-5" />
               <span>Leaderboard</span>
             </Link>
 
@@ -407,6 +444,14 @@ export default function Navbar() {
             >
               <Network className="h-5 w-5" />
               <span>Leagues</span>
+            </Link>
+
+            <Link
+              href="/cups"
+              className={mobileLinkClasses("/cups")}
+            >
+              <Trophy className="h-5 w-5" />
+              <span>Cups</span>
             </Link>
 
             <Link
@@ -453,7 +498,7 @@ export default function Navbar() {
               href="/compare"
               className={mobileLinkClasses("/compare")}
             >
-              <Users className="h-5 w-5" />
+              <GitCompareArrows className="h-5 w-5" />
               <span>Compare Teams</span>
             </Link>
 
