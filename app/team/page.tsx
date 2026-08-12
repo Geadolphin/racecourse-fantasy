@@ -746,11 +746,7 @@ export default function MyTeamPage() {
                     Stable Line-up
                   </p>
 
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-950 text-teal-300">
-                      <Icon name="horse" className="h-4.5 w-4.5" />
-                    </span>
-
+                  <div className="mt-1">
                     <h2 className="text-2xl font-black text-slate-950">
                       Selected Horses
                     </h2>

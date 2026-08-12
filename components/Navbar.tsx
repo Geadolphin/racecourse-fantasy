@@ -277,21 +277,12 @@ export default function Navbar() {
                     </Link>
 
                     <Link
-                      href="/rules"
+                      href="/horses"
                       role="menuitem"
                       className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-teal-300"
                     >
-                      <BookOpen className="h-4 w-4" />
-                      <span>Rules</span>
-                    </Link>
-
-                    <Link
-                      href="/calendar"
-                      role="menuitem"
-                      className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-teal-300"
-                    >
-                      <CalendarDays className="h-4 w-4" />
-                      <span>Calendar</span>
+                      <ChessKnight className="h-4 w-4" />
+                      <span>Horses</span>
                     </Link>
 
                     <Link
@@ -304,12 +295,12 @@ export default function Navbar() {
                     </Link>
 
                     <Link
-                      href="/horses"
+                      href="/calendar"
                       role="menuitem"
                       className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-teal-300"
                     >
-                      <ChessKnight className="h-4 w-4" />
-                      <span>Horses</span>
+                      <CalendarDays className="h-4 w-4" />
+                      <span>Calendar</span>
                     </Link>
 
                     <Link
@@ -319,6 +310,15 @@ export default function Navbar() {
                     >
                       <GitCompareArrows className="h-4 w-4" />
                       <span>Compare Teams</span>
+                    </Link>
+
+                    <Link
+                      href="/rules"
+                      role="menuitem"
+                      className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-teal-300"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      <span>Rules</span>
                     </Link>
 
                     <Link
@@ -463,19 +463,11 @@ export default function Navbar() {
             </Link>
 
             <Link
-              href="/rules"
-              className={mobileLinkClasses("/rules")}
+              href="/horses"
+              className={mobileLinkClasses("/horses")}
             >
-              <BookOpen className="h-5 w-5" />
-              <span>Rules</span>
-            </Link>
-
-            <Link
-              href="/calendar"
-              className={mobileLinkClasses("/calendar")}
-            >
-              <CalendarDays className="h-5 w-5" />
-              <span>Calendar</span>
+              <ChessKnight className="h-5 w-5" />
+              <span>Horses</span>
             </Link>
 
             <Link
@@ -487,11 +479,11 @@ export default function Navbar() {
             </Link>
 
             <Link
-              href="/horses"
-              className={mobileLinkClasses("/horses")}
+              href="/calendar"
+              className={mobileLinkClasses("/calendar")}
             >
-              <ChessKnight className="h-5 w-5" />
-              <span>Horses</span>
+              <CalendarDays className="h-5 w-5" />
+              <span>Calendar</span>
             </Link>
 
             <Link
@@ -500,6 +492,14 @@ export default function Navbar() {
             >
               <GitCompareArrows className="h-5 w-5" />
               <span>Compare Teams</span>
+            </Link>
+
+            <Link
+              href="/rules"
+              className={mobileLinkClasses("/rules")}
+            >
+              <BookOpen className="h-5 w-5" />
+              <span>Rules</span>
             </Link>
 
             <Link
