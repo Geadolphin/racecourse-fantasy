@@ -110,6 +110,9 @@ export default function AdminCupsPage() {
   const [cups, setCups] =
     useState<CupRow[]>([]);
 
+  const [selectedSeasonId, setSelectedSeasonId] =
+    useState("");
+
   const [form, setForm] =
     useState<FormState>(EMPTY_FORM);
 
@@ -203,6 +206,14 @@ export default function AdminCupsPage() {
       setSeasons(loadedSeasons);
       setCups(cupRows);
 
+      setSelectedSeasonId((current) => {
+        if (current || loadedSeasons.length === 0) {
+          return current;
+        }
+
+        return loadedSeasons[0].id;
+      });
+
       setForm((current) => {
         if (
           current.season_id ||
@@ -238,6 +249,16 @@ export default function AdminCupsPage() {
   useEffect(() => {
     void loadData();
   }, []);
+
+  const filteredCups = useMemo(() => {
+    if (!selectedSeasonId) {
+      return cups;
+    }
+
+    return cups.filter(
+      (cup) => cup.season_id === selectedSeasonId
+    );
+  }, [cups, selectedSeasonId]);
 
   const groupStructureValid =
     form.competing_teams ===
@@ -901,26 +922,53 @@ export default function AdminCupsPage() {
           </form>
 
           <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-4 border-b border-slate-200 p-5">
+            <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-950">
                   Cup Competitions
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  {cups.length} Cup
-                  {cups.length === 1 ? "" : "s"}
+                  {filteredCups.length} Cup
+                  {filteredCups.length === 1 ? "" : "s"} in selected season
                 </p>
+              </div>
+
+              <div className="w-full sm:w-64">
+                <label
+                  htmlFor="cup-season-filter"
+                  className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500"
+                >
+                  Season
+                </label>
+
+                <select
+                  id="cup-season-filter"
+                  value={selectedSeasonId}
+                  onChange={(event) =>
+                    setSelectedSeasonId(event.target.value)
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                >
+                  {seasons.map((season) => (
+                    <option
+                      key={season.id}
+                      value={season.id}
+                    >
+                      {season.name} {season.year}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {cups.length === 0 ? (
+            {filteredCups.length === 0 ? (
               <div className="p-10 text-center text-slate-500">
-                No Cups have been created yet.
+                No Cups have been created for this season.
               </div>
             ) : (
               <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                {cups.map((cup) => (
+                {filteredCups.map((cup) => (
                   <div
                     key={cup.id}
                     className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm"

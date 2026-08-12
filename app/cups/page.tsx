@@ -116,6 +116,7 @@ function statusPriority(status: CupSummary["status"]) {
 export default function CupsPage() {
   const [loading, setLoading] = useState(true);
   const [cups, setCups] = useState<CupSummary[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -136,8 +137,21 @@ export default function CupsPage() {
       }
 
       const loadedData = data as unknown as CupsPageData;
+      const loadedCups = loadedData?.cups ?? [];
 
-      setCups(loadedData?.cups ?? []);
+      setCups(loadedCups);
+
+      setSelectedSeasonId((current) => {
+        if (current || loadedCups.length === 0) {
+          return current;
+        }
+
+        const newestCup = [...loadedCups].sort(
+          (a, b) => b.season_year - a.season_year
+        )[0];
+
+        return newestCup?.season_id ?? "";
+      });
     } catch (error) {
       console.error("Player Cups load error:", error);
 
@@ -153,8 +167,48 @@ export default function CupsPage() {
     }
   }
 
+  const seasons = useMemo(() => {
+    const byId = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        year: number;
+      }
+    >();
+
+    for (const cup of cups) {
+      if (!byId.has(cup.season_id)) {
+        byId.set(cup.season_id, {
+          id: cup.season_id,
+          name: cup.season_name,
+          year: cup.season_year,
+        });
+      }
+    }
+
+    return [...byId.values()].sort(
+      (a, b) => b.year - a.year
+    );
+  }, [cups]);
+
+  const filteredCups = useMemo(() => {
+    if (!selectedSeasonId) {
+      return cups;
+    }
+
+    return cups.filter(
+      (cup) => cup.season_id === selectedSeasonId
+    );
+  }, [cups, selectedSeasonId]);
+
+  const selectedSeason =
+    seasons.find(
+      (season) => season.id === selectedSeasonId
+    ) ?? null;
+
   const orderedCups = useMemo(() => {
-    return [...cups].sort((a, b) => {
+    return [...filteredCups].sort((a, b) => {
       const statusDifference =
         statusPriority(a.status) - statusPriority(b.status);
 
@@ -162,9 +216,9 @@ export default function CupsPage() {
         return statusDifference;
       }
 
-      return b.season_year - a.season_year;
+      return a.name.localeCompare(b.name);
     });
-  }, [cups]);
+  }, [filteredCups]);
 
   const featuredCup =
     orderedCups.find(
@@ -216,12 +270,42 @@ export default function CupsPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <HeaderStat label="Cups" value={cups.length} />
+            <div className="flex w-full flex-col gap-3 lg:w-auto">
+              {seasons.length > 0 && (
+                <div>
+                  <label
+                    htmlFor="cups-season-filter"
+                    className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.18em] text-slate-400"
+                  >
+                    Season
+                  </label>
+
+                  <select
+                    id="cups-season-filter"
+                    value={selectedSeasonId}
+                    onChange={(event) =>
+                      setSelectedSeasonId(event.target.value)
+                    }
+                    className="w-full min-w-0 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-black text-white outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-400/20 sm:min-w-[260px]"
+                  >
+                    {seasons.map((season) => (
+                      <option
+                        key={season.id}
+                        value={season.id}
+                      >
+                        {season.name} {season.year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <HeaderStat label="Cups" value={filteredCups.length} />
               <HeaderStat
                 label="Active"
                 value={
-                  cups.filter(
+                  filteredCups.filter(
                     (cup) =>
                       cup.status === "group_stage" ||
                       cup.status === "knockout" ||
@@ -229,10 +313,11 @@ export default function CupsPage() {
                   ).length
                 }
               />
-              <HeaderStat
-                label="Competing"
-                value={cups.filter((cup) => cup.is_participant).length}
-              />
+                <HeaderStat
+                  label="Competing"
+                  value={filteredCups.filter((cup) => cup.is_participant).length}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -245,18 +330,20 @@ export default function CupsPage() {
           </div>
         )}
 
-        {cups.length === 0 ? (
+        {filteredCups.length === 0 ? (
           <section className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
               <Trophy className="h-7 w-7 text-slate-400" />
             </div>
 
             <h2 className="mt-5 text-2xl font-black text-slate-950">
-              No Cup competitions available
+              No Cup competitions for this season
             </h2>
 
             <p className="mx-auto mt-2 max-w-lg text-slate-500">
-              Official Cup competitions will appear here once they are created.
+              {selectedSeason
+                ? `No Cup competitions are available for ${selectedSeason.name} ${selectedSeason.year}.`
+                : "Official Cup competitions will appear here once they are created."}
             </p>
           </section>
         ) : (
