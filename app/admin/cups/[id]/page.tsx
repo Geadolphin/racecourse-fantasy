@@ -194,6 +194,7 @@ export default function AdminCupDetailPage() {
   const [generatingKnockout, setGeneratingKnockout] = useState(false);
   const [scoringKnockoutStageId, setScoringKnockoutStageId] =
     useState<string | null>(null);
+  const [publishingCup, setPublishingCup] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -799,6 +800,74 @@ export default function AdminCupDetailPage() {
     setUpdatingStageId(null);
   }
 
+  async function handlePublishCup() {
+    if (!cup) {
+      return;
+    }
+
+    if (cup.status !== "draft") {
+      setErrorMessage(
+        "Only a draft Cup can be published."
+      );
+      return;
+    }
+
+    if (!selectionComplete) {
+      setErrorMessage(
+        `Select exactly ${requiredCount} participants before publishing the Cup.`
+      );
+      return;
+    }
+
+    if (groups.length !== cup.group_count) {
+      setErrorMessage(
+        "Generate the complete group draw before publishing the Cup."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Publish "${cup.name}"?\n\nThis will change the Cup from Draft to Ready and lock participant selection.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setPublishingCup(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const { error } = await supabase.rpc(
+      "admin_publish_cup",
+      {
+        p_cup_id: cup.id,
+      }
+    );
+
+    if (error) {
+      console.error(
+        "Publish Cup error:",
+        error
+      );
+
+      setErrorMessage(
+        error.message ||
+          "Unable to publish the Cup."
+      );
+
+      setPublishingCup(false);
+      return;
+    }
+
+    setSuccessMessage(
+      `${cup.name} is now published and ready.`
+    );
+
+    setPublishingCup(false);
+    await loadPage();
+  }
+
   async function handleScoreGroupStage(
     stage: CupStage
   ) {
@@ -1071,13 +1140,39 @@ export default function AdminCupDetailPage() {
             </p>
           </div>
 
-          <span
-            className={`rounded-full px-3 py-1.5 text-xs font-bold capitalize ${statusClasses(
-              cup.status
-            )}`}
-          >
-            {cup.status.replace("_", " ")}
-          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              className={`rounded-full px-3 py-1.5 text-xs font-bold capitalize ${statusClasses(
+                cup.status
+              )}`}
+            >
+              {cup.status.replace("_", " ")}
+            </span>
+
+            {cup.status === "draft" && (
+              <button
+                type="button"
+                onClick={() => void handlePublishCup()}
+                disabled={
+                  publishingCup ||
+                  !selectionComplete ||
+                  groups.length !== cup.group_count
+                }
+                className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                title={
+                  !selectionComplete
+                    ? `Select exactly ${requiredCount} participants first`
+                    : groups.length !== cup.group_count
+                      ? "Generate the complete group draw first"
+                      : "Publish this Cup"
+                }
+              >
+                {publishingCup
+                  ? "Publishing..."
+                  : "Publish Cup"}
+              </button>
+            )}
+          </div>
         </div>
 
         {errorMessage && (
