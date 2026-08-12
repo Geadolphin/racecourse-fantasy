@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
-  LayoutDashboard,
   Users,
   Network,
   Medal,
@@ -185,8 +184,8 @@ export default function Navbar() {
     <header className="relative z-50 border-b border-slate-800 bg-slate-900 text-white">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
         <Link
-          href="/"
-          aria-label="Racecourse Fantasy home"
+          href={user ? "/dashboard" : "/"}
+          aria-label={user ? "Racecourse Fantasy dashboard" : "Racecourse Fantasy home"}
           className="shrink-0 text-lg font-bold tracking-tight text-white transition hover:text-teal-300 sm:text-xl"
         >
           RACECOURSE FANTASY
@@ -195,14 +194,6 @@ export default function Navbar() {
         {!loading && user && (
           <>
             <div className="hidden items-center gap-5 text-sm font-medium lg:flex">
-              <Link
-                href="/dashboard"
-                className={desktopLinkClasses("/dashboard")}
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                <span>Dashboard</span>
-              </Link>
-
               <Link
                 href="/team"
                 className={desktopLinkClasses("/team")}
@@ -406,14 +397,6 @@ export default function Navbar() {
       {!loading && user && mobileOpen && (
         <div className="border-t border-slate-800 bg-slate-900 px-4 pb-4 pt-3 lg:hidden">
           <div className="mx-auto max-w-7xl space-y-1">
-            <Link
-              href="/dashboard"
-              className={mobileLinkClasses("/dashboard")}
-            >
-              <LayoutDashboard className="h-5 w-5" />
-              <span>Dashboard</span>
-            </Link>
-
             <Link
               href="/team"
               className={mobileLinkClasses("/team")}
