@@ -162,18 +162,18 @@ export default function HorsesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
+    <main className="min-h-screen bg-slate-100 p-4 md:p-6">
       <div className="mx-auto max-w-7xl">
-        <header className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm md:p-8">
+        <header className="rounded-xl bg-slate-900 p-5 text-white shadow-sm md:p-6">
           <p className="text-sm font-semibold uppercase tracking-wider text-teal-300">
             Horse Centre
           </p>
 
-          <h1 className="mt-2 text-3xl font-bold md:text-4xl">
+          <h1 className="mt-1 text-3xl font-bold">
             Horses
           </h1>
 
-          <p className="mt-2 max-w-2xl text-slate-300">
+          <p className="mt-1 max-w-2xl text-sm text-slate-300">
             Search every horse and review current prices, fantasy
             points, averages and eligible starts.
           </p>
@@ -185,7 +185,7 @@ export default function HorsesPage() {
           </div>
         )}
 
-        <section className="mt-6 rounded-xl border bg-white p-5 shadow-sm">
+        <section className="mt-4 rounded-xl border bg-white p-4 shadow-sm">
           <div className="grid gap-3 md:grid-cols-3">
             <input
               type="search"
@@ -194,7 +194,7 @@ export default function HorsesPage() {
                 setSearchTerm(event.target.value)
               }
               placeholder="Search horses"
-              className="rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700"
+              className="rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-teal-700"
             />
 
             <select
@@ -207,7 +207,7 @@ export default function HorsesPage() {
                     | "inactive"
                 )
               }
-              className="rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700"
+              className="rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-teal-700"
             >
               <option value="active">Active horses</option>
               <option value="all">All horses</option>
@@ -219,7 +219,7 @@ export default function HorsesPage() {
               onChange={(event) =>
                 setSortOption(event.target.value as SortOption)
               }
-              className="rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700"
+              className="rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-teal-700"
             >
               <option value="name">Horse name</option>
               <option value="price-high">
@@ -237,7 +237,7 @@ export default function HorsesPage() {
             </select>
           </div>
 
-          <p className="mt-4 text-sm text-slate-500">
+          <p className="mt-2 text-xs font-semibold text-slate-500">
             {filteredHorses.length}{" "}
             {filteredHorses.length === 1 ? "horse" : "horses"}
           </p>
@@ -248,21 +248,21 @@ export default function HorsesPage() {
             No horses match your filters.
           </div>
         ) : (
-          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <section className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {filteredHorses.map((horse) => (
               <Link
                 key={horse.id}
                 href={`/horses/${horse.id}`}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-400 hover:shadow-md"
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-400 hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <h2 className="truncate text-xl font-bold text-slate-900">
+                    <h2 className="truncate text-lg font-bold text-slate-900">
                       {horse.name}
                     </h2>
 
                     <span
-                      className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                      className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${
                         horse.is_active
                           ? "bg-teal-50 text-teal-700"
                           : "bg-slate-100 text-slate-600"
@@ -272,46 +272,43 @@ export default function HorsesPage() {
                     </span>
                   </div>
 
-                  <p className="shrink-0 text-lg font-bold text-slate-900">
+                  <p className="shrink-0 text-base font-bold text-slate-900">
                     {formatCurrency(horse.current_price)}
                   </p>
                 </div>
 
-                <div className="mt-5 grid grid-cols-3 gap-3">
-                  <div className="rounded-xl bg-slate-100 p-3">
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-slate-100 p-2.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Points
                     </p>
 
-                    <p className="mt-1 text-lg font-bold text-slate-900">
+                    <p className="mt-0.5 text-base font-bold text-slate-900">
                       {horse.total_fantasy_points}
                     </p>
                   </div>
 
-                  <div className="rounded-xl bg-slate-100 p-3">
+                  <div className="rounded-lg bg-slate-100 p-2.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Average
                     </p>
 
-                    <p className="mt-1 text-lg font-bold text-slate-900">
+                    <p className="mt-0.5 text-base font-bold text-slate-900">
                       {formatAverage(horse.average_fantasy_points)}
                     </p>
                   </div>
 
-                  <div className="rounded-xl bg-slate-100 p-3">
+                  <div className="rounded-lg bg-slate-100 p-2.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Starts
                     </p>
 
-                    <p className="mt-1 text-lg font-bold text-slate-900">
+                    <p className="mt-0.5 text-base font-bold text-slate-900">
                       {horse.eligible_starts}
                     </p>
                   </div>
                 </div>
 
-                <p className="mt-5 text-sm font-bold text-teal-700">
-                  View horse profile →
-                </p>
               </Link>
             ))}
           </section>
