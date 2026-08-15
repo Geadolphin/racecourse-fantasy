@@ -406,6 +406,9 @@ export default function MyTeamPage() {
   const [selections, setSelections] = useState<
     TeamSelection[]
   >([]);
+  const [currentHorsePrices, setCurrentHorsePrices] = useState<
+    Record<string, number>
+  >({});
   const [fixtureRaces, setFixtureRaces] = useState<FixtureRace[]>([]);
   const [latestResultRace, setLatestResultRace] =
     useState<FixtureRace | null>(null);
@@ -446,6 +449,7 @@ export default function MyTeamPage() {
       setSeason(null);
       setTeam(null);
       setSelections([]);
+      setCurrentHorsePrices({});
       setFixtureRaces([]);
 
       setErrorMessage(
@@ -464,6 +468,7 @@ export default function MyTeamPage() {
       setSeason(null);
       setTeam(null);
       setSelections([]);
+      setCurrentHorsePrices({});
       setFixtureRaces([]);
 
       setErrorMessage(
@@ -479,6 +484,42 @@ export default function MyTeamPage() {
     setSeason(teamData.season);
     setTeam(teamData.team);
     setSelections(teamData.selections ?? []);
+
+    const selectedHorseIds = [
+      ...new Set(
+        (teamData.selections ?? [])
+          .map((selection) => selection.race_entry?.horse?.id)
+          .filter((horseId): horseId is string => Boolean(horseId))
+      ),
+    ];
+
+    if (selectedHorseIds.length > 0) {
+      const { data: horsePriceData, error: horsePriceError } =
+        await supabase
+          .from("horses")
+          .select("id, current_price")
+          .in("id", selectedHorseIds);
+
+      if (horsePriceError) {
+        console.error(
+          "My Team current horse price error:",
+          horsePriceError
+        );
+        setCurrentHorsePrices({});
+      } else {
+        const priceMap: Record<string, number> = {};
+
+        for (const horseRow of horsePriceData ?? []) {
+          priceMap[String(horseRow.id)] = Number(
+            horseRow.current_price ?? 0
+          );
+        }
+
+        setCurrentHorsePrices(priceMap);
+      }
+    } else {
+      setCurrentHorsePrices({});
+    }
 
     const { data: fixtureData, error: fixtureError } = await supabase
       .from("races")
@@ -765,6 +806,8 @@ export default function MyTeamPage() {
   const salaryRemaining = season
     ? season.salary_cap - salaryUsed
     : 0;
+
+  const roundIsComplete = round?.status === "completed";
 
   const lockoutHasStarted =
     round !== null &&
@@ -1081,7 +1124,40 @@ export default function MyTeamPage() {
                                 <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{selection.is_captain ? "pts · 2×" : "pts"}</p>
                               </div>
                             )}
-                            <p className="mt-3 text-sm font-bold text-slate-950">{formatCurrency(selection.selected_price)}</p>
+                            <div className="mt-3 text-right">
+                              <p className="text-sm font-bold text-slate-950">
+                                {formatCurrency(
+                                  roundIsComplete && horse?.id
+                                    ? currentHorsePrices[horse.id] ??
+                                        selection.selected_price
+                                    : selection.selected_price
+                                )}
+                              </p>
+
+                              {roundIsComplete &&
+                                horse?.id &&
+                                currentHorsePrices[horse.id] !== undefined &&
+                                currentHorsePrices[horse.id] !==
+                                  selection.selected_price && (
+                                  <p
+                                    className={`mt-0.5 text-[11px] font-bold ${
+                                      currentHorsePrices[horse.id] >
+                                      selection.selected_price
+                                        ? "text-emerald-700"
+                                        : "text-red-700"
+                                    }`}
+                                  >
+                                    {currentHorsePrices[horse.id] >
+                                    selection.selected_price
+                                      ? "+"
+                                      : ""}
+                                    {formatCurrency(
+                                      currentHorsePrices[horse.id] -
+                                        selection.selected_price
+                                    )}
+                                  </p>
+                                )}
+                            </div>
                           </div>
                         </div>
                       </article>
