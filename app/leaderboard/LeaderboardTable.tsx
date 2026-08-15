@@ -10,19 +10,6 @@ type Props = {
   rows: RoundLeaderboardRow[] | SeasonLeaderboardRow[];
 };
 
-function rankDisplay(rank: number) {
-  switch (rank) {
-    case 1:
-      return "🥇";
-    case 2:
-      return "🥈";
-    case 3:
-      return "🥉";
-    default:
-      return rank;
-  }
-}
-
 export default function LeaderboardTable({
   type,
   rows,
@@ -88,7 +75,7 @@ export default function LeaderboardTable({
                 className="border-t hover:bg-slate-50"
               >
                 <td className="px-4 py-4 font-bold">
-                  {rankDisplay(rank)}
+                  {rank}
                 </td>
 
                 <td className="px-4 py-4">
