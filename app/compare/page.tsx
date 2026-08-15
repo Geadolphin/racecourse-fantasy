@@ -159,8 +159,8 @@ function getRankDisplay(rank: number | null | undefined) {
 
 function getTeamLabel(team: AvailableTeam) {
   return (
-    team.team_name?.trim() ||
     team.display_name?.trim() ||
+    team.team_name?.trim() ||
     "Unnamed Team"
   );
 }
@@ -728,8 +728,8 @@ export default function CompareTeamsPage() {
                 </p>
 
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {opponentTeam.team_name?.trim() ||
-                    selectedOpponent?.display_name ||
+                  {selectedOpponent?.display_name?.trim() ||
+                    opponentTeam.team_name?.trim() ||
                     "Opponent"}
                 </h2>
 
