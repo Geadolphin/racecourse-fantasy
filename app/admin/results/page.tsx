@@ -151,6 +151,7 @@ export default function ResultsPage() {
   const [savingResults, setSavingResults] = useState(false);
 
   const [resultsSaved, setResultsSaved] = useState(false);
+  const [editingOfficialResults, setEditingOfficialResults] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -364,6 +365,7 @@ export default function ResultsPage() {
     setResultRows([]);
     setCalculatedResults([]);
     setResultsSaved(false);
+    setEditingOfficialResults(false);
 
     setErrorMessage("");
     setSuccessMessage("");
@@ -416,17 +418,53 @@ export default function ResultsPage() {
 
     setEntries(loadedEntries);
 
+    const { data: existingResults, error: existingResultsError } =
+      await supabase
+        .from("race_results")
+        .select(
+          "race_entry_id, finishing_position, result_status, is_dead_heat"
+        )
+        .in(
+          "race_entry_id",
+          loadedEntries.map((entry) => entry.id)
+        );
+
+    if (existingResultsError) {
+      console.error(existingResultsError);
+      setErrorMessage("Could not load the existing race results.");
+      setLoadingEntries(false);
+      return;
+    }
+
+    const existingByEntryId = new Map(
+      (existingResults ?? []).map((result) => [
+        result.race_entry_id,
+        result,
+      ])
+    );
+
     setResultRows(
       loadedEntries.map((entry) => {
-        const isScratched =
-          entry.entry_status !== "runner";
+        const existing = existingByEntryId.get(entry.id);
+
+        if (existing) {
+          return {
+            race_entry_id: entry.id,
+            finishing_position:
+              existing.finishing_position == null
+                ? ""
+                : Number(existing.finishing_position),
+            result_status: existing.result_status as ResultStatus,
+            is_dead_heat: Boolean(existing.is_dead_heat),
+          };
+        }
+
+        const isScratched = entry.entry_status !== "runner";
 
         return {
           race_entry_id: entry.id,
           finishing_position: "",
-          result_status: isScratched
-            ? "scratched"
-            : "finished",
+          result_status: isScratched ? "scratched" : "finished",
           is_dead_heat: false,
         };
       })
@@ -666,8 +704,13 @@ export default function ResultsPage() {
       return;
     }
 
-    if (selectedRace.status === "official") {
-      setErrorMessage("This race is already official.");
+    if (
+      selectedRace.status === "official" &&
+      !editingOfficialResults
+    ) {
+      setErrorMessage(
+        "This race is already official. Click Edit Results to make a correction."
+      );
       return;
     }
 
@@ -870,9 +913,12 @@ export default function ResultsPage() {
       return;
     }
 
-    if (selectedRace.status === "official") {
+    if (
+      selectedRace.status === "official" &&
+      !editingOfficialResults
+    ) {
       setErrorMessage(
-        "This race has already been made official."
+        "This race is already official. Click Edit Results to make a correction."
       );
       return;
     }
@@ -895,7 +941,9 @@ export default function ResultsPage() {
     }
 
     const confirmed = window.confirm(
-      "Make these results official?\n\nThis will update horse prices, fantasy points and price history. The race cannot be processed twice."
+      editingOfficialResults
+        ? "Save these corrected official results?\n\nFantasy points, price history and team scores will be recalculated."
+        : "Make these results official?\n\nThis will update horse prices, fantasy points and price history."
     );
 
     if (!confirmed) {
@@ -926,6 +974,7 @@ export default function ResultsPage() {
       {
         p_race_id: selectedRace.id,
         p_results: submittedResults,
+        p_allow_official_edit: editingOfficialResults,
       }
     );
 
@@ -964,6 +1013,7 @@ export default function ResultsPage() {
       data as FinaliseRaceResponse | null;
 
     setResultsSaved(true);
+    setEditingOfficialResults(false);
 
     setRaces((currentRaces) =>
       currentRaces.map((race) =>
@@ -1083,7 +1133,7 @@ export default function ResultsPage() {
     selectedRace?.status === "cancelled";
 
   const inputsDisabled =
-    isRaceOfficial ||
+    (isRaceOfficial && !editingOfficialResults) ||
     isRaceUnavailable ||
     savingResults;
 
@@ -1152,8 +1202,16 @@ export default function ResultsPage() {
           )}
 
           {isRaceOfficial && (
-            <div className="mt-4 rounded-lg border border-green-300 bg-green-50 p-3 text-sm font-medium text-green-800">
-              This race is official. Results cannot be processed again.
+            <div
+              className={`mt-4 rounded-lg border p-3 text-sm font-medium ${
+                editingOfficialResults
+                  ? "border-amber-300 bg-amber-50 text-amber-900"
+                  : "border-green-300 bg-green-50 text-green-800"
+              }`}
+            >
+              {editingOfficialResults
+                ? "Correction mode is active. Update the result, recalculate, then save the corrected official results."
+                : "This race is official. Use Edit Results if a correction is required."}
             </div>
           )}
 
@@ -1413,6 +1471,41 @@ export default function ResultsPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            {isRaceOfficial && !editingOfficialResults && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingOfficialResults(true);
+                  setResultsSaved(false);
+                  setCalculatedResults([]);
+                  setErrorMessage("");
+                  setSuccessMessage("");
+                }}
+                disabled={savingResults || isRaceUnavailable}
+                className="rounded-lg border border-amber-700 bg-amber-50 px-6 py-3 font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Edit Results
+              </button>
+            )}
+
+            {isRaceOfficial && editingOfficialResults && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingOfficialResults(false);
+                  setCalculatedResults([]);
+                  setResultsSaved(false);
+                  setErrorMessage("");
+                  setSuccessMessage("");
+                  void loadRaceEntries(race.id);
+                }}
+                disabled={savingResults}
+                className="rounded-lg border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel Edit
+              </button>
+            )}
+
             <button
               type="button"
               onClick={calculateResults}
@@ -1420,14 +1513,16 @@ export default function ResultsPage() {
                 loadingRules ||
                 loadingEntries ||
                 savingResults ||
-                isRaceOfficial ||
+                (isRaceOfficial && !editingOfficialResults) ||
                 isRaceUnavailable
               }
               className="rounded-lg border border-green-800 bg-white px-6 py-3 font-semibold text-green-800 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loadingRules
                 ? "Loading Rules..."
-                : "Calculate Results"}
+                : editingOfficialResults
+                  ? "Recalculate Results"
+                  : "Calculate Results"}
             </button>
 
             <button
@@ -1439,16 +1534,18 @@ export default function ResultsPage() {
                 !calculationsReady ||
                 savingResults ||
                 resultsSaved ||
-                isRaceOfficial ||
+                (isRaceOfficial && !editingOfficialResults) ||
                 isRaceUnavailable
               }
               className="rounded-lg bg-green-800 px-6 py-3 font-semibold text-white transition hover:bg-green-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {savingResults
                 ? "Saving Results..."
-                : resultsSaved || isRaceOfficial
-                  ? "Results Official"
-                  : "Save Official Results"}
+                : editingOfficialResults
+                  ? "Save Corrected Results"
+                  : resultsSaved || isRaceOfficial
+                    ? "Results Official"
+                    : "Save Official Results"}
             </button>
           </div>
         </div>
