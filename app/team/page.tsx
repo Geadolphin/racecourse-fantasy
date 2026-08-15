@@ -64,6 +64,14 @@ type RaceEntry = {
   race: Race | null;
 };
 
+type LatestRaceResult = {
+  race_entry_id: string;
+  finishing_position: number;
+  fantasy_points: number;
+  horse_id: string;
+  horse_name: string;
+};
+
 type TeamStatus = "draft" | "submitted" | "locked" | "scored";
 
 type Team = {
@@ -335,6 +343,10 @@ export default function MyTeamPage() {
     TeamSelection[]
   >([]);
   const [fixtureRaces, setFixtureRaces] = useState<FixtureRace[]>([]);
+  const [latestResultRace, setLatestResultRace] =
+    useState<FixtureRace | null>(null);
+  const [latestRaceResults, setLatestRaceResults] =
+    useState<LatestRaceResult[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -436,6 +448,101 @@ export default function MyTeamPage() {
       setFixtureRaces(loadedFixture);
     }
 
+    const { data: latestRaceData, error: latestRaceError } =
+      await supabase
+        .from("races")
+        .select(`
+          id,
+          race_number,
+          race_name,
+          grade,
+          distance_metres,
+          scheduled_start,
+          status,
+          racecourse:racecourses (id, name)
+        `)
+        .eq("status", "official")
+        .order("official_result_declared_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (latestRaceError) {
+      console.error("Latest result race error:", latestRaceError);
+      setLatestResultRace(null);
+      setLatestRaceResults([]);
+    } else if (latestRaceData) {
+      const rawRacecourse = latestRaceData.racecourse;
+      const racecourse = Array.isArray(rawRacecourse)
+        ? (rawRacecourse[0] as Racecourse | undefined) ?? null
+        : (rawRacecourse as Racecourse | null);
+
+      const latestRace: FixtureRace = {
+        id: String(latestRaceData.id),
+        race_number: Number(latestRaceData.race_number),
+        race_name: String(latestRaceData.race_name),
+        grade: latestRaceData.grade as FixtureRace["grade"],
+        distance_metres:
+          latestRaceData.distance_metres == null
+            ? null
+            : Number(latestRaceData.distance_metres),
+        scheduled_start: String(latestRaceData.scheduled_start),
+        status: String(latestRaceData.status),
+        racecourse,
+      };
+
+      setLatestResultRace(latestRace);
+
+      const { data: latestResultsData, error: latestResultsError } =
+        await supabase
+          .from("race_results")
+          .select(`
+            race_entry_id,
+            finishing_position,
+            fantasy_points,
+            race_entry:race_entries!inner (
+              race_id,
+              horse_id,
+              horse:horses (id, name)
+            )
+          `)
+          .eq("is_official", true)
+          .eq("result_status", "finished")
+          .eq("race_entry.race_id", latestRace.id)
+          .not("finishing_position", "is", null)
+          .order("finishing_position", { ascending: true })
+          .limit(3);
+
+      if (latestResultsError) {
+        console.error("Latest race results error:", latestResultsError);
+        setLatestRaceResults([]);
+      } else {
+        setLatestRaceResults(
+          (latestResultsData ?? []).map((result: any) => {
+            const rawEntry = result.race_entry;
+            const entry = Array.isArray(rawEntry)
+              ? rawEntry[0] ?? null
+              : rawEntry;
+
+            const rawHorse = entry?.horse;
+            const horse = Array.isArray(rawHorse)
+              ? rawHorse[0] ?? null
+              : rawHorse;
+
+            return {
+              race_entry_id: String(result.race_entry_id),
+              finishing_position: Number(result.finishing_position),
+              fantasy_points: Number(result.fantasy_points ?? 0),
+              horse_id: String(horse?.id ?? entry?.horse_id ?? ""),
+              horse_name: String(horse?.name ?? "Unknown horse"),
+            };
+          })
+        );
+      }
+    } else {
+      setLatestResultRace(null);
+      setLatestRaceResults([]);
+    }
+
     setLoading(false);
   }, []);
 
@@ -508,15 +615,6 @@ export default function MyTeamPage() {
     }, 0);
   }, [selections]);
 
-
-  const latestResultSelection = useMemo(() => {
-    return [...selections]
-      .filter((selection) => selection.has_result && selection.race_entry?.race?.scheduled_start)
-      .sort((a, b) =>
-        new Date(b.race_entry!.race!.scheduled_start).getTime() -
-        new Date(a.race_entry!.race!.scheduled_start).getTime()
-      )[0] ?? null;
-  }, [selections]);
 
   const captainName = useMemo(() => {
     return (
@@ -910,19 +1008,57 @@ export default function MyTeamPage() {
                   </h2>
                 </div>
 
-                <div className="p-4">
-                {latestResultSelection?.race_entry?.horse && latestResultSelection.race_entry.race ? (
-                  <div className="mt-3 flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="truncate font-bold text-slate-950">{latestResultSelection.race_entry.horse.name}</p>
-                      <p className="mt-1 truncate text-sm text-slate-600">R{latestResultSelection.race_entry.race.race_number} · {latestResultSelection.race_entry.race.race_name}</p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-2xl font-bold text-teal-700">{latestResultSelection.is_captain ? latestResultSelection.fantasy_points * 2 : latestResultSelection.fantasy_points}</p>
-                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">pts</p>
-                    </div>
-                  </div>
-                ) : <p className="mt-3 text-sm text-slate-500">No official results yet.</p>}
+                <div>
+                  {latestResultRace && latestRaceResults.length > 0 ? (
+                    <>
+                      <div className="border-b border-slate-100 px-4 py-3">
+                        <p className="truncate text-sm font-black text-slate-950">
+                          R{latestResultRace.race_number} · {latestResultRace.race_name}
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-slate-500">
+                          {getGradeLabel(latestResultRace.grade)}
+                          {latestResultRace.racecourse
+                            ? ` · ${latestResultRace.racecourse.name}`
+                            : ""}
+                        </p>
+                      </div>
+
+                      <div className="divide-y divide-slate-100">
+                        {latestRaceResults.map((result) => (
+                          <button
+                            key={result.race_entry_id}
+                            type="button"
+                            onClick={() =>
+                              result.horse_id &&
+                              setSelectedHorseId(result.horse_id)
+                            }
+                            className="grid w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+                          >
+                            <span className="text-center text-sm font-black text-slate-500">
+                              {result.finishing_position}
+                            </span>
+
+                            <span className="truncate font-bold text-slate-950">
+                              {result.horse_name}
+                            </span>
+
+                            <span className="shrink-0 text-right">
+                              <span className="text-lg font-black text-teal-700">
+                                {result.fantasy_points}
+                              </span>
+                              <span className="ml-1 text-xs font-bold uppercase text-slate-500">
+                                pts
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="p-4 text-sm text-slate-500">
+                      No official results yet.
+                    </p>
+                  )}
                 </div>
               </div>
             </aside>
