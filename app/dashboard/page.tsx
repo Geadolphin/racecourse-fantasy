@@ -84,6 +84,21 @@ type DashboardData = {
   }>;
 };
 
+type LatestRaceResult = {
+  race_entry_id: string;
+  finishing_position: number;
+  fantasy_points: number;
+  horse_name: string;
+};
+
+type LatestRace = {
+  id: string;
+  race_number: number;
+  race_name: string;
+  grade: UpcomingRace["grade"];
+  racecourse_name: string | null;
+};
+
 type DashboardLeaguePosition = {
   league_id: string;
   league_name: string;
@@ -302,6 +317,12 @@ export default function Dashboard() {
     leagues: [],
   });
 
+  const [latestRace, setLatestRace] =
+    useState<LatestRace | null>(null);
+
+  const [latestResults, setLatestResults] =
+    useState<LatestRaceResult[]>([]);
+
   const [loading, setLoading] =
     useState(true);
 
@@ -415,6 +436,72 @@ export default function Dashboard() {
       setUpcomingRace(
         dashboardData.upcoming_race
       );
+
+      const { data: latestRaceData } = await supabase
+        .from("races")
+        .select(`
+          id,
+          race_number,
+          race_name,
+          grade,
+          racecourse:racecourses (name)
+        `)
+        .eq("status", "official")
+        .order("official_result_declared_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestRaceData) {
+        const rc = Array.isArray(latestRaceData.racecourse)
+          ? latestRaceData.racecourse[0]
+          : latestRaceData.racecourse;
+
+        setLatestRace({
+          id: latestRaceData.id,
+          race_number: latestRaceData.race_number,
+          race_name: latestRaceData.race_name,
+          grade: latestRaceData.grade,
+          racecourse_name: rc?.name ?? null,
+        });
+
+        const { data: resultData } = await supabase
+          .from("race_results")
+          .select(`
+            race_entry_id,
+            finishing_position,
+            fantasy_points,
+            race_entry:race_entries!inner (
+              race_id,
+              horse:horses (name)
+            )
+          `)
+          .eq("is_official", true)
+          .eq("result_status", "finished")
+          .eq("race_entry.race_id", latestRaceData.id)
+          .order("finishing_position", { ascending: true })
+          .limit(3);
+
+        setLatestResults(
+          (resultData ?? []).map((result: any) => {
+            const re = Array.isArray(result.race_entry)
+              ? result.race_entry[0]
+              : result.race_entry;
+            const horse = Array.isArray(re?.horse)
+              ? re.horse[0]
+              : re?.horse;
+
+            return {
+              race_entry_id: result.race_entry_id,
+              finishing_position: Number(result.finishing_position),
+              fantasy_points: Number(result.fantasy_points ?? 0),
+              horse_name: horse?.name ?? "Unknown horse",
+            };
+          })
+        );
+      } else {
+        setLatestRace(null);
+        setLatestResults([]);
+      }
 
       setMiniLeaderboard(
         (
@@ -924,6 +1011,65 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+        </section>
+
+        <section className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-4 border-b border-slate-200 p-5">
+            <div>
+              <div className="flex items-center gap-2 text-teal-700">
+                <Trophy className="h-4 w-4" />
+                <p className="text-xs font-bold uppercase tracking-wide">
+                  Latest Results
+                </p>
+              </div>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">
+                {latestRace ? latestRace.race_name : "Most recent race"}
+              </h2>
+              {latestRace && (
+                <p className="mt-1 text-sm text-slate-500">
+                  {latestRace.racecourse_name
+                    ? `${latestRace.racecourse_name} · `
+                    : ""}
+                  Race {latestRace.race_number} ·{" "}
+                  {latestRace.grade === "L" ? "Listed" : latestRace.grade}
+                </p>
+              )}
+            </div>
+            <Link
+              href="/results"
+              className="shrink-0 text-sm font-bold text-teal-700 transition hover:text-slate-900"
+            >
+              View results →
+            </Link>
+          </div>
+
+          {latestResults.length > 0 ? (
+            <div className="divide-y divide-slate-100">
+              {latestResults.map((result) => (
+                <div
+                  key={result.race_entry_id}
+                  className="grid grid-cols-[48px_1fr_auto] items-center gap-3 px-5 py-3.5"
+                >
+                  <div className="text-center text-lg font-black text-slate-500">
+                    {result.finishing_position}
+                  </div>
+                  <p className="truncate font-bold text-slate-900">
+                    {result.horse_name}
+                  </p>
+                  <div className="text-right">
+                    <p className="font-black text-slate-900">
+                      {result.fantasy_points}
+                    </p>
+                    <p className="text-xs text-slate-500">points</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-7 text-center text-slate-500">
+              No official race results are available yet.
+            </div>
+          )}
         </section>
 
         <section className="mt-5 grid gap-5 lg:grid-cols-2">
