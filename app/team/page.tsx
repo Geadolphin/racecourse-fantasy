@@ -1115,22 +1115,61 @@ export default function MyTeamPage() {
                     {fixtureRaces.map((fixtureRace) => {
                       const isComplete = ["official", "abandoned", "cancelled"].includes(fixtureRace.status);
                       return (
-                        <div key={fixtureRace.id} className="grid grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
-                          <p className="text-sm font-bold text-slate-950">{formatRaceTime(fixtureRace.scheduled_start)}</p>
+                        <button
+                          key={fixtureRace.id}
+                          type="button"
+                          onClick={() => setSelectedRaceId(fixtureRace.id)}
+                          className="grid w-full grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500"
+                          aria-label={`View race details for ${fixtureRace.race_name}`}
+                        >
+                          <p className="text-sm font-bold text-slate-950">
+                            {formatRaceTime(fixtureRace.scheduled_start)}
+                          </p>
+
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-950">R{fixtureRace.race_number} · {fixtureRace.race_name}</p>
+                            <p className="truncate text-sm font-semibold text-slate-950">
+                              R{fixtureRace.race_number} · {fixtureRace.race_name}
+                            </p>
+
                             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
-                              <span className={`rounded px-1.5 py-0.5 font-bold ${getGradeClasses(fixtureRace.grade)}`}>{getGradeLabel(fixtureRace.grade)}</span>
-                              {fixtureRace.distance_metres && <span>{fixtureRace.distance_metres}m</span>}
-                              {fixtureRace.racecourse && <><span>•</span><span>{fixtureRace.racecourse.name}</span></>}
+                              <span className={`rounded px-1.5 py-0.5 font-bold ${getGradeClasses(fixtureRace.grade)}`}>
+                                {getGradeLabel(fixtureRace.grade)}
+                              </span>
+
+                              {fixtureRace.distance_metres && (
+                                <span>{fixtureRace.distance_metres}m</span>
+                              )}
+
+                              {fixtureRace.racecourse && (
+                                <>
+                                  <span>•</span>
+                                  <span>{fixtureRace.racecourse.name}</span>
+                                </>
+                              )}
                             </div>
                           </div>
-                          <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                            isComplete ? "bg-emerald-100 text-emerald-800" : fixtureRace.status === "running" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"
-                          }`}>
-                            {fixtureRace.status === "official" ? "Complete" : fixtureRace.status}
-                          </span>
-                        </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                                isComplete
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : fixtureRace.status === "running"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {fixtureRace.status === "official"
+                                ? "Complete"
+                                : fixtureRace.status}
+                            </span>
+
+                            <Icon
+                              name="chevron"
+                              className="h-4 w-4 text-slate-400"
+                            />
+                          </div>
+                        </button>
                       );
                     })}
                   </div>
