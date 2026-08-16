@@ -54,6 +54,41 @@ type HorseProfileData = {
   message?: string;
 };
 
+
+type RaceResultRow = {
+  result_id: string;
+  horse_id: string;
+  horse_name: string;
+  saddlecloth_number: number | null;
+  finishing_position: number | null;
+  result_status: string;
+  fantasy_points: number;
+  price_change: number;
+  price_before: number;
+  price_after: number;
+  is_dead_heat: boolean;
+};
+
+type RaceResultsData = {
+  success: boolean;
+  race: {
+    id: string;
+    race_number: number;
+    race_name: string;
+    grade: RaceHistoryRow["race_grade"];
+    scheduled_start: string;
+    status: string;
+    racecourse: Racecourse | null;
+  } | null;
+  results: RaceResultRow[];
+  message?: string;
+};
+
+type Racecourse = {
+  id: string;
+  name: string;
+};
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -122,6 +157,12 @@ function getFinishLabel(
   return `${finishingPosition}${suffix}`;
 }
 
+function titleCase(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 export default function HorseProfilePage() {
   const params = useParams<{ id: string }>();
   const horseId = params.id;
@@ -129,6 +170,15 @@ export default function HorseProfilePage() {
   const [data, setData] = useState<HorseProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [selectedRaceId, setSelectedRaceId] =
+    useState<string | null>(null);
+  const [raceResultsData, setRaceResultsData] =
+    useState<RaceResultsData | null>(null);
+  const [raceResultsLoading, setRaceResultsLoading] =
+    useState(false);
+  const [raceResultsError, setRaceResultsError] =
+    useState("");
 
   useEffect(() => {
     let active = true;
@@ -170,6 +220,72 @@ export default function HorseProfilePage() {
       active = false;
     };
   }, [horseId]);
+
+  useEffect(() => {
+    if (!selectedRaceId) {
+      setRaceResultsData(null);
+      setRaceResultsError("");
+      return;
+    }
+
+    let active = true;
+
+    async function loadRaceResults() {
+      setRaceResultsLoading(true);
+      setRaceResultsError("");
+
+      const { data: resultData, error } = await supabase.rpc(
+        "get_calendar_race_results",
+        {
+          p_race_id: selectedRaceId,
+        }
+      );
+
+      if (!active) {
+        return;
+      }
+
+      if (error) {
+        console.error("Horse profile race results error:", error);
+        setRaceResultsError(
+          error.message || "The race results could not be loaded."
+        );
+        setRaceResultsData(null);
+        setRaceResultsLoading(false);
+        return;
+      }
+
+      setRaceResultsData(resultData as unknown as RaceResultsData);
+      setRaceResultsLoading(false);
+    }
+
+    void loadRaceResults();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedRaceId]);
+
+  useEffect(() => {
+    if (!selectedRaceId) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedRaceId(null);
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedRaceId]);
 
   const horse = data?.horse ?? null;
 
@@ -448,16 +564,23 @@ export default function HorseProfilePage() {
                       </td>
 
                       <td className="px-5 py-4">
-                        <p className="font-bold text-slate-900">
-                          {row.racecourse_name
-                            ? `${row.racecourse_name} `
-                            : ""}
-                          R{row.race_number}
-                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRaceId(row.race_id)}
+                          className="text-left transition hover:text-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                          aria-label={`View full results for ${row.race_name}`}
+                        >
+                          <p className="font-bold text-slate-900">
+                            {row.racecourse_name
+                              ? `${row.racecourse_name} `
+                              : ""}
+                            R{row.race_number}
+                          </p>
 
-                        <p className="mt-1 text-sm text-slate-500">
-                          {row.race_name}
-                        </p>
+                          <p className="mt-1 text-sm font-medium text-teal-700">
+                            {row.race_name}
+                          </p>
+                        </button>
                       </td>
 
                       <td className="px-5 py-4 text-sm text-slate-700">
@@ -497,6 +620,171 @@ export default function HorseProfilePage() {
           )}
         </section>
       </div>
+
+      {selectedRaceId && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedRaceId(null);
+            }
+          }}
+          role="presentation"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Race results"
+            className="max-h-[92vh] w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-5xl sm:rounded-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-950 px-5 py-5 text-white sm:px-6">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300">
+                  Race results
+                </p>
+
+                <h2 className="mt-1 text-2xl font-black">
+                  {raceResultsData?.race
+                    ? `R${raceResultsData.race.race_number} — ${raceResultsData.race.race_name}`
+                    : "Loading race..."}
+                </h2>
+
+                {raceResultsData?.race?.racecourse && (
+                  <p className="mt-1 text-sm text-slate-300">
+                    {raceResultsData.race.racecourse.name}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedRaceId(null)}
+                className="rounded-lg border border-white/20 px-3 py-2 text-sm font-black transition hover:bg-white/10"
+                aria-label="Close race results"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[calc(92vh-96px)] overflow-y-auto p-5 sm:p-6">
+              {raceResultsLoading && (
+                <div className="py-16 text-center text-slate-500">
+                  Loading race results...
+                </div>
+              )}
+
+              {!raceResultsLoading && raceResultsError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">
+                  {raceResultsError}
+                </div>
+              )}
+
+              {!raceResultsLoading &&
+                !raceResultsError &&
+                raceResultsData?.race && (
+                  <>
+                    <div className="mb-5 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-xl bg-slate-100 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Grade
+                        </p>
+                        <p className="mt-1 font-black text-slate-950">
+                          {getGradeLabel(raceResultsData.race.grade)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-100 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Date
+                        </p>
+                        <p className="mt-1 font-black text-slate-950">
+                          {formatDate(raceResultsData.race.scheduled_start)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-100 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Status
+                        </p>
+                        <p className="mt-1 font-black text-slate-950">
+                          {titleCase(raceResultsData.race.status)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {(raceResultsData.results ?? []).length === 0 ? (
+                      <div className="rounded-xl border border-slate-200 p-8 text-center text-slate-500">
+                        No official results are available for this race yet.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-slate-200">
+                        <table className="w-full min-w-[760px] divide-y divide-slate-200">
+                          <thead className="bg-slate-100">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
+                                Finish
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
+                                Horse
+                              </th>
+                              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">
+                                Points
+                              </th>
+                              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">
+                                Price Change
+                              </th>
+                              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">
+                                New Price
+                              </th>
+                            </tr>
+                          </thead>
+
+                          <tbody className="divide-y divide-slate-200">
+                            {raceResultsData.results.map((result) => (
+                              <tr key={result.result_id}>
+                                <td className="px-4 py-4 font-black text-slate-950">
+                                  {getFinishLabel(
+                                    result.finishing_position,
+                                    result.result_status
+                                  )}
+                                  {result.is_dead_heat ? " (DH)" : ""}
+                                </td>
+
+                                <td className="px-4 py-4 font-bold text-slate-950">
+                                  {result.horse_name}
+                                </td>
+
+                                <td className="px-4 py-4 text-right font-bold text-teal-700">
+                                  {result.fantasy_points}
+                                </td>
+
+                                <td
+                                  className={`px-4 py-4 text-right font-bold ${
+                                    result.price_change > 0
+                                      ? "text-green-700"
+                                      : result.price_change < 0
+                                        ? "text-red-700"
+                                        : "text-slate-600"
+                                  }`}
+                                >
+                                  {formatSignedCurrency(result.price_change)}
+                                </td>
+
+                                <td className="px-4 py-4 text-right font-bold text-slate-950">
+                                  {formatCurrency(result.price_after)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
