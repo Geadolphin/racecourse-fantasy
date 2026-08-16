@@ -15,12 +15,15 @@ type HorseRow = {
   is_active: boolean;
 };
 
-type SortOption =
+type SortField =
   | "name"
-  | "price-high"
-  | "price-low"
-  | "points-high"
-  | "average-high";
+  | "price"
+  | "points"
+  | "value"
+  | "average"
+  | "starts";
+
+type SortDirection = "asc" | "desc";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-AU", {
@@ -41,10 +44,10 @@ function formatAverage(value: number | null) {
 export default function HorsesPage() {
   const [horses, setHorses] = useState<HorseRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState<"all" | "active" | "inactive">("active");
-  const [sortOption, setSortOption] =
-    useState<SortOption>("name");
+  const [sortField, setSortField] =
+    useState<SortField>("name");
+  const [sortDirection, setSortDirection] =
+    useState<SortDirection>("asc");
 
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -118,38 +121,69 @@ export default function HorsesPage() {
         normalisedSearch.length === 0 ||
         horse.name.toLowerCase().includes(normalisedSearch);
 
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active"
-          ? horse.is_active
-          : !horse.is_active);
-
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
 
     return [...filtered].sort((a, b) => {
-      if (sortOption === "price-high") {
-        return b.current_price - a.current_price;
+      let comparison = 0;
+
+      if (sortField === "name") {
+        comparison = a.name.localeCompare(b.name);
+      } else if (sortField === "price") {
+        comparison = a.current_price - b.current_price;
+      } else if (sortField === "points") {
+        comparison =
+          a.total_fantasy_points - b.total_fantasy_points;
+      } else if (sortField === "value") {
+        const valueA =
+          a.total_fantasy_points > 0
+            ? a.current_price / a.total_fantasy_points
+            : Number.POSITIVE_INFINITY;
+
+        const valueB =
+          b.total_fantasy_points > 0
+            ? b.current_price / b.total_fantasy_points
+            : Number.POSITIVE_INFINITY;
+
+        comparison = valueA - valueB;
+      } else if (sortField === "average") {
+        comparison =
+          (a.average_fantasy_points ?? 0) -
+          (b.average_fantasy_points ?? 0);
+      } else if (sortField === "starts") {
+        comparison = a.eligible_starts - b.eligible_starts;
       }
 
-      if (sortOption === "price-low") {
-        return a.current_price - b.current_price;
-      }
-
-      if (sortOption === "points-high") {
-        return b.total_fantasy_points - a.total_fantasy_points;
-      }
-
-      if (sortOption === "average-high") {
-        return (
-          (b.average_fantasy_points ?? 0) -
-          (a.average_fantasy_points ?? 0)
-        );
-      }
-
-      return a.name.localeCompare(b.name);
+      return sortDirection === "asc"
+        ? comparison
+        : -comparison;
     });
-  }, [horses, searchTerm, sortOption, statusFilter]);
+  }, [
+    horses,
+    searchTerm,
+    sortField,
+    sortDirection,
+  ]);
+
+  function handleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDirection((current) =>
+        current === "asc" ? "desc" : "asc"
+      );
+      return;
+    }
+
+    setSortField(field);
+    setSortDirection(field === "name" ? "asc" : "desc");
+  }
+
+  function sortIndicator(field: SortField) {
+    if (sortField !== field) {
+      return "";
+    }
+
+    return sortDirection === "asc" ? " ↑" : " ↓";
+  }
 
   if (loading) {
     return (
@@ -186,7 +220,7 @@ export default function HorsesPage() {
         )}
 
         <section className="mt-4 rounded-xl border bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2">
             <input
               type="search"
               value={searchTerm}
@@ -198,42 +232,31 @@ export default function HorsesPage() {
             />
 
             <select
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(
-                  event.target.value as
-                    | "all"
-                    | "active"
-                    | "inactive"
-                )
-              }
-              className="rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-teal-700"
-            >
-              <option value="active">Active horses</option>
-              <option value="all">All horses</option>
-              <option value="inactive">Inactive horses</option>
-            </select>
+              value={`${sortField}-${sortDirection}`}
+              onChange={(event) => {
+                const [field, direction] =
+                  event.target.value.split("-") as [
+                    SortField,
+                    SortDirection,
+                  ];
 
-            <select
-              value={sortOption}
-              onChange={(event) =>
-                setSortOption(event.target.value as SortOption)
-              }
+                setSortField(field);
+                setSortDirection(direction);
+              }}
               className="rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-teal-700"
             >
-              <option value="name">Horse name</option>
-              <option value="price-high">
-                Price: highest first
-              </option>
-              <option value="price-low">
-                Price: lowest first
-              </option>
-              <option value="points-high">
-                Fantasy points: highest first
-              </option>
-              <option value="average-high">
-                Average points: highest first
-              </option>
+              <option value="name-asc">Horse name: A–Z</option>
+              <option value="name-desc">Horse name: Z–A</option>
+              <option value="price-desc">Price: highest first</option>
+              <option value="price-asc">Price: lowest first</option>
+              <option value="points-desc">Fantasy points: highest first</option>
+              <option value="points-asc">Fantasy points: lowest first</option>
+              <option value="value-asc">$/Point: best value first</option>
+              <option value="value-desc">$/Point: highest first</option>
+              <option value="average-desc">Average points: highest first</option>
+              <option value="average-asc">Average points: lowest first</option>
+              <option value="starts-desc">Starts: highest first</option>
+              <option value="starts-asc">Starts: lowest first</option>
             </select>
           </div>
 
@@ -248,70 +271,183 @@ export default function HorsesPage() {
             No horses match your filters.
           </div>
         ) : (
-          <section className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {filteredHorses.map((horse) => (
-              <Link
-                key={horse.id}
-                href={`/horses/${horse.id}`}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-400 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h2 className="truncate text-lg font-bold text-slate-900">
-                      {horse.name}
-                    </h2>
+          <>
+            {/* Mobile horse cards */}
+            <section className="mt-4 space-y-2 md:hidden">
+              {filteredHorses.map((horse) => (
+                <Link
+                  key={horse.id}
+                  href={`/horses/${horse.id}`}
+                  className="block rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition active:bg-slate-50"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-lg font-bold text-slate-900">
+                        {horse.name}
+                      </h2>
 
-                    <span
-                      className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                        horse.is_active
-                          ? "bg-teal-50 text-teal-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {horse.is_active ? "Active" : "Inactive"}
-                    </span>
+                      <span
+                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          horse.is_active
+                            ? "bg-teal-50 text-teal-700"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {horse.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Price
+                      </p>
+                      <p className="mt-0.5 font-bold text-slate-900">
+                        {formatCurrency(horse.current_price)}
+                      </p>
+                    </div>
                   </div>
 
-                  <p className="shrink-0 text-base font-bold text-slate-900">
-                    {formatCurrency(horse.current_price)}
-                  </p>
-                </div>
+                  <div className="mt-3 grid grid-cols-3 divide-x divide-slate-200 border-t border-slate-100 pt-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Points
+                      </p>
+                      <p className="mt-0.5 font-bold text-slate-900">
+                        {horse.total_fantasy_points}
+                      </p>
+                    </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <div className="rounded-lg bg-slate-100 p-2.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Points
-                    </p>
+                    <div className="pl-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Average
+                      </p>
+                      <p className="mt-0.5 font-bold text-slate-900">
+                        {formatAverage(horse.average_fantasy_points)}
+                      </p>
+                    </div>
 
-                    <p className="mt-0.5 text-base font-bold text-slate-900">
-                      {horse.total_fantasy_points}
-                    </p>
+                    <div className="pl-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Starts
+                      </p>
+                      <p className="mt-0.5 font-bold text-slate-900">
+                        {horse.eligible_starts}
+                      </p>
+                    </div>
                   </div>
+                </Link>
+              ))}
+            </section>
 
-                  <div className="rounded-lg bg-slate-100 p-2.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Average
-                    </p>
+            {/* Desktop horse table */}
+            <section className="mt-4 hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:block">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="border-b border-slate-200 bg-slate-50">
+                    <tr>
+                      <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("name")}
+                          className="transition hover:text-slate-900"
+                        >
+                          Horse{sortIndicator("name")}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("price")}
+                          className="transition hover:text-slate-900"
+                        >
+                          Price{sortIndicator("price")}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("points")}
+                          className="transition hover:text-slate-900"
+                        >
+                          Points{sortIndicator("points")}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("value")}
+                          className="transition hover:text-slate-900"
+                        >
+                          $/Point{sortIndicator("value")}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("average")}
+                          className="transition hover:text-slate-900"
+                        >
+                          Average{sortIndicator("average")}
+                        </button>
+                      </th>
+                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        <button
+                          type="button"
+                          onClick={() => handleSort("starts")}
+                          className="transition hover:text-slate-900"
+                        >
+                          Starts{sortIndicator("starts")}
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
 
-                    <p className="mt-0.5 text-base font-bold text-slate-900">
-                      {formatAverage(horse.average_fantasy_points)}
-                    </p>
-                  </div>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredHorses.map((horse) => (
+                      <tr
+                        key={horse.id}
+                        className="transition hover:bg-slate-50"
+                      >
+                        <td className="px-5 py-3.5">
+                          <Link
+                            href={`/horses/${horse.id}`}
+                            className="font-bold text-slate-900 transition hover:text-teal-700"
+                          >
+                            {horse.name}
+                          </Link>
+                        </td>
 
-                  <div className="rounded-lg bg-slate-100 p-2.5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Starts
-                    </p>
+                        <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
+                          {formatCurrency(horse.current_price)}
+                        </td>
 
-                    <p className="mt-0.5 text-base font-bold text-slate-900">
-                      {horse.eligible_starts}
-                    </p>
-                  </div>
-                </div>
+                        <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
+                          {horse.total_fantasy_points}
+                        </td>
+                        <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
+                          {horse.total_fantasy_points > 0
+                            ? formatCurrency(
+                                horse.current_price /
+                                  horse.total_fantasy_points
+                              )
+                            : "—"}
+                        </td>
 
-              </Link>
-            ))}
-          </section>
+                        <td className="px-4 py-3.5 text-right text-slate-700">
+                          {formatAverage(horse.average_fantasy_points)}
+                        </td>
+
+                        <td className="px-4 py-3.5 text-right text-slate-700">
+                          {horse.eligible_starts}
+                        </td>
+
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </>
         )}
       </div>
     </main>

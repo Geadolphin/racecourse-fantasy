@@ -745,41 +745,43 @@ export default function Dashboard() {
 
         <section className="mt-4 sm:mt-5">
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
-            <div className="overflow-hidden rounded-xl bg-slate-900 text-white shadow-sm xl:contents">
-              <div className="p-3.5 sm:p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            {/* Round stats: one combined card on mobile, two coloured cards on desktop */}
+            <div className="overflow-hidden rounded-xl bg-teal-600 text-white shadow-sm xl:contents">
+              <div className="bg-teal-600 p-3.5 text-white shadow-sm sm:p-4 xl:rounded-xl">
+                <p className="text-xs font-semibold uppercase tracking-wide text-teal-100">
                   Round Score
                 </p>
 
-                <p className="mt-2 text-2xl font-bold sm:text-3xl">
+                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">
                   {currentRoundScore}
                 </p>
 
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-teal-100">
                   points
                 </p>
               </div>
 
-              <div className="border-t border-slate-700 p-3.5 sm:p-4 xl:border-t-0 xl:bg-teal-600">
-                <p className="text-xs font-semibold uppercase tracking-wide text-teal-300 xl:text-teal-100">
+              <div className="border-t border-teal-500 bg-teal-600 p-3.5 text-white shadow-sm sm:p-4 xl:rounded-xl xl:border-t-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-teal-100">
                   Round Rank
                 </p>
 
-                <p className="mt-2 text-xl font-bold sm:text-2xl">
+                <p className="mt-2 text-xl font-bold text-white sm:text-2xl">
                   {rankOfTotal(
                     currentRoundRank,
                     dashboardExtras.round_ranked_count
                   )}
                 </p>
 
-                <p className="mt-1 text-xs text-slate-400 xl:text-teal-100">
+                <p className="mt-1 text-xs text-teal-100">
                   this round
                 </p>
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:contents">
-              <div className="p-3.5 sm:p-4">
+            {/* Season stats: one combined card on mobile, two coloured cards on desktop */}
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm xl:contents">
+              <div className="border border-slate-200 bg-white p-3.5 text-slate-900 shadow-sm sm:p-4 xl:rounded-xl">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Season Score
                 </p>
@@ -793,7 +795,7 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="border-t border-slate-200 p-3.5 sm:p-4">
+              <div className="border-t border-slate-200 bg-white p-3.5 text-slate-900 shadow-sm sm:p-4 xl:rounded-xl xl:border xl:border-slate-200 xl:border-t">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Overall Rank
                 </p>
