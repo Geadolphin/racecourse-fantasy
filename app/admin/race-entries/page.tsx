@@ -142,6 +142,12 @@ export default function RaceEntriesPage() {
     useState<ProjectionFormRun[]>([]);
   const [projectionFormLoading, setProjectionFormLoading] = useState(false);
   const [projectionErrorMessage, setProjectionErrorMessage] = useState("");
+  const [generatingProjectionRaceId, setGeneratingProjectionRaceId] =
+    useState<string | null>(null);
+  const [projectionGenerationMessage, setProjectionGenerationMessage] =
+    useState("");
+  const [projectionGenerationError, setProjectionGenerationError] =
+    useState("");
 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkRaceId, setBulkRaceId] = useState("");
@@ -559,6 +565,39 @@ export default function RaceEntriesPage() {
 
     setSaving(false);
     closeProjectionModal();
+    await loadPageData();
+  }
+
+  async function generateRaceProjections(race: Race) {
+    setProjectionGenerationMessage("");
+    setProjectionGenerationError("");
+    setGeneratingProjectionRaceId(race.id);
+
+    const { data, error } = await supabase.rpc(
+      "generate_race_projections",
+      { p_race_id: race.id }
+    );
+
+    if (error) {
+      console.error(error);
+      setProjectionGenerationError(
+        `${getRaceLabel(race)}: ${error.message}`
+      );
+      setGeneratingProjectionRaceId(null);
+      return;
+    }
+
+    const payload = data as { runner_count?: number } | null;
+
+    setProjectionGenerationMessage(
+      `${getRaceLabel(race)}: projections generated successfully${
+        payload?.runner_count
+          ? ` for ${payload.runner_count} runners`
+          : ""
+      }.`
+    );
+
+    setGeneratingProjectionRaceId(null);
     await loadPageData();
   }
 
@@ -1388,6 +1427,18 @@ export default function RaceEntriesPage() {
         </div>
       )}
 
+      {projectionGenerationError && (
+        <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+          {projectionGenerationError}
+        </div>
+      )}
+
+      {projectionGenerationMessage && (
+        <div className="mb-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-800">
+          {projectionGenerationMessage}
+        </div>
+      )}
+
       <div className="mb-6">
         <input
           type="search"
@@ -1541,6 +1592,21 @@ export default function RaceEntriesPage() {
                               </button>
 
                               <div className="flex shrink-0 flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    generateRaceProjections(race)
+                                  }
+                                  disabled={
+                                    generatingProjectionRaceId !== null
+                                  }
+                                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                                >
+                                  {generatingProjectionRaceId === race.id
+                                    ? "Generating..."
+                                    : "Generate Projections"}
+                                </button>
+
                                 <button
                                   type="button"
                                   onClick={() =>

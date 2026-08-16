@@ -77,6 +77,7 @@ type RaceEntry = {
   price_at_entry: number;
   entry_status: EntryStatus;
   scratched_at: string | null;
+  projected_points: number | null;
 
   created_at: string;
   updated_at: string;
@@ -110,6 +111,7 @@ type RaceTypeFilter = "all" | "G1" | "G2" | "G3" | "L";
 
 type SortOption =
   | "race"
+  | "projected-high"
   | "price-high"
   | "price-low"
   | "name";
@@ -364,6 +366,7 @@ export default function EditTeamPage() {
           price_at_entry,
           entry_status,
           scratched_at,
+          projected_points,
           created_at,
           updated_at,
 
@@ -624,6 +627,13 @@ export default function EditTeamPage() {
 
   const salaryRemaining = salaryCap - salaryUsed;
 
+  const selectedProjectedPoints = useMemo(() => {
+    return selectedEntries.reduce(
+      (total, entry) => total + (entry.projected_points ?? 0),
+      0
+    );
+  }, [selectedEntries]);
+
   const selectedCount = selectedEntryIds.length;
   const teamSize = season?.team_size ?? 0;
 
@@ -690,6 +700,17 @@ export default function EditTeamPage() {
     });
 
     return [...filtered].sort((a, b) => {
+      if (sortOption === "projected-high") {
+        const projectedA = a.projected_points ?? -1;
+        const projectedB = b.projected_points ?? -1;
+
+        if (projectedA !== projectedB) {
+          return projectedB - projectedA;
+        }
+
+        return a.price_at_entry - b.price_at_entry;
+      }
+
       if (sortOption === "price-high") {
         return b.price_at_entry - a.price_at_entry;
       }
@@ -1067,6 +1088,12 @@ export default function EditTeamPage() {
                   {formatCurrency(salaryRemaining)}
                 </p>
               </div>
+              <div className="rounded-lg bg-slate-900 px-3 py-2">
+                <p className="text-[9px] font-black uppercase tracking-wide text-slate-500">Projected</p>
+                <p className="text-sm font-black text-teal-300">
+                  {selectedProjectedPoints} pts
+                </p>
+              </div>
               <Link
                 href="/team"
                 className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-black transition hover:bg-slate-900"
@@ -1171,6 +1198,7 @@ export default function EditTeamPage() {
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
             >
               <option value="race">Race order</option>
+              <option value="projected-high">Projected points: highest first</option>
               <option value="price-high">Price: highest first</option>
               <option value="price-low">Price: lowest first</option>
               <option value="name">Horse name</option>
@@ -1221,6 +1249,9 @@ export default function EditTeamPage() {
                         </div>
                         <p className="mt-0.5 truncate text-xs text-slate-500">
                           {entry.race ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}` : "Race unavailable"}
+                        </p>
+                        <p className="mt-0.5 text-xs font-bold text-teal-700">
+                          Projected: {entry.projected_points ?? "—"} pts
                         </p>
                       </div>
                       <p className="shrink-0 text-sm font-bold text-slate-800">{formatCurrency(entry.price_at_entry)}</p>
@@ -1388,6 +1419,9 @@ export default function EditTeamPage() {
                                 <p className="text-sm font-black text-slate-950">
                                   {formatCurrency(entry.price_at_entry)}
                                 </p>
+                                <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-teal-700">
+                                  Proj {entry.projected_points ?? "—"} pts
+                                </p>
                                 {wouldExceedBudget && (
                                   <p className="text-[10px] font-bold text-red-700">
                                     Over budget
@@ -1549,6 +1583,9 @@ export default function EditTeamPage() {
                                   {formatDateTime(entryLockout.lockout_at)}
                                 </p>
                               )}
+                              <p className="mt-1 text-xs font-bold text-teal-700">
+                                Projected: {entry.projected_points ?? "—"} pts
+                              </p>
                             </div>
 
                             <div className="flex shrink-0 items-center gap-1.5">
