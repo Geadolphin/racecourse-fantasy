@@ -5,6 +5,13 @@ import Link from "next/link";
 
 import { supabase } from "@/lib/supabase";
 
+type SeasonOption = {
+  id: string;
+  name: string;
+  year: number;
+  is_active: boolean;
+};
+
 type SeasonScore = {
   total_points: number;
   rounds_played: number;
@@ -171,6 +178,8 @@ function getFinishClasses(selection: HistorySelection) {
 
 export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
+  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [historyData, setHistoryData] =
     useState<SeasonHistoryData | null>(null);
 
@@ -183,12 +192,64 @@ export default function HistoryPage() {
   useEffect(() => {
     let active = true;
 
-    async function loadHistory() {
+    async function loadPage() {
+      setLoading(true);
+      setErrorMessage("");
+
+      const { data: seasonsData, error: seasonsError } =
+        await supabase
+          .from("seasons")
+          .select("id, name, year, is_active")
+          .order("year", { ascending: false });
+
+      if (!active) {
+        return;
+      }
+
+      if (seasonsError) {
+        console.error(
+          "My Season seasons error:",
+          seasonsError
+        );
+
+        setErrorMessage(
+          seasonsError.message ||
+            "The season list could not be loaded."
+        );
+        setLoading(false);
+        return;
+      }
+
+      const loadedSeasons =
+        (seasonsData ?? []) as SeasonOption[];
+
+      setSeasons(loadedSeasons);
+
+      const preferredSeason =
+        loadedSeasons.find(
+          (season) => season.is_active
+        ) ?? loadedSeasons[0];
+
+      if (!preferredSeason) {
+        setHistoryData(null);
+        setSelectedSeasonId("");
+        setLoading(false);
+        return;
+      }
+
+      setSelectedSeasonId(preferredSeason.id);
+      await loadHistoryForSeason(preferredSeason.id);
+    }
+
+    async function loadHistoryForSeason(seasonId: string) {
       setLoading(true);
       setErrorMessage("");
 
       const { data, error } = await supabase.rpc(
-        "get_my_season_history"
+        "get_my_season_history",
+        {
+          p_season_id: seasonId,
+        }
       );
 
       if (!active) {
@@ -196,7 +257,10 @@ export default function HistoryPage() {
       }
 
       if (error) {
-        console.error("Season history RPC error:", error);
+        console.error(
+          "Season history RPC error:",
+          error
+        );
 
         setErrorMessage(
           error.message ||
@@ -208,19 +272,27 @@ export default function HistoryPage() {
         return;
       }
 
-      const loadedData = data as SeasonHistoryData | null;
+      const loadedData =
+        data as SeasonHistoryData | null;
 
-      const loadedRounds = loadedData?.rounds ?? [];
-      const roundIds = loadedRounds.map((round) => round.round_id);
+      const loadedRounds =
+        loadedData?.rounds ?? [];
 
-      let roundsWithRaceCounts = loadedRounds;
+      const roundIds = loadedRounds.map(
+        (round) => round.round_id
+      );
+
+      let roundsWithRaceCounts =
+        loadedRounds;
 
       if (roundIds.length > 0) {
-        const { data: raceCountData, error: raceCountError } =
-          await supabase
-            .from("races")
-            .select("round_id")
-            .in("round_id", roundIds);
+        const {
+          data: raceCountData,
+          error: raceCountError,
+        } = await supabase
+          .from("races")
+          .select("round_id")
+          .in("round_id", roundIds);
 
         if (!active) {
           return;
@@ -232,19 +304,30 @@ export default function HistoryPage() {
             raceCountError
           );
         } else {
-          const raceCounts = (raceCountData ?? []).reduce(
-            (counts: Record<string, number>, race) => {
-              const roundId = String(race.round_id);
-              counts[roundId] = (counts[roundId] ?? 0) + 1;
+          const raceCounts = (
+            raceCountData ?? []
+          ).reduce(
+            (
+              counts: Record<string, number>,
+              race
+            ) => {
+              const roundId =
+                String(race.round_id);
+
+              counts[roundId] =
+                (counts[roundId] ?? 0) + 1;
+
               return counts;
             },
             {}
           );
 
-          roundsWithRaceCounts = loadedRounds.map((round) => ({
-            ...round,
-            total_races: raceCounts[round.round_id] ?? 0,
-          }));
+          roundsWithRaceCounts =
+            loadedRounds.map((round) => ({
+              ...round,
+              total_races:
+                raceCounts[round.round_id] ?? 0,
+            }));
         }
       }
 
@@ -257,11 +340,12 @@ export default function HistoryPage() {
 
       setHistoryData(hydratedData);
 
-      const rounds = roundsWithRaceCounts;
-
-      if (rounds.length > 0) {
-        const latestRound = [...rounds].sort(
-          (a, b) => b.round_number - a.round_number
+      if (roundsWithRaceCounts.length > 0) {
+        const latestRound = [
+          ...roundsWithRaceCounts,
+        ].sort(
+          (a, b) =>
+            b.round_number - a.round_number
         )[0];
 
         setExpandedRoundIds(
@@ -276,12 +360,127 @@ export default function HistoryPage() {
       setLoading(false);
     }
 
-    void loadHistory();
+    void loadPage();
 
     return () => {
       active = false;
     };
   }, []);
+
+  async function changeSeason(
+    seasonId: string
+  ) {
+    setSelectedSeasonId(seasonId);
+    setLoading(true);
+    setErrorMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "get_my_season_history",
+      {
+        p_season_id: seasonId,
+      }
+    );
+
+    if (error) {
+      console.error(
+        "Season history RPC error:",
+        error
+      );
+
+      setErrorMessage(
+        error.message ||
+          "Your season history could not be loaded."
+      );
+
+      setLoading(false);
+      return;
+    }
+
+    const loadedData =
+      data as SeasonHistoryData | null;
+
+    const loadedRounds =
+      loadedData?.rounds ?? [];
+
+    const roundIds = loadedRounds.map(
+      (round) => round.round_id
+    );
+
+    let roundsWithRaceCounts =
+      loadedRounds;
+
+    if (roundIds.length > 0) {
+      const {
+        data: raceCountData,
+        error: raceCountError,
+      } = await supabase
+        .from("races")
+        .select("round_id")
+        .in("round_id", roundIds);
+
+      if (!raceCountError) {
+        const raceCounts = (
+          raceCountData ?? []
+        ).reduce(
+          (
+            counts: Record<string, number>,
+            race
+          ) => {
+            const roundId =
+              String(race.round_id);
+
+            counts[roundId] =
+              (counts[roundId] ?? 0) + 1;
+
+            return counts;
+          },
+          {}
+        );
+
+        roundsWithRaceCounts =
+          loadedRounds.map((round) => ({
+            ...round,
+            total_races:
+              raceCounts[round.round_id] ?? 0,
+          }));
+      }
+    }
+
+    setHistoryData(
+      loadedData
+        ? {
+            ...loadedData,
+            rounds: roundsWithRaceCounts,
+          }
+        : null
+    );
+
+    if (roundsWithRaceCounts.length > 0) {
+      const latestRound = [
+        ...roundsWithRaceCounts,
+      ].sort(
+        (a, b) =>
+          b.round_number - a.round_number
+      )[0];
+
+      setExpandedRoundIds(
+        latestRound
+          ? new Set([latestRound.round_id])
+          : new Set()
+      );
+    } else {
+      setExpandedRoundIds(new Set());
+    }
+
+    setLoading(false);
+  }
+
+  const selectedSeason = useMemo(() => {
+    return seasons.find(
+      (season) =>
+        season.id === selectedSeasonId
+    ) ?? null;
+  }, [seasons, selectedSeasonId]);
 
   const rounds = useMemo(() => {
     return [...(historyData?.rounds ?? [])].sort(
@@ -394,12 +593,47 @@ export default function HistoryPage() {
               </h1>
 
               <p className="mt-2 max-w-2xl text-slate-300">
+                {selectedSeason
+                  ? `${selectedSeason.name} ${selectedSeason.year} — `
+                  : ""}
                 Review your completed rounds, team selections, scores,
                 rankings and rolling salary changes.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label
+                  htmlFor="my-season-selector"
+                  className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400"
+                >
+                  Season
+                </label>
+
+                <select
+                  id="my-season-selector"
+                  value={selectedSeasonId}
+                  onChange={(event) =>
+                    void changeSeason(
+                      event.target.value
+                    )
+                  }
+                  className="min-w-52 rounded-lg border border-slate-600 bg-slate-800 px-4 py-3 font-semibold text-white outline-none focus:border-teal-400"
+                >
+                  {seasons.map((season) => (
+                    <option
+                      key={season.id}
+                      value={season.id}
+                    >
+                      {season.name} {season.year}
+                      {season.is_active
+                        ? " — Active"
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <Link
                 href="/dashboard"
                 className="rounded-lg border border-slate-600 px-5 py-3 font-bold text-white hover:bg-slate-800"
