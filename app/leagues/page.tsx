@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Crown, Pencil, Plus, Trash2, UserMinus, Users, LogOut, Trophy, ShieldCheck, CalendarDays, KeyRound } from "lucide-react";
+import { Copy, Crown, Pencil, Plus, Trash2, UserMinus, Users, LogOut, Trophy, ShieldCheck, CalendarDays, KeyRound, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
@@ -83,6 +83,7 @@ export default function PrivateLeaguesPage() {
     const [tab, setTab] = useState<"round" | "season">("round");
 
     const [modal, setModal] = useState<ModalType>(null);
+    const [leagueDetailsOpen, setLeagueDetailsOpen] = useState(false);
     const [formValue, setFormValue] = useState("");
 
     const [error, setError] = useState("");
@@ -617,6 +618,7 @@ export default function PrivateLeaguesPage() {
         }
 
         await loadLeagueData({ seasonId: selectedSeasonId });
+        setLeagueDetailsOpen(false);
         setSuccessMessage("You have left the league.");
         setSaving(false);
     }
@@ -644,6 +646,7 @@ export default function PrivateLeaguesPage() {
         }
 
         await loadLeagueData({ seasonId: selectedSeasonId });
+        setLeagueDetailsOpen(false);
         setSuccessMessage("League deleted.");
         setSaving(false);
     }
@@ -913,10 +916,9 @@ export default function PrivateLeaguesPage() {
                                         </h2>
 
                                         <p className="mt-1 text-sm text-slate-400">
-                                            {selectedLeague.member_count} / 24 members
                                             {selectedSeason
-                                                ? ` · ${selectedSeason.name} ${selectedSeason.year}`
-                                                : ""}
+                                                ? `${selectedSeason.name} ${selectedSeason.year}`
+                                                : "Private league"}
                                         </p>
                                     </div>
 
@@ -942,137 +944,76 @@ export default function PrivateLeaguesPage() {
                                         >
                                             <Copy className="h-4 w-4" />
                                         </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setLeagueDetailsOpen(true)}
+                                            className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm font-black text-slate-200 transition hover:border-teal-400 hover:text-teal-300"
+                                        >
+                                            League Details
+                                        </button>
                                     </div>
                                 </div>
 
-                                <div className="mt-4 inline-flex overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
-                                    <button
-                                        type="button"
-                                        onClick={() => setTab("round")}
-                                        className={`px-4 py-2 text-sm font-black transition ${
-                                            tab === "round"
-                                                ? "bg-teal-500 text-slate-950"
-                                                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                                        }`}
-                                    >
-                                        Round
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setTab("season")}
-                                        className={`border-l border-slate-700 px-4 py-2 text-sm font-black transition ${
-                                            tab === "season"
-                                                ? "bg-teal-500 text-slate-950"
-                                                : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                                        }`}
-                                    >
-                                        Season
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-px bg-slate-200 sm:grid-cols-4">
-                                <div className="bg-white p-4">
-                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                                        Members
-                                    </p>
-                                    <p className="mt-1 text-xl font-black text-slate-950">
-                                        {selectedLeague.member_count}
-                                    </p>
-                                </div>
-
-                                <div className="bg-white p-4">
-                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                                        Capacity
-                                    </p>
-                                    <p className="mt-1 text-xl font-black text-slate-950">
-                                        24
-                                    </p>
-                                </div>
-
-                                <div className="bg-white p-4">
-                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                                        Owner
-                                    </p>
-                                    <p className="mt-1 truncate text-sm font-black text-slate-950">
-                                        {selectedLeague.owner_name}
-                                    </p>
-                                </div>
-
-                                <div className="bg-white p-4">
-                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                                        Access
-                                    </p>
-                                    <p className="mt-1 text-sm font-black text-slate-950">
-                                        {selectedLeague.is_read_only ? "Read only" : "Active"}
-                                    </p>
-                                </div>
-                            </div>
-                        </section>
-
-                        {tab === "round" && (
-                            <section className="mb-6 rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                                    <div>
-                                        <label
-                                            htmlFor="league-round"
-                                            className="block text-sm font-bold text-slate-800"
+                                <div className="mt-4 flex flex-wrap items-center gap-2">
+                                    <div className="inline-flex overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
+                                        <button
+                                            type="button"
+                                            onClick={() => setTab("round")}
+                                            className={`px-4 py-2 text-sm font-black transition ${
+                                                tab === "round"
+                                                    ? "bg-teal-500 text-slate-950"
+                                                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                                            }`}
                                         >
-                                            Select round
-                                        </label>
+                                            Round
+                                        </button>
 
+                                        <button
+                                            type="button"
+                                            onClick={() => setTab("season")}
+                                            className={`border-l border-slate-700 px-4 py-2 text-sm font-black transition ${
+                                                tab === "season"
+                                                    ? "bg-teal-500 text-slate-950"
+                                                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                                            }`}
+                                        >
+                                            Season
+                                        </button>
+                                    </div>
+
+                                    {tab === "round" && (
                                         <select
                                             id="league-round"
+                                            aria-label="Select round"
                                             value={selectedRoundId}
                                             onChange={(event) =>
-                                                void changeRound(
-                                                    event.target.value
-                                                )
+                                                void changeRound(event.target.value)
                                             }
                                             disabled={
                                                 changing ||
                                                 leagueRounds.length === 0
                                             }
-                                            className="mt-2 min-w-64 rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                                            className="h-10 min-w-40 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm font-bold text-white outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-400/20 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
-                                            {leagueRounds.map(
-                                                (round) => (
-                                                    <option
-                                                        key={round.id}
-                                                        value={round.id}
-                                                    >
-                                                        Round {round.round_number}
-                                                        {round.name
-                                                            ? ` — ${round.name}`
-                                                            : ""}
-                                                    </option>
-                                                )
-                                            )}
+                                            {leagueRounds.map((round) => (
+                                                <option
+                                                    key={round.id}
+                                                    value={round.id}
+                                                    className="bg-white text-slate-900"
+                                                >
+                                                    Round {round.round_number}
+                                                    {round.name
+                                                        ? ` — ${round.name}`
+                                                        : ""}
+                                                </option>
+                                            ))}
                                         </select>
-                                    </div>
-
-                                    {selectedRound && (
-                                        <div className="text-sm text-slate-600 sm:text-right">
-                                            <p className="font-semibold text-slate-900">
-                                                Round{" "}
-                                                {selectedRound.round_number}
-                                                {selectedRound.name
-                                                    ? ` — ${selectedRound.name}`
-                                                    : ""}
-                                            </p>
-
-                                            <p className="mt-1">
-                                                {leaderboardRows.length}{" "}
-                                                {leaderboardRows.length === 1
-                                                    ? "team"
-                                                    : "teams"}
-                                            </p>
-                                        </div>
                                     )}
                                 </div>
-                            </section>
-                        )}
+                            </div>
+
+                        </section>
 
                         <div className="mb-6">
                             <LeagueLeaderboardTable
@@ -1082,11 +1023,90 @@ export default function PrivateLeaguesPage() {
                             />
                         </div>
 
-                        <section className="mb-6 grid gap-6 lg:grid-cols-[1fr_340px]">
-                            <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
+                    </>
+                )}
+            </div>
+
+            {leagueDetailsOpen && selectedLeague && (
+                <div
+                    className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget) {
+                            setLeagueDetailsOpen(false);
+                        }
+                    }}
+                >
+                    <section className="max-h-[92vh] w-full overflow-hidden rounded-t-2xl border border-slate-300 bg-white shadow-2xl sm:max-w-3xl sm:rounded-2xl">
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-800 bg-slate-950 px-5 py-4 text-white sm:px-6">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
+                                    League Details
+                                </p>
+
+                                <h2 className="mt-1 text-2xl font-black">
+                                    {selectedLeague.name}
+                                </h2>
+
+                                <p className="mt-1 text-sm text-slate-400">
+                                    Members, access and management
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setLeagueDetailsOpen(false)}
+                                className="rounded-lg border border-slate-700 bg-slate-900 p-2 text-slate-300 transition hover:border-teal-400 hover:text-white"
+                                aria-label="Close league details"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="max-h-[calc(92vh-92px)] overflow-y-auto p-4 sm:p-6">
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                <div className="rounded-xl bg-slate-100 p-4">
+                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                        Members
+                                    </p>
+                                    <p className="mt-1 text-xl font-black text-slate-950">
+                                        {selectedLeague.member_count}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl bg-slate-100 p-4">
+                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                        Capacity
+                                    </p>
+                                    <p className="mt-1 text-xl font-black text-slate-950">
+                                        24
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl bg-slate-100 p-4">
+                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                        Owner
+                                    </p>
+                                    <p className="mt-1 truncate text-sm font-black text-slate-950">
+                                        {selectedLeague.owner_name}
+                                    </p>
+                                </div>
+
+                                <div className="rounded-xl bg-slate-100 p-4">
+                                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                        Access
+                                    </p>
+                                    <p className="mt-1 text-sm font-black text-slate-950">
+                                        {selectedLeague.is_read_only ? "Read only" : "Active"}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-300">
                                 <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-5 py-4 text-white">
                                     <div>
-                                        <h3 className="font-black text-white">League Members</h3>
+                                        <h3 className="font-black text-white">
+                                            League Members
+                                        </h3>
                                         <p className="mt-1 text-sm text-slate-400">
                                             {leagueMembers.length} of 24 places filled
                                         </p>
@@ -1094,7 +1114,7 @@ export default function PrivateLeaguesPage() {
                                     <Users className="h-5 w-5 text-teal-300" />
                                 </div>
 
-                                <div className="max-h-72 divide-y overflow-y-auto">
+                                <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
                                     {leagueMembers.map((member) => (
                                         <div
                                             key={member.user_id}
@@ -1105,11 +1125,13 @@ export default function PrivateLeaguesPage() {
                                                     <span className="truncate font-semibold text-slate-900">
                                                         {member.display_name}
                                                     </span>
+
                                                     {member.is_owner && (
                                                         <span title="League owner">
                                                             <Crown className="h-4 w-4 text-amber-500" />
                                                         </span>
                                                     )}
+
                                                     {member.user_id === currentUserId && (
                                                         <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-800">
                                                             You
@@ -1136,60 +1158,61 @@ export default function PrivateLeaguesPage() {
                                 </div>
                             </div>
 
-                            <aside className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
-                                <div className="border-b border-slate-800 bg-slate-950 px-5 py-4">
-                                    <div className="flex items-center gap-2">
-                                        <ShieldCheck className="h-5 w-5 text-teal-300" />
-                                        <h3 className="font-black text-white">League Management</h3>
-                                    </div>
+                            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-300">
+                                <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-950 px-5 py-4 text-white">
+                                    <ShieldCheck className="h-5 w-5 text-teal-300" />
+                                    <h3 className="font-black">
+                                        League Management
+                                    </h3>
                                 </div>
 
                                 <div className="p-5">
+                                    {selectedLeague.is_read_only ? (
+                                        <p className="text-sm text-slate-500">
+                                            This season is complete, so this league is read-only.
+                                        </p>
+                                    ) : selectedLeague.is_owner ? (
+                                        <div className="grid gap-2 sm:grid-cols-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setLeagueDetailsOpen(false);
+                                                    openModal("rename");
+                                                }}
+                                                disabled={saving}
+                                                className="flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                                Rename League
+                                            </button>
 
-                                {selectedLeague.is_read_only ? (
-                                    <p className="mt-3 text-sm text-slate-500">
-                                        This season is complete, so this league is read-only.
-                                    </p>
-                                ) : selectedLeague.is_owner ? (
-                                    <div className="mt-4 space-y-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => void deleteLeague()}
+                                                disabled={saving}
+                                                className="flex w-full items-center gap-2 rounded-lg border border-red-200 px-3 py-2.5 text-left text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                Delete League
+                                            </button>
+                                        </div>
+                                    ) : (
                                         <button
                                             type="button"
-                                            onClick={() => openModal("rename")}
-                                            disabled={saving}
-                                            className="flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                            Rename League
-                                        </button>
-
-
-                                        <button
-                                            type="button"
-                                            onClick={() => void deleteLeague()}
+                                            onClick={() => void leaveLeague()}
                                             disabled={saving}
                                             className="flex w-full items-center gap-2 rounded-lg border border-red-200 px-3 py-2.5 text-left text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
                                         >
-                                            <Trash2 className="h-4 w-4" />
-                                            Delete League
+                                            <LogOut className="h-4 w-4" />
+                                            Leave League
                                         </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        onClick={() => void leaveLeague()}
-                                        disabled={saving}
-                                        className="mt-4 flex w-full items-center gap-2 rounded-lg border border-red-200 px-3 py-2.5 text-left text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                                    >
-                                        <LogOut className="h-4 w-4" />
-                                        Leave League
-                                    </button>
-                                )}
+                                    )}
                                 </div>
-                            </aside>
-                        </section>
-                    </>
-                )}
-            </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            )}
 
             {modal && (
                 <div
