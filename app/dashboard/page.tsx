@@ -294,6 +294,9 @@ export default function Dashboard() {
   const [horsesRanCount, setHorsesRanCount] =
     useState(0);
 
+  const [previousOverallRank, setPreviousOverallRank] =
+    useState<number | null>(null);
+
   const [
     miniLeaderboard,
     setMiniLeaderboard,
@@ -386,6 +389,7 @@ export default function Dashboard() {
         setSeasonScore(null);
         setProjectedRoundScore(0);
         setHorsesRanCount(0);
+        setPreviousOverallRank(null);
         setUpcomingRace(null);
         setMiniLeaderboard([]);
         setDashboardExtras({
@@ -423,6 +427,57 @@ export default function Dashboard() {
       setUpcomingRace(
         dashboardData.upcoming_race
       );
+
+      const { data: previousRoundData, error: previousRoundError } =
+        await supabase
+          .from("rounds")
+          .select("id, round_number")
+          .eq("season_id", dashboardData.season.id)
+          .lt("round_number", dashboardData.round.round_number)
+          .order("round_number", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+      if (!active) {
+        return;
+      }
+
+      if (previousRoundError) {
+        console.error(
+          "Dashboard previous round error:",
+          previousRoundError
+        );
+        setPreviousOverallRank(null);
+      } else if (previousRoundData?.id) {
+        const { data: previousRankData, error: previousRankError } =
+          await supabase
+            .from("player_season_scores")
+            .select("overall_rank")
+            .eq("user_id", user.id)
+            .eq("season_id", dashboardData.season.id)
+            .eq("round_id", previousRoundData.id)
+            .maybeSingle();
+
+        if (!active) {
+          return;
+        }
+
+        if (previousRankError) {
+          console.error(
+            "Dashboard previous rank error:",
+            previousRankError
+          );
+          setPreviousOverallRank(null);
+        } else {
+          setPreviousOverallRank(
+            previousRankData?.overall_rank == null
+              ? null
+              : Number(previousRankData.overall_rank)
+          );
+        }
+      } else {
+        setPreviousOverallRank(null);
+      }
 
       if (dashboardData.team?.id) {
         const {
@@ -660,6 +715,29 @@ export default function Dashboard() {
       "rank",
     ]);
 
+  const overallRankMovement =
+    previousOverallRank &&
+    currentOverallRank > 0
+      ? previousOverallRank - currentOverallRank
+      : 0;
+
+  const overallRankMovementLabel =
+    previousOverallRank === null ||
+    currentOverallRank <= 0
+      ? null
+      : overallRankMovement > 0
+        ? `↑ ${overallRankMovement}`
+        : overallRankMovement < 0
+          ? `↓ ${Math.abs(overallRankMovement)}`
+          : "—";
+
+  const overallRankMovementClasses =
+    overallRankMovement > 0
+      ? "text-green-700"
+      : overallRankMovement < 0
+        ? "text-red-700"
+        : "text-slate-500";
+
   const lockoutHasPassed =
     round?.lockout_at !== null &&
     round?.lockout_at !== undefined &&
@@ -807,9 +885,17 @@ export default function Dashboard() {
                   )}
                 </p>
 
-                <p className="mt-1 text-xs text-slate-500">
-                  this season
-                </p>
+                <div className="mt-1 flex items-center gap-2 text-xs">
+                  <span className="text-slate-500">
+                    this season
+                  </span>
+
+                  {overallRankMovementLabel && (
+                    <span className={`font-semibold ${overallRankMovementClasses}`}>
+                      {overallRankMovementLabel}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
