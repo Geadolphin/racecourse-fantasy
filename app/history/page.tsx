@@ -48,6 +48,7 @@ type RoundHistory = {
 
   price_movement: number;
   next_round_salary_cap: number;
+  total_races?: number;
 
   selections: HistorySelection[];
 };
@@ -209,9 +210,54 @@ export default function HistoryPage() {
 
       const loadedData = data as SeasonHistoryData | null;
 
-      setHistoryData(loadedData);
+      const loadedRounds = loadedData?.rounds ?? [];
+      const roundIds = loadedRounds.map((round) => round.round_id);
 
-      const rounds = loadedData?.rounds ?? [];
+      let roundsWithRaceCounts = loadedRounds;
+
+      if (roundIds.length > 0) {
+        const { data: raceCountData, error: raceCountError } =
+          await supabase
+            .from("races")
+            .select("round_id")
+            .in("round_id", roundIds);
+
+        if (!active) {
+          return;
+        }
+
+        if (raceCountError) {
+          console.error(
+            "Season history race count error:",
+            raceCountError
+          );
+        } else {
+          const raceCounts = (raceCountData ?? []).reduce(
+            (counts: Record<string, number>, race) => {
+              const roundId = String(race.round_id);
+              counts[roundId] = (counts[roundId] ?? 0) + 1;
+              return counts;
+            },
+            {}
+          );
+
+          roundsWithRaceCounts = loadedRounds.map((round) => ({
+            ...round,
+            total_races: raceCounts[round.round_id] ?? 0,
+          }));
+        }
+      }
+
+      const hydratedData = loadedData
+        ? {
+            ...loadedData,
+            rounds: roundsWithRaceCounts,
+          }
+        : null;
+
+      setHistoryData(hydratedData);
+
+      const rounds = roundsWithRaceCounts;
 
       if (rounds.length > 0) {
         const latestRound = [...rounds].sort(
@@ -517,8 +563,13 @@ export default function HistoryPage() {
           {rounds.map((round) => {
             const expanded = expandedRoundIds.has(round.round_id);
 
-            const salaryRemaining =
-              round.salary_cap - round.salary_used;
+            const winnersPicked = round.selections.filter(
+              (selection) =>
+                selection.result_status === "finished" &&
+                selection.finishing_position === 1
+            ).length;
+
+            const totalRaces = round.total_races ?? 0;
 
             return (
               <article
@@ -627,11 +678,11 @@ export default function HistoryPage() {
 
                       <div className="rounded-xl border bg-white p-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Salary remaining
+                          Winners Picked
                         </p>
 
                         <p className="mt-1 text-lg font-bold text-slate-900">
-                          {formatCurrency(salaryRemaining)}
+                          {winnersPicked}/{totalRaces}
                         </p>
                       </div>
 
