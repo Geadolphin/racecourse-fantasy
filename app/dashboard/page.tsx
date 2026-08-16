@@ -291,6 +291,9 @@ export default function Dashboard() {
   const [projectedRoundScore, setProjectedRoundScore] =
     useState(0);
 
+  const [horsesRanCount, setHorsesRanCount] =
+    useState(0);
+
   const [
     miniLeaderboard,
     setMiniLeaderboard,
@@ -382,6 +385,7 @@ export default function Dashboard() {
         setRoundScore(null);
         setSeasonScore(null);
         setProjectedRoundScore(0);
+        setHorsesRanCount(0);
         setUpcomingRace(null);
         setMiniLeaderboard([]);
         setDashboardExtras({
@@ -452,6 +456,7 @@ export default function Dashboard() {
             selectionProjectionError
           );
           setProjectedRoundScore(0);
+          setHorsesRanCount(0);
         } else {
           const projectedScore = (
             selectionProjectionData ?? []
@@ -486,9 +491,30 @@ export default function Dashboard() {
           }, 0);
 
           setProjectedRoundScore(projectedScore);
+
+          const ranCount = (
+            selectionProjectionData ?? []
+          ).filter((selection: any) => {
+            const rawEntry = selection.race_entry;
+
+            const raceEntry = Array.isArray(rawEntry)
+              ? rawEntry[0] ?? null
+              : rawEntry;
+
+            const rawRace = raceEntry?.race;
+
+            const race = Array.isArray(rawRace)
+              ? rawRace[0] ?? null
+              : rawRace;
+
+            return race?.status === "official";
+          }).length;
+
+          setHorsesRanCount(ranCount);
         }
       } else {
         setProjectedRoundScore(0);
+        setHorsesRanCount(0);
       }
 
       setMiniLeaderboard(
@@ -717,19 +743,15 @@ export default function Dashboard() {
           </div>
         )}
 
-        <section className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:gap-3 xl:grid-cols-4">
-          <div className="rounded-xl bg-slate-900 p-3.5 text-white shadow-sm sm:p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Round Score
-            </p>
-
-            <div className="mt-2 flex flex-col gap-2 sm:grid sm:grid-cols-2 sm:gap-4">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                  Current
+        <section className="mt-4 sm:mt-5">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
+            <div className="flex flex-col gap-2.5 sm:gap-3 xl:contents">
+              <div className="rounded-xl bg-slate-900 p-3.5 text-white shadow-sm sm:p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Round Score
                 </p>
 
-                <p className="mt-1 text-2xl font-bold sm:text-3xl">
+                <p className="mt-2 text-2xl font-bold sm:text-3xl">
                   {currentRoundScore}
                 </p>
 
@@ -738,12 +760,66 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="border-t border-slate-700 pt-2 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-300">
-                  Projected
+              <div className="rounded-xl bg-teal-600 p-3.5 text-white shadow-sm sm:p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-teal-100">
+                  Round Rank
                 </p>
 
-                <p className="mt-1 text-2xl font-bold text-teal-300 sm:text-3xl">
+                <p className="mt-2 text-xl font-bold sm:text-2xl">
+                  {rankOfTotal(
+                    currentRoundRank,
+                    dashboardExtras.round_ranked_count
+                  )}
+                </p>
+
+                <p className="mt-1 text-xs text-teal-100">
+                  this round
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5 sm:gap-3 xl:contents">
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Season Score
+                </p>
+
+                <p className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+                  {currentSeasonScore}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  points
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Overall Rank
+                </p>
+
+                <p className="mt-2 text-xl font-bold text-slate-900 sm:text-2xl">
+                  {rankOfTotal(
+                    currentOverallRank,
+                    dashboardExtras.season_ranked_count
+                  )}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  this season
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {team && (
+            <div className="mt-2.5 grid grid-cols-2 divide-x divide-slate-700 rounded-xl bg-slate-900 p-4 text-white shadow-sm sm:mt-3">
+              <div className="pr-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-teal-300">
+                  Projected Score
+                </p>
+
+                <p className="mt-1 text-2xl font-bold text-white sm:text-3xl">
                   {projectedRoundScore}
                 </p>
 
@@ -751,56 +827,22 @@ export default function Dashboard() {
                   points
                 </p>
               </div>
+
+              <div className="pl-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Horses Ran
+                </p>
+
+                <p className="mt-1 text-2xl font-bold text-white sm:text-3xl">
+                  {horsesRanCount}/{season.team_size}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  horses
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="rounded-xl bg-teal-600 p-4 text-white shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-teal-100">
-              Round Rank
-            </p>
-
-            <p className="mt-2 text-xl font-bold sm:text-2xl">
-              {rankOfTotal(
-                currentRoundRank,
-                dashboardExtras.round_ranked_count
-              )}
-            </p>
-
-            <p className="mt-1 text-xs text-teal-100">
-              this round
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Season Score
-            </p>
-
-            <p className="mt-2 text-3xl font-bold text-slate-900">
-              {currentSeasonScore}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-500">
-              points
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Overall Rank
-            </p>
-
-            <p className="mt-2 text-xl font-bold text-slate-900 sm:text-2xl">
-              {rankOfTotal(
-                currentOverallRank,
-                dashboardExtras.season_ranked_count
-              )}
-            </p>
-
-            <p className="mt-1 text-xs text-slate-500">
-              this season
-            </p>
-          </div>
+          )}
         </section>
 
         <section className="mt-4 grid gap-4 sm:mt-5 sm:gap-5 lg:grid-cols-2">
