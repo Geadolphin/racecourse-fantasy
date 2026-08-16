@@ -568,7 +568,7 @@ export default function RaceEntriesPage() {
     await loadPageData();
   }
 
-  async function generateRaceProjections(race: Race) {
+  async function generateRaceProjections(race: RaceOption) {
     setProjectionGenerationMessage("");
     setProjectionGenerationError("");
     setGeneratingProjectionRaceId(race.id);
