@@ -745,8 +745,8 @@ export default function Dashboard() {
 
         <section className="mt-4 sm:mt-5">
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
-            <div className="flex flex-col gap-2.5 sm:gap-3 xl:contents">
-              <div className="rounded-xl bg-slate-900 p-3.5 text-white shadow-sm sm:p-4">
+            <div className="overflow-hidden rounded-xl bg-slate-900 text-white shadow-sm xl:contents">
+              <div className="p-3.5 sm:p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Round Score
                 </p>
@@ -760,8 +760,8 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="rounded-xl bg-teal-600 p-3.5 text-white shadow-sm sm:p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-teal-100">
+              <div className="border-t border-slate-700 p-3.5 sm:p-4 xl:border-t-0 xl:bg-teal-600">
+                <p className="text-xs font-semibold uppercase tracking-wide text-teal-300 xl:text-teal-100">
                   Round Rank
                 </p>
 
@@ -772,14 +772,14 @@ export default function Dashboard() {
                   )}
                 </p>
 
-                <p className="mt-1 text-xs text-teal-100">
+                <p className="mt-1 text-xs text-slate-400 xl:text-teal-100">
                   this round
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col gap-2.5 sm:gap-3 xl:contents">
-              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:contents">
+              <div className="p-3.5 sm:p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Season Score
                 </p>
@@ -793,7 +793,7 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+              <div className="border-t border-slate-200 p-3.5 sm:p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Overall Rank
                 </p>
