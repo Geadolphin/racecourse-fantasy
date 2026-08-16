@@ -27,6 +27,7 @@ type Round = {
 type Horse = {
   id: string;
   name: string;
+  current_price: number;
 };
 
 type Racecourse = {
@@ -132,6 +133,9 @@ type MyTeamData = {
   season: Season | null;
   team: Team | null;
   selections: TeamSelection[];
+  fixture_races?: FixtureRace[];
+  latest_result_race?: FixtureRace | null;
+  latest_race_results?: LatestRaceResult[];
 };
 
 function formatCurrency(value: number) {
@@ -482,225 +486,35 @@ export default function MyTeamPage() {
     setTeam(teamData.team);
 
     const loadedSelections = teamData.selections ?? [];
-    const selectedEntryIds = loadedSelections
-      .map((selection) => selection.race_entry?.id ?? selection.race_entry_id)
-      .filter((entryId): entryId is string => Boolean(entryId));
 
-    let projectionMap: Record<string, number | null> = {};
+    const priceMap: Record<string, number> = {};
+    const projectionMap: Record<string, number | null> = {};
 
-    if (selectedEntryIds.length > 0) {
-      const { data: projectionData, error: projectionError } =
-        await supabase
-          .from("race_entries")
-          .select("id, projected_points")
-          .in("id", selectedEntryIds);
+    for (const selection of loadedSelections) {
+      const entry = selection.race_entry;
+      const horse = entry?.horse;
 
-      if (projectionError) {
-        console.error(
-          "My Team projected points error:",
-          projectionError
-        );
-      } else {
-        projectionMap = Object.fromEntries(
-          (projectionData ?? []).map((row) => [
-            String(row.id),
-            row.projected_points == null
-              ? null
-              : Number(row.projected_points),
-          ])
+      if (entry) {
+        projectionMap[entry.id] =
+          entry.projected_points == null
+            ? null
+            : Number(entry.projected_points);
+      }
+
+      if (horse?.id) {
+        priceMap[horse.id] = Number(
+          horse.current_price ?? selection.selected_price
         );
       }
     }
 
     setProjectedPointsByEntryId(projectionMap);
-    setSelections(
-      loadedSelections.map((selection) => {
-        if (!selection.race_entry) {
-          return selection;
-        }
+    setCurrentHorsePrices(priceMap);
+    setSelections(loadedSelections);
 
-        return {
-          ...selection,
-          race_entry: {
-            ...selection.race_entry,
-            projected_points:
-              projectionMap[selection.race_entry.id] ?? null,
-          },
-        };
-      })
-    );
-
-    const selectedHorseIds = [
-      ...new Set(
-        (teamData.selections ?? [])
-          .map((selection) => selection.race_entry?.horse?.id)
-          .filter((horseId): horseId is string => Boolean(horseId))
-      ),
-    ];
-
-    if (selectedHorseIds.length > 0) {
-      const { data: horsePriceData, error: horsePriceError } =
-        await supabase
-          .from("horses")
-          .select("id, current_price")
-          .in("id", selectedHorseIds);
-
-      if (horsePriceError) {
-        console.error(
-          "My Team current horse price error:",
-          horsePriceError
-        );
-        setCurrentHorsePrices({});
-      } else {
-        const priceMap: Record<string, number> = {};
-
-        for (const horseRow of horsePriceData ?? []) {
-          priceMap[String(horseRow.id)] = Number(
-            horseRow.current_price ?? 0
-          );
-        }
-
-        setCurrentHorsePrices(priceMap);
-      }
-    } else {
-      setCurrentHorsePrices({});
-    }
-
-    const { data: fixtureData, error: fixtureError } = await supabase
-      .from("races")
-      .select(`
-        id,
-        race_number,
-        race_name,
-        grade,
-        distance_metres,
-        scheduled_start,
-        status,
-        racecourse:racecourses (id, name)
-      `)
-      .eq("round_id", teamData.round.id)
-      .order("scheduled_start", { ascending: true })
-      .order("race_number", { ascending: true });
-
-    if (fixtureError) {
-      console.error("My Team fixture error:", fixtureError);
-      setFixtureRaces([]);
-    } else {
-      const loadedFixture = ((fixtureData ?? []) as Array<Record<string, unknown>>).map((race) => {
-        const rawRacecourse = race.racecourse;
-        const racecourse = Array.isArray(rawRacecourse)
-          ? (rawRacecourse[0] as Racecourse | undefined) ?? null
-          : (rawRacecourse as Racecourse | null);
-
-        return {
-          id: String(race.id),
-          race_number: Number(race.race_number),
-          race_name: String(race.race_name),
-          grade: race.grade as FixtureRace["grade"],
-          distance_metres: race.distance_metres == null ? null : Number(race.distance_metres),
-          scheduled_start: String(race.scheduled_start),
-          status: String(race.status),
-          racecourse,
-        };
-      });
-
-      setFixtureRaces(loadedFixture);
-    }
-
-    const { data: latestRaceData, error: latestRaceError } =
-      await supabase
-        .from("races")
-        .select(`
-          id,
-          race_number,
-          race_name,
-          grade,
-          distance_metres,
-          scheduled_start,
-          status,
-          racecourse:racecourses (id, name)
-        `)
-        .eq("status", "official")
-        .order("official_result_declared_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-    if (latestRaceError) {
-      console.error("Latest result race error:", latestRaceError);
-      setLatestResultRace(null);
-      setLatestRaceResults([]);
-    } else if (latestRaceData) {
-      const rawRacecourse = latestRaceData.racecourse;
-      const racecourse = Array.isArray(rawRacecourse)
-        ? (rawRacecourse[0] as Racecourse | undefined) ?? null
-        : (rawRacecourse as Racecourse | null);
-
-      const latestRace: FixtureRace = {
-        id: String(latestRaceData.id),
-        race_number: Number(latestRaceData.race_number),
-        race_name: String(latestRaceData.race_name),
-        grade: latestRaceData.grade as FixtureRace["grade"],
-        distance_metres:
-          latestRaceData.distance_metres == null
-            ? null
-            : Number(latestRaceData.distance_metres),
-        scheduled_start: String(latestRaceData.scheduled_start),
-        status: String(latestRaceData.status),
-        racecourse,
-      };
-
-      setLatestResultRace(latestRace);
-
-      const { data: latestResultsData, error: latestResultsError } =
-        await supabase
-          .from("race_results")
-          .select(`
-            race_entry_id,
-            finishing_position,
-            fantasy_points,
-            race_entry:race_entries!inner (
-              race_id,
-              horse_id,
-              horse:horses (id, name)
-            )
-          `)
-          .eq("is_official", true)
-          .eq("result_status", "finished")
-          .eq("race_entry.race_id", latestRace.id)
-          .not("finishing_position", "is", null)
-          .order("finishing_position", { ascending: true })
-          .limit(3);
-
-      if (latestResultsError) {
-        console.error("Latest race results error:", latestResultsError);
-        setLatestRaceResults([]);
-      } else {
-        setLatestRaceResults(
-          (latestResultsData ?? []).map((result: any) => {
-            const rawEntry = result.race_entry;
-            const entry = Array.isArray(rawEntry)
-              ? rawEntry[0] ?? null
-              : rawEntry;
-
-            const rawHorse = entry?.horse;
-            const horse = Array.isArray(rawHorse)
-              ? rawHorse[0] ?? null
-              : rawHorse;
-
-            return {
-              race_entry_id: String(result.race_entry_id),
-              finishing_position: Number(result.finishing_position),
-              fantasy_points: Number(result.fantasy_points ?? 0),
-              horse_id: String(horse?.id ?? entry?.horse_id ?? ""),
-              horse_name: String(horse?.name ?? "Unknown horse"),
-            };
-          })
-        );
-      }
-    } else {
-      setLatestResultRace(null);
-      setLatestRaceResults([]);
-    }
+    setFixtureRaces(teamData.fixture_races ?? []);
+    setLatestResultRace(teamData.latest_result_race ?? null);
+    setLatestRaceResults(teamData.latest_race_results ?? []);
 
     setLoading(false);
   }, []);
