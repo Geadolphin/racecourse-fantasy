@@ -428,150 +428,14 @@ export default function Dashboard() {
         dashboardData.upcoming_race
       );
 
-      const { data: previousRoundData, error: previousRoundError } =
-        await supabase
-          .from("rounds")
-          .select("id, round_number")
-          .eq("season_id", dashboardData.season.id)
-          .lt("round_number", dashboardData.round.round_number)
-          .order("round_number", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      const resolvedDashboardData = dashboardData;
+      const resolvedUser = user;
 
-      if (!active) {
-        return;
-      }
-
-      if (previousRoundError) {
-        console.error(
-          "Dashboard previous round error:",
-          previousRoundError
-        );
-        setPreviousOverallRank(null);
-      } else if (previousRoundData?.id) {
-        const { data: previousRankData, error: previousRankError } =
-          await supabase
-            .from("player_season_scores")
-            .select("overall_rank")
-            .eq("user_id", user.id)
-            .eq("season_id", dashboardData.season.id)
-            .eq("round_id", previousRoundData.id)
-            .maybeSingle();
-
-        if (!active) {
-          return;
-        }
-
-        if (previousRankError) {
-          console.error(
-            "Dashboard previous rank error:",
-            previousRankError
-          );
-          setPreviousOverallRank(null);
-        } else {
-          setPreviousOverallRank(
-            previousRankData?.overall_rank == null
-              ? null
-              : Number(previousRankData.overall_rank)
-          );
-        }
-      } else {
-        setPreviousOverallRank(null);
-      }
-
-      if (dashboardData.team?.id) {
-        const {
-          data: selectionProjectionData,
-          error: selectionProjectionError,
-        } = await supabase
-          .from("team_selections")
-          .select(
-            `
-              race_entry_id,
-              is_captain,
-              fantasy_points,
-              race_entry:race_entries!inner (
-                id,
-                projected_points,
-                race:races!inner (
-                  status
-                )
-              )
-            `
-          )
-          .eq("team_id", dashboardData.team.id);
-
-        if (!active) {
-          return;
-        }
-
-        if (selectionProjectionError) {
-          console.error(
-            "Dashboard projected score error:",
-            selectionProjectionError
-          );
-          setProjectedRoundScore(0);
-          setHorsesRanCount(0);
-        } else {
-          const projectedScore = (
-            selectionProjectionData ?? []
-          ).reduce((total, selection: any) => {
-            const rawEntry = selection.race_entry;
-
-            const raceEntry = Array.isArray(rawEntry)
-              ? rawEntry[0] ?? null
-              : rawEntry;
-
-            const rawRace = raceEntry?.race;
-
-            const race = Array.isArray(rawRace)
-              ? rawRace[0] ?? null
-              : rawRace;
-
-            const raceIsOfficial =
-              race?.status === "official";
-
-            const basePoints = raceIsOfficial
-              ? Number(selection.fantasy_points ?? 0)
-              : Number(
-                  raceEntry?.projected_points ?? 0
-                );
-
-            return (
-              total +
-              (selection.is_captain
-                ? basePoints * 2
-                : basePoints)
-            );
-          }, 0);
-
-          setProjectedRoundScore(projectedScore);
-
-          const ranCount = (
-            selectionProjectionData ?? []
-          ).filter((selection: any) => {
-            const rawEntry = selection.race_entry;
-
-            const raceEntry = Array.isArray(rawEntry)
-              ? rawEntry[0] ?? null
-              : rawEntry;
-
-            const rawRace = raceEntry?.race;
-
-            const race = Array.isArray(rawRace)
-              ? rawRace[0] ?? null
-              : rawRace;
-
-            return race?.status === "official";
-          }).length;
-
-          setHorsesRanCount(ranCount);
-        }
-      } else {
-        setProjectedRoundScore(0);
-        setHorsesRanCount(0);
-      }
-
+      /*
+       * Render the main dashboard immediately after the primary RPC.
+       * The remaining stats load in parallel in the background instead
+       * of blocking the whole page.
+       */
       setMiniLeaderboard(
         (
           dashboardData.mini_leaderboard ??
@@ -600,35 +464,204 @@ export default function Dashboard() {
           )
       );
 
-      const {
-        data: extrasRaw,
-        error: extrasError,
-      } = await supabase.rpc(
-        "get_dashboard_league_positions",
-        {
-          p_round_id:
-            dashboardData.round.id,
-          p_season_id:
-            dashboardData.season.id,
-        }
-      );
+      setLoading(false);
 
-      if (!active) {
-        return;
+      async function loadPreviousOverallRank() {
+        const {
+          data: previousRoundData,
+          error: previousRoundError,
+        } = await supabase
+          .from("rounds")
+          .select("id, round_number")
+          .eq("season_id", resolvedDashboardData.season!.id)
+          .lt(
+            "round_number",
+            resolvedDashboardData.round!.round_number
+          )
+          .order("round_number", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!active) {
+          return;
+        }
+
+        if (previousRoundError) {
+          console.error(
+            "Dashboard previous round error:",
+            previousRoundError
+          );
+          setPreviousOverallRank(null);
+          return;
+        }
+
+        if (!previousRoundData?.id) {
+          setPreviousOverallRank(null);
+          return;
+        }
+
+        const {
+          data: previousRankData,
+          error: previousRankError,
+        } = await supabase
+          .from("player_season_scores")
+          .select("overall_rank")
+          .eq("user_id", resolvedUser.id)
+          .eq(
+            "season_id",
+            resolvedDashboardData.season!.id
+          )
+          .eq("round_id", previousRoundData.id)
+          .maybeSingle();
+
+        if (!active) {
+          return;
+        }
+
+        if (previousRankError) {
+          console.error(
+            "Dashboard previous rank error:",
+            previousRankError
+          );
+          setPreviousOverallRank(null);
+          return;
+        }
+
+        setPreviousOverallRank(
+          previousRankData?.overall_rank == null
+            ? null
+            : Number(previousRankData.overall_rank)
+        );
       }
 
-      if (extrasError) {
-        console.error(
-          "Dashboard league positions error:",
-          extrasError
+      async function loadProjectedScore() {
+        if (!resolvedDashboardData.team?.id) {
+          setProjectedRoundScore(0);
+          setHorsesRanCount(0);
+          return;
+        }
+
+        const {
+          data: selectionProjectionData,
+          error: selectionProjectionError,
+        } = await supabase
+          .from("team_selections")
+          .select(
+            `
+              race_entry_id,
+              is_captain,
+              fantasy_points,
+              race_entry:race_entries!inner (
+                id,
+                projected_points,
+                race:races!inner (
+                  status
+                )
+              )
+            `
+          )
+          .eq("team_id", resolvedDashboardData.team!.id);
+
+        if (!active) {
+          return;
+        }
+
+        if (selectionProjectionError) {
+          console.error(
+            "Dashboard projected score error:",
+            selectionProjectionError
+          );
+          setProjectedRoundScore(0);
+          setHorsesRanCount(0);
+          return;
+        }
+
+        const projectedScore = (
+          selectionProjectionData ?? []
+        ).reduce((total, selection: any) => {
+          const rawEntry = selection.race_entry;
+
+          const raceEntry = Array.isArray(rawEntry)
+            ? rawEntry[0] ?? null
+            : rawEntry;
+
+          const rawRace = raceEntry?.race;
+
+          const race = Array.isArray(rawRace)
+            ? rawRace[0] ?? null
+            : rawRace;
+
+          const raceIsOfficial =
+            race?.status === "official";
+
+          const basePoints = raceIsOfficial
+            ? Number(selection.fantasy_points ?? 0)
+            : Number(
+                raceEntry?.projected_points ?? 0
+              );
+
+          return (
+            total +
+            (selection.is_captain
+              ? basePoints * 2
+              : basePoints)
+          );
+        }, 0);
+
+        const ranCount = (
+          selectionProjectionData ?? []
+        ).filter((selection: any) => {
+          const rawEntry = selection.race_entry;
+
+          const raceEntry = Array.isArray(rawEntry)
+            ? rawEntry[0] ?? null
+            : rawEntry;
+
+          const rawRace = raceEntry?.race;
+
+          const race = Array.isArray(rawRace)
+            ? rawRace[0] ?? null
+            : rawRace;
+
+          return race?.status === "official";
+        }).length;
+
+        setProjectedRoundScore(projectedScore);
+        setHorsesRanCount(ranCount);
+      }
+
+      async function loadDashboardExtras() {
+        const {
+          data: extrasRaw,
+          error: extrasError,
+        } = await supabase.rpc(
+          "get_dashboard_league_positions",
+          {
+            p_round_id:
+              resolvedDashboardData.round!.id,
+            p_season_id:
+              resolvedDashboardData.season!.id,
+          }
         );
 
-        setDashboardExtras({
-          round_ranked_count: 0,
-          season_ranked_count: 0,
-          leagues: [],
-        });
-      } else {
+        if (!active) {
+          return;
+        }
+
+        if (extrasError) {
+          console.error(
+            "Dashboard league positions error:",
+            extrasError
+          );
+
+          setDashboardExtras({
+            round_ranked_count: 0,
+            season_ranked_count: 0,
+            leagues: [],
+          });
+          return;
+        }
+
         const extras =
           extrasRaw as DashboardExtras | null;
 
@@ -644,6 +677,11 @@ export default function Dashboard() {
         });
       }
 
+      void Promise.allSettled([
+        loadPreviousOverallRank(),
+        loadProjectedScore(),
+        loadDashboardExtras(),
+      ]);
       setLoading(false);
     }
 
