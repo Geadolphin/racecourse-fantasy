@@ -294,6 +294,9 @@ export default function Dashboard() {
   const [horsesRanCount, setHorsesRanCount] =
     useState(0);
 
+  const [selectedHorseCount, setSelectedHorseCount] =
+    useState(0);
+
   const [previousOverallRank, setPreviousOverallRank] =
     useState<number | null>(null);
 
@@ -389,6 +392,7 @@ export default function Dashboard() {
         setSeasonScore(null);
         setProjectedRoundScore(0);
         setHorsesRanCount(0);
+        setSelectedHorseCount(0);
         setPreviousOverallRank(null);
         setUpcomingRace(null);
         setMiniLeaderboard([]);
@@ -538,6 +542,7 @@ export default function Dashboard() {
         if (!resolvedDashboardData.team?.id) {
           setProjectedRoundScore(0);
           setHorsesRanCount(0);
+          setSelectedHorseCount(0);
           return;
         }
 
@@ -573,8 +578,13 @@ export default function Dashboard() {
           );
           setProjectedRoundScore(0);
           setHorsesRanCount(0);
+          setSelectedHorseCount(0);
           return;
         }
+
+        setSelectedHorseCount(
+          (selectionProjectionData ?? []).length
+        );
 
         const projectedScore = (
           selectionProjectionData ?? []
@@ -938,7 +948,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {team && (
+          {team &&
+            selectedHorseCount === season.team_size && (
             <div className="mt-2.5 grid grid-cols-2 divide-x divide-slate-700 rounded-xl bg-slate-900 p-4 text-white shadow-sm sm:mt-3">
               <div className="pr-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-teal-300">
