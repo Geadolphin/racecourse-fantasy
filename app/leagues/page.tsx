@@ -132,8 +132,52 @@ export default function PrivateLeaguesPage() {
                 return null;
             }
 
-            const loadedData =
+            let loadedData =
                 leagueDataRaw as unknown as PrivateLeaguesData;
+
+            /*
+             * When no round was explicitly requested, use the current
+             * open round instead of whatever default round the RPC returns.
+             */
+            if (!roundId && loadedData.rounds.length > 0) {
+                const currentRound =
+                    loadedData.rounds.find(
+                        (round) => round.status === "open"
+                    ) ?? null;
+
+                if (
+                    currentRound &&
+                    loadedData.selected_round_id !== currentRound.id
+                ) {
+                    const {
+                        data: currentRoundDataRaw,
+                        error: currentRoundError,
+                    } = await supabase.rpc(
+                        "get_private_leagues_data",
+                        {
+                            p_season_id:
+                                loadedData.season_id ??
+                                seasonId ??
+                                null,
+                            p_league_id:
+                                loadedData.selected_league?.id ??
+                                leagueId ??
+                                null,
+                            p_round_id: currentRound.id,
+                        }
+                    );
+
+                    if (currentRoundError) {
+                        console.error(
+                            "Private leagues current round error:",
+                            currentRoundError
+                        );
+                    } else if (currentRoundDataRaw) {
+                        loadedData =
+                            currentRoundDataRaw as unknown as PrivateLeaguesData;
+                    }
+                }
+            }
 
             if (
                 loadedData.season_id &&
