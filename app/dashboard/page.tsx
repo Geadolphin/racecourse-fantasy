@@ -672,16 +672,16 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
+    <main className="min-h-screen bg-slate-100 p-3 sm:p-4 md:p-8">
       <div className="mx-auto max-w-7xl">
-        <section className="rounded-2xl bg-slate-900 p-5 text-white shadow-sm md:p-6">
+        <section className="rounded-2xl bg-slate-900 p-4 text-white shadow-sm sm:p-5 md:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300">
                 {season.name}
               </p>
 
-              <h1 className="mt-2 text-3xl font-bold md:text-4xl">
+              <h1 className="mt-2 text-2xl font-bold sm:text-3xl md:text-4xl">
                 Welcome, {displayName}
               </h1>
 
@@ -693,17 +693,17 @@ export default function Dashboard() {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
               <Link
                 href="/team"
-                className="rounded-lg bg-amber-400 px-4 py-2.5 text-sm font-bold text-slate-900 transition hover:bg-amber-300"
+                className="w-full rounded-lg bg-amber-400 px-4 py-2.5 text-center text-sm font-bold text-slate-900 transition hover:bg-amber-300 sm:w-auto"
               >
                 View Team
               </Link>
 
               <Link
                 href="/leaderboard"
-                className="rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800"
+                className="w-full rounded-lg border border-slate-700 px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-slate-800 sm:w-auto"
               >
                 Leaderboard
               </Link>
@@ -717,8 +717,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        <section className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <div className="rounded-xl bg-slate-900 p-4 text-white shadow-sm">
+        <section className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:gap-3 xl:grid-cols-4">
+          <div className="col-span-2 rounded-xl bg-slate-900 p-3.5 text-white shadow-sm sm:col-span-1 sm:p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Round Score
             </p>
@@ -729,7 +729,7 @@ export default function Dashboard() {
                   Current
                 </p>
 
-                <p className="mt-1 text-3xl font-bold">
+                <p className="mt-1 text-2xl font-bold sm:text-3xl">
                   {currentRoundScore}
                 </p>
 
@@ -743,7 +743,7 @@ export default function Dashboard() {
                   Projected
                 </p>
 
-                <p className="mt-1 text-3xl font-bold text-teal-300">
+                <p className="mt-1 text-2xl font-bold text-teal-300 sm:text-3xl">
                   {projectedRoundScore}
                 </p>
 
@@ -803,8 +803,8 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="mt-5 grid gap-5 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="mt-4 grid gap-4 sm:mt-5 sm:gap-5 lg:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 text-amber-700">
@@ -836,7 +836,7 @@ export default function Dashboard() {
               </span>
             </div>
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:mt-5 sm:grid-cols-2 sm:gap-4">
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
                   Lockout
@@ -1003,10 +1003,10 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <Link
                 href="/team"
-                className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
               >
                 View Team
               </Link>
@@ -1014,7 +1014,7 @@ export default function Dashboard() {
               {!lockoutHasPassed && (
                 <Link
                   href="/team/edit"
-                  className="rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-700"
+                  className="w-full rounded-lg bg-teal-600 px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-teal-700 sm:w-auto"
                 >
                   Edit Team
                 </Link>
@@ -1025,7 +1025,7 @@ export default function Dashboard() {
 
         <section className="mt-5 grid gap-5 lg:grid-cols-2">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-4 border-b border-slate-200 p-5">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4 sm:gap-4 sm:p-5">
               <div>
                 <div className="flex items-center gap-2 text-teal-700">
                   <Network className="h-4 w-4" />
@@ -1055,7 +1055,7 @@ export default function Dashboard() {
                     <Link
                       key={league.league_id}
                       href={`/leagues?league=${league.league_id}`}
-                      className="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50"
+                      className="flex items-center justify-between gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5 sm:py-4"
                     >
                       <span className="truncate font-bold text-slate-900">
                         {league.league_name}
@@ -1089,7 +1089,7 @@ export default function Dashboard() {
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-4 border-b border-slate-200 p-5">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4 sm:gap-4 sm:p-5">
               <div>
                 <div className="flex items-center gap-2 text-teal-700">
                   <Trophy className="h-4 w-4" />
@@ -1118,7 +1118,7 @@ export default function Dashboard() {
                   (entry) => (
                     <div
                       key={entry.user_id}
-                      className="grid grid-cols-[48px_1fr_auto] items-center gap-3 px-5 py-3.5"
+                      className="grid grid-cols-[36px_1fr_auto] items-center gap-2 px-4 py-3 sm:grid-cols-[48px_1fr_auto] sm:gap-3 sm:px-5 sm:py-3.5"
                     >
                       <div className="text-center font-bold text-slate-500">
                         {entry.overall_rank}
