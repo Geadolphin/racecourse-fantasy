@@ -60,6 +60,7 @@ type RaceEntry = {
   horse_id: string;
   saddlecloth_number: number | null;
   price_at_entry: number;
+  projected_points: number | null;
   horse: Horse | null;
   race: Race | null;
 };
@@ -360,12 +361,10 @@ function Icon({
 
 
 function OfficialTeamStat({
-  icon,
   label,
   value,
   emphasis = "default",
 }: {
-  icon: IconName;
   label: string;
   value: string;
   emphasis?: "default" | "teal" | "amber";
@@ -377,19 +376,12 @@ function OfficialTeamStat({
         ? "text-amber-300"
         : "text-white";
 
-  const iconClasses =
-    emphasis === "amber"
-      ? "text-amber-300"
-      : "text-teal-300";
 
   return (
     <div className="min-w-0 bg-slate-900 px-4 py-3.5">
-      <div className={`flex items-center gap-2 ${iconClasses}`}>
-        <Icon name={icon} className="h-4 w-4" />
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-          {label}
-        </p>
-      </div>
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </p>
 
       <p className={`mt-1.5 truncate text-lg font-black ${valueClasses}`}>
         {value}
@@ -408,6 +400,9 @@ export default function MyTeamPage() {
   >([]);
   const [currentHorsePrices, setCurrentHorsePrices] = useState<
     Record<string, number>
+  >({});
+  const [projectedPointsByEntryId, setProjectedPointsByEntryId] = useState<
+    Record<string, number | null>
   >({});
   const [fixtureRaces, setFixtureRaces] = useState<FixtureRace[]>([]);
   const [latestResultRace, setLatestResultRace] =
@@ -450,6 +445,7 @@ export default function MyTeamPage() {
       setTeam(null);
       setSelections([]);
       setCurrentHorsePrices({});
+      setProjectedPointsByEntryId({});
       setFixtureRaces([]);
 
       setErrorMessage(
@@ -469,6 +465,7 @@ export default function MyTeamPage() {
       setTeam(null);
       setSelections([]);
       setCurrentHorsePrices({});
+      setProjectedPointsByEntryId({});
       setFixtureRaces([]);
 
       setErrorMessage(
@@ -483,7 +480,55 @@ export default function MyTeamPage() {
     setRound(teamData.round);
     setSeason(teamData.season);
     setTeam(teamData.team);
-    setSelections(teamData.selections ?? []);
+
+    const loadedSelections = teamData.selections ?? [];
+    const selectedEntryIds = loadedSelections
+      .map((selection) => selection.race_entry?.id ?? selection.race_entry_id)
+      .filter((entryId): entryId is string => Boolean(entryId));
+
+    let projectionMap: Record<string, number | null> = {};
+
+    if (selectedEntryIds.length > 0) {
+      const { data: projectionData, error: projectionError } =
+        await supabase
+          .from("race_entries")
+          .select("id, projected_points")
+          .in("id", selectedEntryIds);
+
+      if (projectionError) {
+        console.error(
+          "My Team projected points error:",
+          projectionError
+        );
+      } else {
+        projectionMap = Object.fromEntries(
+          (projectionData ?? []).map((row) => [
+            String(row.id),
+            row.projected_points == null
+              ? null
+              : Number(row.projected_points),
+          ])
+        );
+      }
+    }
+
+    setProjectedPointsByEntryId(projectionMap);
+    setSelections(
+      loadedSelections.map((selection) => {
+        if (!selection.race_entry) {
+          return selection;
+        }
+
+        return {
+          ...selection,
+          race_entry: {
+            ...selection.race_entry,
+            projected_points:
+              projectionMap[selection.race_entry.id] ?? null,
+          },
+        };
+      })
+    );
 
     const selectedHorseIds = [
       ...new Set(
@@ -795,13 +840,20 @@ export default function MyTeamPage() {
     }, 0);
   }, [selections]);
 
+  const liveProjectedScore = useMemo(() => {
+    return selections.reduce((total, selection) => {
+      const projectedPoints =
+        selection.race_entry?.projected_points ??
+        projectedPointsByEntryId[selection.race_entry_id] ??
+        0;
 
-  const captainName = useMemo(() => {
-    return (
-      selections.find((selection) => selection.is_captain)
-        ?.race_entry?.horse?.name ?? "Not selected"
-    );
-  }, [selections]);
+      const baseValue = selection.has_result
+        ? selection.fantasy_points ?? 0
+        : projectedPoints;
+
+      return total + (selection.is_captain ? baseValue * 2 : baseValue);
+    }, 0);
+  }, [selections, projectedPointsByEntryId]);
 
   const salaryRemaining = season
     ? season.salary_cap - salaryUsed
@@ -981,31 +1033,28 @@ export default function MyTeamPage() {
 
             <div className="grid grid-cols-2 gap-px border-t border-slate-800 bg-slate-800 lg:grid-cols-4 xl:border-l xl:border-t-0">
               <OfficialTeamStat
-                icon="trophy"
-                label="Total Score"
+                label="Current Score"
                 value={`${totalPoints} pts`}
                 emphasis="teal"
               />
 
               <OfficialTeamStat
-                icon="wallet"
+                label="Projected Score"
+                value={`${liveProjectedScore} pts`}
+                emphasis="amber"
+              />
+
+              <OfficialTeamStat
                 label="Team Salary"
                 value={formatCurrency(salaryUsed)}
               />
 
               <OfficialTeamStat
-                icon="wallet"
                 label="Remaining"
                 value={formatCurrency(salaryRemaining)}
                 emphasis="teal"
               />
 
-              <OfficialTeamStat
-                icon="star"
-                label="Captain"
-                value={captainName}
-                emphasis="amber"
-              />
             </div>
           </div>
         </header>
@@ -1055,6 +1104,18 @@ export default function MyTeamPage() {
                     const displayedPoints = selection.is_captain
                       ? (selection.fantasy_points ?? 0) * 2
                       : selection.fantasy_points ?? 0;
+
+                    const projectedPoints =
+                      entry?.projected_points ??
+                      projectedPointsByEntryId[selection.race_entry_id] ??
+                      null;
+
+                    const displayedProjectedPoints =
+                      projectedPoints === null
+                        ? null
+                        : selection.is_captain
+                          ? projectedPoints * 2
+                          : projectedPoints;
 
                     return (
                       <article
@@ -1117,10 +1178,32 @@ export default function MyTeamPage() {
                               className="mb-1 hidden h-4 w-4 text-slate-300 sm:block"
                             />
                             {!selection.has_result ? (
-                              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600">Upcoming</span>
+                              <div className="text-right">
+                                {displayedProjectedPoints === null ? (
+                                  <>
+                                    <p className="text-lg font-semibold leading-none text-slate-400">
+                                      —
+                                    </p>
+                                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                      Projection
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-2xl font-bold leading-none text-amber-600 sm:text-3xl">
+                                      {displayedProjectedPoints}
+                                    </p>
+                                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                      {selection.is_captain
+                                        ? "projected pts · 2×"
+                                        : "projected pts"}
+                                    </p>
+                                  </>
+                                )}
+                              </div>
                             ) : (
                               <div className="text-right">
-                                <p className="text-2xl font-bold leading-none text-teal-700 sm:text-3xl">{displayedPoints}</p>
+                                <p className="text-2xl font-bold leading-none text-teal-600 sm:text-3xl">{displayedPoints}</p>
                                 <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{selection.is_captain ? "pts · 2×" : "pts"}</p>
                               </div>
                             )}

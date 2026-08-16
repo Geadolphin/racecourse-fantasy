@@ -628,11 +628,18 @@ export default function EditTeamPage() {
   const salaryRemaining = salaryCap - salaryUsed;
 
   const selectedProjectedPoints = useMemo(() => {
-    return selectedEntries.reduce(
+    const baseTotal = selectedEntries.reduce(
       (total, entry) => total + (entry.projected_points ?? 0),
       0
     );
-  }, [selectedEntries]);
+
+    const captainProjection =
+      selectedEntries.find(
+        (entry) => entry.id === captainEntryId
+      )?.projected_points ?? 0;
+
+    return baseTotal + captainProjection;
+  }, [selectedEntries, captainEntryId]);
 
   const selectedCount = selectedEntryIds.length;
   const teamSize = season?.team_size ?? 0;
@@ -737,9 +744,16 @@ export default function EditTeamPage() {
         return startA - startB;
       }
 
+      const raceNumberA = a.race?.race_number ?? 999;
+      const raceNumberB = b.race?.race_number ?? 999;
+
+      if (raceNumberA !== raceNumberB) {
+        return raceNumberA - raceNumberB;
+      }
+
       return (
-        (a.race?.race_number ?? 999) -
-        (b.race?.race_number ?? 999)
+        (a.saddlecloth_number ?? 999) -
+        (b.saddlecloth_number ?? 999)
       );
     });
   }, [
@@ -846,6 +860,178 @@ export default function EditTeamPage() {
     }
 
     setSelectedEntryIds((current) => [...current, entry.id]);
+  }
+
+  function fillTeam() {
+    clearMessages();
+
+    if (!teamIsEditable) {
+      setErrorMessage(
+        "This team can no longer be edited because all lockouts have commenced."
+      );
+      return;
+    }
+
+    if (!team && firstLockoutHasStarted) {
+      setErrorMessage(
+        "A new team cannot be created after the first lockout has commenced."
+      );
+      return;
+    }
+
+    if (selectedEntryIds.length >= teamSize) {
+      setSuccessMessage("Your team is already full.");
+      return;
+    }
+
+    const spotsToFill = teamSize - selectedEntryIds.length;
+    const remainingBudget = salaryCap - salaryUsed;
+
+    if (remainingBudget < 0) {
+      setErrorMessage(
+        "Your current selections already exceed the salary cap."
+      );
+      return;
+    }
+
+    const selectedHorseIds = new Set(
+      selectedEntries.map((entry) => entry.horse_id)
+    );
+
+    const candidateGroups = new Map<string, RaceEntry[]>();
+
+    for (const entry of entries) {
+      if (
+        selectedEntryIds.includes(entry.id) ||
+        selectedHorseIds.has(entry.horse_id) ||
+        entry.entry_status !== "runner" ||
+        entry.projected_points === null ||
+        entryIsLocked(entry)
+      ) {
+        continue;
+      }
+
+      const current = candidateGroups.get(entry.horse_id) ?? [];
+      current.push(entry);
+      candidateGroups.set(entry.horse_id, current);
+    }
+
+    type FillState = {
+      cost: number;
+      points: number;
+      entryIds: string[];
+    };
+
+    let states: FillState[][] = Array.from(
+      { length: spotsToFill + 1 },
+      () => []
+    );
+    states[0] = [{ cost: 0, points: 0, entryIds: [] }];
+
+    function pruneStates(items: FillState[]) {
+      const bestByCost = new Map<number, FillState>();
+
+      for (const item of items) {
+        const existing = bestByCost.get(item.cost);
+        if (
+          !existing ||
+          item.points > existing.points
+        ) {
+          bestByCost.set(item.cost, item);
+        }
+      }
+
+      const sorted = [...bestByCost.values()].sort(
+        (a, b) => a.cost - b.cost
+      );
+
+      const pruned: FillState[] = [];
+      let bestPointsSoFar = -Infinity;
+
+      for (const item of sorted) {
+        if (item.points > bestPointsSoFar) {
+          pruned.push(item);
+          bestPointsSoFar = item.points;
+        }
+      }
+
+      return pruned;
+    }
+
+    for (const horseEntries of candidateGroups.values()) {
+      const nextStates = states.map((group) => [...group]);
+
+      for (let count = 0; count < spotsToFill; count += 1) {
+        for (const state of states[count]) {
+          for (const entry of horseEntries) {
+            const newCost = state.cost + entry.price_at_entry;
+
+            if (newCost > remainingBudget) {
+              continue;
+            }
+
+            nextStates[count + 1].push({
+              cost: newCost,
+              points:
+                state.points + (entry.projected_points ?? 0),
+              entryIds: [...state.entryIds, entry.id],
+            });
+          }
+        }
+      }
+
+      states = nextStates.map(pruneStates);
+    }
+
+    const solutions = states[spotsToFill];
+
+    if (solutions.length === 0) {
+      setErrorMessage(
+        `A valid ${teamSize}-horse team cannot be completed within the remaining salary cap using horses with projections.`
+      );
+      return;
+    }
+
+    const bestSolution = [...solutions].sort((a, b) => {
+      if (a.points !== b.points) {
+        return b.points - a.points;
+      }
+
+      return a.cost - b.cost;
+    })[0];
+
+    const completedEntryIds = [
+      ...selectedEntryIds,
+      ...bestSolution.entryIds,
+    ];
+
+    setSelectedEntryIds(completedEntryIds);
+
+    if (captainEntryId === null) {
+      const completedEntries = entries.filter((entry) =>
+        completedEntryIds.includes(entry.id)
+      );
+
+      const bestCaptain = [...completedEntries].sort((a, b) => {
+        const pointsDifference =
+          (b.projected_points ?? -1) -
+          (a.projected_points ?? -1);
+
+        if (pointsDifference !== 0) {
+          return pointsDifference;
+        }
+
+        return a.price_at_entry - b.price_at_entry;
+      })[0];
+
+      if (bestCaptain) {
+        setCaptainEntryId(bestCaptain.id);
+      }
+    }
+
+    setSuccessMessage(
+      `Team filled with the highest projected-points combination available within your remaining salary cap. Review it before saving or submitting.`
+    );
   }
 
   function selectCaptain(entryId: string) {
@@ -1061,11 +1247,11 @@ export default function EditTeamPage() {
         <header className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-white shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-300">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-300">
                 Team Selection · {season.name}
               </p>
               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <h1 className="text-xl font-black sm:text-2xl">Edit Team</h1>
+                <h1 className="text-xl font-bold sm:text-2xl">Edit Team</h1>
                 <span className="text-sm font-semibold text-slate-400">
                   Round {round.round_number}{round.name ? ` — ${round.name}` : ""}
                 </span>
@@ -1079,32 +1265,40 @@ export default function EditTeamPage() {
 
             <div className="flex flex-wrap items-center gap-2">
               <div className="rounded-lg bg-slate-900 px-3 py-2">
-                <p className="text-[9px] font-black uppercase tracking-wide text-slate-500">Selected</p>
-                <p className="text-sm font-black">{selectedCount}/{teamSize}</p>
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Selected</p>
+                <p className="text-sm font-semibold">{selectedCount}/{teamSize}</p>
               </div>
               <div className="rounded-lg bg-slate-900 px-3 py-2">
-                <p className="text-[9px] font-black uppercase tracking-wide text-slate-500">Remaining</p>
-                <p className={`text-sm font-black ${salaryRemaining < 0 ? "text-red-300" : "text-teal-300"}`}>
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Remaining</p>
+                <p className={`text-sm font-semibold ${salaryRemaining < 0 ? "text-red-300" : "text-teal-300"}`}>
                   {formatCurrency(salaryRemaining)}
                 </p>
               </div>
               <div className="rounded-lg bg-slate-900 px-3 py-2">
-                <p className="text-[9px] font-black uppercase tracking-wide text-slate-500">Projected</p>
-                <p className="text-sm font-black text-teal-300">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Projected</p>
+                <p className="text-sm font-semibold text-teal-300">
                   {selectedProjectedPoints} pts
                 </p>
               </div>
               <Link
                 href="/team"
-                className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-black transition hover:bg-slate-900"
+                className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold transition hover:bg-slate-900"
               >
                 Cancel
               </Link>
               <button
                 type="button"
+                onClick={fillTeam}
+                disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting}
+                className="rounded-lg border border-teal-500 bg-slate-900 px-3 py-2 text-xs font-semibold text-teal-300 transition hover:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500 disabled:opacity-50"
+              >
+                Fill Team
+              </button>
+              <button
+                type="button"
                 onClick={() => void saveDraft()}
                 disabled={saving || submitting}
-                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-black transition hover:bg-slate-800 disabled:opacity-50"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold transition hover:bg-slate-800 disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Save Draft"}
               </button>
@@ -1112,7 +1306,7 @@ export default function EditTeamPage() {
                 type="button"
                 onClick={() => void submitTeam()}
                 disabled={!teamIsComplete || submitting || saving}
-                className="rounded-lg bg-teal-500 px-4 py-2 text-xs font-black text-slate-950 transition hover:bg-teal-400 disabled:bg-slate-700 disabled:text-slate-400"
+                className="rounded-lg bg-teal-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-teal-400 disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {submitting ? "Submitting..." : team?.status === "submitted" ? "Update Team" : "Submit Team"}
               </button>
@@ -1122,7 +1316,7 @@ export default function EditTeamPage() {
 
         <section className="mt-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Lockouts</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Lockouts</span>
             {roundLockouts.map((lockout) => {
               const isLocked = currentTime >= new Date(lockout.lockout_at).getTime();
               return (
@@ -1287,10 +1481,10 @@ export default function EditTeamPage() {
           <section className="min-w-0">
             <div className="flex items-end justify-between border-b border-slate-300 pb-2">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-700">Race Fields</p>
-                <h2 className="mt-0.5 text-xl font-black text-slate-950">Select Horses</h2>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-700">Race Fields</p>
+                <h2 className="mt-0.5 text-xl font-bold text-slate-950">Select Horses</h2>
               </div>
-              <p className="text-xs font-bold text-slate-500">{filteredEntries.length} runners</p>
+              <p className="text-xs font-medium text-slate-500">{filteredEntries.length} runners</p>
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-3">
@@ -1315,7 +1509,7 @@ export default function EditTeamPage() {
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded bg-teal-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
+                              <span className="rounded bg-teal-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                                 {raceGroup ? getGradeLabel(raceGroup.grade) : "Race"}
                               </span>
 
@@ -1338,7 +1532,7 @@ export default function EditTeamPage() {
                               )}
                             </div>
 
-                            <h3 className="mt-1 truncate text-base font-black">
+                            <h3 className="mt-1 truncate text-base font-semibold">
                               {raceGroup?.race_name ?? "Race unavailable"}
                             </h3>
 
@@ -1374,7 +1568,7 @@ export default function EditTeamPage() {
                               <div className="min-w-0">
                                 <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                                   {entry.saddlecloth_number && (
-                                    <span className="inline-flex h-6 min-w-6 items-center justify-center rounded bg-slate-900 px-1.5 text-[10px] font-black text-white">
+                                    <span className="inline-flex min-w-5 items-center justify-center text-xs font-medium text-slate-500">
                                       {entry.saddlecloth_number}
                                     </span>
                                   )}
@@ -1383,31 +1577,31 @@ export default function EditTeamPage() {
                                     <button
                                       type="button"
                                       onClick={() => setSelectedHorseId(entry.horse!.id)}
-                                      className="min-w-0 whitespace-normal break-words text-left text-sm font-black text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                      className="min-w-0 whitespace-normal break-words text-left text-base font-semibold text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
                                       aria-label={`View statistics for ${entry.horse.name}`}
                                     >
                                       {entry.horse.name}
                                     </button>
                                   ) : (
-                                    <span className="truncate text-sm font-black text-slate-950">
+                                    <span className="truncate text-sm font-semibold text-slate-950">
                                       Unknown horse
                                     </span>
                                   )}
 
                                   {isSelected && (
-                                    <span className="rounded bg-teal-700 px-1.5 py-0.5 text-[9px] font-black uppercase text-white">
+                                    <span className="rounded bg-teal-700 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">
                                       Selected
                                     </span>
                                   )}
 
                                   {isUnavailable && (
-                                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-black text-red-800">
+                                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-800">
                                       {getEntryStatusLabel(entry.entry_status)}
                                     </span>
                                   )}
 
                                   {isLocked && (
-                                    <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-black text-slate-700">
+                                    <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700">
                                       Locked
                                     </span>
                                   )}
@@ -1416,10 +1610,10 @@ export default function EditTeamPage() {
                               </div>
 
                               <div className="shrink-0 whitespace-nowrap text-right">
-                                <p className="text-sm font-black text-slate-950">
+                                <p className="text-sm font-semibold text-slate-950">
                                   {formatCurrency(entry.price_at_entry)}
                                 </p>
-                                <p className="mt-0.5 text-[10px] font-black uppercase tracking-wide text-teal-700">
+                                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-700">
                                   Proj {entry.projected_points ?? "—"} pts
                                 </p>
                                 {wouldExceedBudget && (
@@ -1629,6 +1823,14 @@ export default function EditTeamPage() {
 
         <section className="sticky bottom-0 z-20 mt-4 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-6px_20px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
           <div className="mx-auto flex max-w-2xl items-center gap-2">
+            <button
+              type="button"
+              onClick={fillTeam}
+              disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting}
+              className="rounded-lg border border-teal-600 bg-white px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-50 disabled:border-slate-300 disabled:text-slate-400 disabled:opacity-50"
+            >
+              Fill Team
+            </button>
             <button
               type="button"
               onClick={() => void saveDraft()}

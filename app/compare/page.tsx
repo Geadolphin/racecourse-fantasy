@@ -37,6 +37,8 @@ type ComparisonSelection = {
   selected_price: number;
   fantasy_points: number;
   display_points: number;
+  projected_points?: number | null;
+  has_official_result?: boolean;
 
   race_id: string;
   race_number: number;
@@ -142,18 +144,6 @@ function getRankDisplay(rank: number | null | undefined) {
     return "—";
   }
 
-  if (rank === 1) {
-    return "🥇";
-  }
-
-  if (rank === 2) {
-    return "🥈";
-  }
-
-  if (rank === 3) {
-    return "🥉";
-  }
-
   return `#${rank}`;
 }
 
@@ -178,6 +168,9 @@ export default function CompareTeamsPage() {
   const [loadingComparison, setLoadingComparison] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [entryProjectionData, setEntryProjectionData] = useState<
+    Record<string, { projected_points: number | null; has_official_result: boolean }>
+  >({});
 
   useEffect(() => {
     let active = true;
@@ -358,6 +351,74 @@ export default function CompareTeamsPage() {
     };
   }, [selectedOpponentUserId, selectedRoundId]);
 
+  useEffect(() => {
+    const entryIds = [
+      ...(comparisonData?.my_team?.selections ?? []),
+      ...(comparisonData?.opponent_team?.selections ?? []),
+    ].map((selection) => selection.race_entry_id);
+
+    const uniqueEntryIds = [...new Set(entryIds)];
+
+    if (uniqueEntryIds.length === 0) {
+      setEntryProjectionData({});
+      return;
+    }
+
+    let active = true;
+
+    async function loadProjectionData() {
+      const [
+        { data: entryData, error: entryError },
+        { data: resultData, error: resultError },
+      ] = await Promise.all([
+        supabase
+          .from("race_entries")
+          .select("id, projected_points")
+          .in("id", uniqueEntryIds),
+        supabase
+          .from("race_results")
+          .select("race_entry_id")
+          .in("race_entry_id", uniqueEntryIds),
+      ]);
+
+      if (!active) return;
+
+      if (entryError || resultError) {
+        console.error(
+          "Comparison projection data error:",
+          entryError ?? resultError
+        );
+        return;
+      }
+
+      const officialEntryIds = new Set(
+        (resultData ?? []).map((row) => String(row.race_entry_id))
+      );
+
+      const nextData: Record<
+        string,
+        { projected_points: number | null; has_official_result: boolean }
+      > = {};
+
+      for (const row of entryData ?? []) {
+        const id = String(row.id);
+        nextData[id] = {
+          projected_points:
+            row.projected_points == null ? null : Number(row.projected_points),
+          has_official_result: officialEntryIds.has(id),
+        };
+      }
+
+      setEntryProjectionData(nextData);
+    }
+
+    void loadProjectionData();
+
+    return () => {
+      active = false;
+    };
+  }, [comparisonData]);
+
   const availableTeams = comparisonData?.available_teams ?? [];
   const myTeam = comparisonData?.my_team ?? null;
   const opponentTeam = comparisonData?.opponent_team ?? null;
@@ -449,19 +510,49 @@ export default function CompareTeamsPage() {
     });
   }, [mySelections, opponentSelections]);
 
-  const myCaptain = useMemo(() => {
-    return mySelections.find((selection) => selection.is_captain);
-  }, [mySelections]);
-
-  const opponentCaptain = useMemo(() => {
-    return opponentSelections.find(
-      (selection) => selection.is_captain
-    );
-  }, [opponentSelections]);
-
   const myScore = Number(myTeam?.score?.total_points ?? 0);
   const opponentScore = Number(
     opponentTeam?.score?.total_points ?? 0
+  );
+
+  function getSelectionDisplay(selection: ComparisonSelection) {
+    const data = entryProjectionData[selection.race_entry_id];
+    const official = data?.has_official_result ?? false;
+
+    if (official) {
+      return {
+        points: Number(selection.display_points ?? 0),
+        label: selection.is_captain ? "points · 2×" : "points",
+        projected: false,
+      };
+    }
+
+    if (data?.projected_points == null) {
+      return { points: null, label: "projected", projected: true };
+    }
+
+    return {
+      points: selection.is_captain
+        ? data.projected_points * 2
+        : data.projected_points,
+      label: selection.is_captain ? "projected · 2×" : "projected",
+      projected: true,
+    };
+  }
+
+  function getLivePoints(selection: ComparisonSelection) {
+    const display = getSelectionDisplay(selection);
+    return Number(display.points ?? 0);
+  }
+
+  const myProjectedScore = mySelections.reduce(
+    (total, selection) => total + getLivePoints(selection),
+    0
+  );
+
+  const opponentProjectedScore = opponentSelections.reduce(
+    (total, selection) => total + getLivePoints(selection),
+    0
   );
 
   const scoreDifference = myScore - opponentScore;
@@ -682,7 +773,7 @@ export default function CompareTeamsPage() {
                 <div className="mt-6 grid grid-cols-2 gap-4">
                   <div className="rounded-xl bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Score
+                      Current Score
                     </p>
 
                     <p className="mt-1 text-3xl font-bold text-slate-900">
@@ -712,11 +803,10 @@ export default function CompareTeamsPage() {
 
                   <div className="rounded-xl bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Captain
+                      Projected Score
                     </p>
-
-                    <p className="mt-1 truncate text-lg font-bold text-slate-900">
-                      {myCaptain?.horse_name ?? "—"}
+                    <p className="mt-1 text-3xl font-bold text-slate-900">
+                      {myProjectedScore}
                     </p>
                   </div>
                 </div>
@@ -736,7 +826,7 @@ export default function CompareTeamsPage() {
                 <div className="mt-6 grid grid-cols-2 gap-4">
                   <div className="rounded-xl bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Score
+                      Current Score
                     </p>
 
                     <p className="mt-1 text-3xl font-bold text-slate-900">
@@ -768,11 +858,10 @@ export default function CompareTeamsPage() {
 
                   <div className="rounded-xl bg-white p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Captain
+                      Projected Score
                     </p>
-
-                    <p className="mt-1 truncate text-lg font-bold text-slate-900">
-                      {opponentCaptain?.horse_name ?? "—"}
+                    <p className="mt-1 text-3xl font-bold text-slate-900">
+                      {opponentProjectedScore}
                     </p>
                   </div>
                 </div>
@@ -796,7 +885,7 @@ export default function CompareTeamsPage() {
                 </p>
 
                 <p className="mt-2 text-3xl font-bold text-slate-900">
-                  {myUniqueCount + opponentUniqueCount}
+                  {myUniqueCount}
                 </p>
               </div>
 
@@ -880,6 +969,9 @@ export default function CompareTeamsPage() {
                                 selection.horse_id
                               );
 
+                              const displayed =
+                                getSelectionDisplay(selection);
+
                               return (
                                 <div
                                   key={selection.race_entry_id}
@@ -920,12 +1012,17 @@ export default function CompareTeamsPage() {
                                     </div>
 
                                     <div className="text-right">
-                                      <p className="text-xl font-bold text-slate-900">
-                                        {selection.display_points}
+                                      <p
+                                        className={`text-xl font-bold ${
+                                          displayed.projected
+                                            ? "text-amber-700"
+                                            : "text-slate-900"
+                                        }`}
+                                      >
+                                        {displayed.points ?? "—"}
                                       </p>
-
                                       <p className="text-xs text-slate-500">
-                                        points
+                                        {displayed.label}
                                       </p>
                                     </div>
                                   </div>
@@ -952,6 +1049,9 @@ export default function CompareTeamsPage() {
                                 const shared = sharedHorseIds.has(
                                   selection.horse_id
                                 );
+
+                              const displayed =
+                                getSelectionDisplay(selection);
 
                                 return (
                                   <div
@@ -993,14 +1093,19 @@ export default function CompareTeamsPage() {
                                       </div>
 
                                       <div className="text-right">
-                                        <p className="text-xl font-bold text-slate-900">
-                                          {selection.display_points}
-                                        </p>
-
-                                        <p className="text-xs text-slate-500">
-                                          points
-                                        </p>
-                                      </div>
+                                      <p
+                                        className={`text-xl font-bold ${
+                                          displayed.projected
+                                            ? "text-amber-700"
+                                            : "text-slate-900"
+                                        }`}
+                                      >
+                                        {displayed.points ?? "—"}
+                                      </p>
+                                      <p className="text-xs text-slate-500">
+                                        {displayed.label}
+                                      </p>
+                                    </div>
                                     </div>
                                   </div>
                                 );
