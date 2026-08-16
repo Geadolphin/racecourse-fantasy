@@ -21,19 +21,6 @@ type Props = {
   currentUserId: string;
 };
 
-function rankDisplay(rank: number) {
-  switch (rank) {
-    case 1:
-      return "🥇";
-    case 2:
-      return "🥈";
-    case 3:
-      return "🥉";
-    default:
-      return rank;
-  }
-}
-
 function ordinalRank(rank: number | null | undefined) {
   if (rank == null) {
     return "—";
@@ -170,7 +157,7 @@ export default function LeagueLeaderboardTable({
                 }`}
               >
                 <td className="px-4 py-4 font-bold">
-                  {rankDisplay(row.rank)}
+                  {row.rank}
                 </td>
 
                 <td className="px-4 py-4">
