@@ -20,4 +20,5 @@ export type SeasonLeaderboardRow = {
   highest_round_score: number;
   top_ten_finishes: number;
   overall_rank: number;
+  rank_change: number | null;
 };

@@ -1,4 +1,9 @@
 import Link from "next/link";
+import {
+  ArrowDown,
+  ArrowUp,
+  Minus,
+} from "lucide-react";
 
 import {
   RoundLeaderboardRow,
@@ -9,6 +14,53 @@ type Props = {
   type: "round" | "season";
   rows: RoundLeaderboardRow[] | SeasonLeaderboardRow[];
 };
+
+function RankChange({
+  value,
+}: {
+  value: number | null | undefined;
+}) {
+  if (value == null || value === 0) {
+    return (
+      <span
+        className="inline-flex items-center justify-end gap-1 text-slate-400"
+        title={
+          value == null
+            ? "No previous completed round to compare"
+            : "No rank change"
+        }
+      >
+        <Minus className="h-4 w-4" />
+      </span>
+    );
+  }
+
+  if (value > 0) {
+    return (
+      <span
+        className="inline-flex items-center justify-end gap-1 font-bold text-emerald-600"
+        title={`Up ${value} ${value === 1 ? "place" : "places"}`}
+      >
+        <ArrowUp className="h-4 w-4" />
+        {value}
+      </span>
+    );
+  }
+
+  const placesDropped = Math.abs(value);
+
+  return (
+    <span
+      className="inline-flex items-center justify-end gap-1 font-bold text-red-600"
+      title={`Down ${placesDropped} ${
+        placesDropped === 1 ? "place" : "places"
+      }`}
+    >
+      <ArrowDown className="h-4 w-4" />
+      {placesDropped}
+    </span>
+  );
+}
 
 export default function LeaderboardTable({
   type,
@@ -46,6 +98,10 @@ export default function LeaderboardTable({
 
             {type === "season" && (
               <>
+                <th className="px-4 py-3 text-right">
+                  Change
+                </th>
+
                 <th className="px-4 py-3 text-right">
                   Rounds
                 </th>
@@ -102,6 +158,15 @@ export default function LeaderboardTable({
 
                 {type === "season" && (
                   <>
+                    <td className="px-4 py-4 text-right">
+                      <RankChange
+                        value={
+                          (row as SeasonLeaderboardRow)
+                            .rank_change
+                        }
+                      />
+                    </td>
+
                     <td className="px-4 py-4 text-right">
                       {
                         (
