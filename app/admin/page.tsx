@@ -37,8 +37,7 @@ type RaceEntryRow = {
 
 type RaceResultRow = {
   id: string;
-  race_id: string;
-  horse_id: string;
+  race_entry_id: string;
   is_official: boolean;
 };
 
@@ -405,20 +404,12 @@ export default function AdminDashboardPage() {
       if (raceIds.length > 0) {
         const [
           entriesResponse,
-          resultsResponse,
           priceHistoryResponse,
         ] = await Promise.all([
           supabase
             .from("race_entries")
             .select(
               "id, race_id, horse_id, entry_status"
-            )
-            .in("race_id", raceIds),
-
-          supabase
-            .from("race_results")
-            .select(
-              "id, race_id, horse_id, is_official"
             )
             .in("race_id", raceIds),
 
@@ -436,7 +427,6 @@ export default function AdminDashboardPage() {
 
         const nestedError =
           entriesResponse.error ??
-          resultsResponse.error ??
           priceHistoryResponse.error;
 
         if (nestedError) {
@@ -457,11 +447,47 @@ export default function AdminDashboardPage() {
 
         entries =
           (entriesResponse.data ?? []) as RaceEntryRow[];
-        results =
-          (resultsResponse.data ?? []) as RaceResultRow[];
+
         priceHistory =
           (priceHistoryResponse.data ??
             []) as PriceHistoryRow[];
+
+        const raceEntryIds = entries.map(
+          (entry) => entry.id
+        );
+
+        if (raceEntryIds.length > 0) {
+          const { data: resultsData, error: resultsError } =
+            await supabase
+              .from("race_results")
+              .select(
+                "id, race_entry_id, is_official"
+              )
+              .in("race_entry_id", raceEntryIds);
+
+          if (!active) {
+            return;
+          }
+
+          if (resultsError) {
+            console.error(
+              "Round checklist result load error:",
+              resultsError
+            );
+            setChecklist([
+              {
+                label: "Checklist data",
+                status: "issue",
+                detail: resultsError.message,
+              },
+            ]);
+            setChecklistLoading(false);
+            return;
+          }
+
+          results =
+            (resultsData ?? []) as RaceResultRow[];
+        }
       }
 
       if (teamIds.length > 0) {
@@ -504,12 +530,21 @@ export default function AdminDashboardPage() {
         (race) => race.status === "official"
       );
 
+      const raceIdByEntryId = new Map(
+        entries.map((entry) => [
+          entry.id,
+          entry.race_id,
+        ])
+      );
+
       const officialRacesWithoutResults =
         officialRaces.filter(
           (race) =>
             !results.some(
               (result) =>
-                result.race_id === race.id &&
+                raceIdByEntryId.get(
+                  result.race_entry_id
+                ) === race.id &&
                 result.is_official
             )
         );
