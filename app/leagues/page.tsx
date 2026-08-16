@@ -900,6 +900,32 @@ export default function PrivateLeaguesPage() {
                                         </button>
                                     </div>
                                 </div>
+
+                                <div className="mt-4 inline-flex overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
+                                    <button
+                                        type="button"
+                                        onClick={() => setTab("round")}
+                                        className={`px-4 py-2 text-sm font-black transition ${
+                                            tab === "round"
+                                                ? "bg-teal-500 text-slate-950"
+                                                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                                        }`}
+                                    >
+                                        Round
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setTab("season")}
+                                        className={`border-l border-slate-700 px-4 py-2 text-sm font-black transition ${
+                                            tab === "season"
+                                                ? "bg-teal-500 text-slate-950"
+                                                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                                        }`}
+                                    >
+                                        Season
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-px bg-slate-200 sm:grid-cols-4">
@@ -940,30 +966,6 @@ export default function PrivateLeaguesPage() {
                                 </div>
                             </div>
                         </section>
-
-                        <div className="mb-6 inline-flex overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
-                            <button
-                                type="button"
-                                onClick={() => setTab("round")}
-                                className={`px-5 py-3 text-sm font-black transition ${tab === "round"
-                                        ? "bg-slate-950 text-teal-300"
-                                        : "bg-white text-slate-700 hover:bg-slate-50"
-                                    }`}
-                            >
-                                Round
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setTab("season")}
-                                className={`border-l border-slate-300 px-5 py-3 text-sm font-black transition ${tab === "season"
-                                        ? "bg-slate-950 text-teal-300"
-                                        : "bg-white text-slate-700 hover:bg-slate-50"
-                                    }`}
-                            >
-                                Season
-                            </button>
-                        </div>
 
                         {tab === "round" && (
                             <section className="mb-6 rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
