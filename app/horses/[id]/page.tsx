@@ -328,7 +328,7 @@ export default function HorseProfilePage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-[760px] divide-y divide-slate-200">
+              <table className="w-full min-w-[760px] divide-y divide-slate-200">
                 <thead className="bg-slate-100">
                   <tr>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -406,7 +406,7 @@ export default function HorseProfilePage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-[1050px] divide-y divide-slate-200">
+              <table className="w-full min-w-[1050px] divide-y divide-slate-200">
                 <thead className="bg-slate-100">
                   <tr>
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
