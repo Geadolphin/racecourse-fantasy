@@ -288,6 +288,9 @@ export default function Dashboard() {
   const [seasonScore, setSeasonScore] =
     useState<ScoreRecord | null>(null);
 
+  const [projectedRoundScore, setProjectedRoundScore] =
+    useState(0);
+
   const [
     miniLeaderboard,
     setMiniLeaderboard,
@@ -378,6 +381,7 @@ export default function Dashboard() {
         setTeam(null);
         setRoundScore(null);
         setSeasonScore(null);
+        setProjectedRoundScore(0);
         setUpcomingRace(null);
         setMiniLeaderboard([]);
         setDashboardExtras({
@@ -415,6 +419,77 @@ export default function Dashboard() {
       setUpcomingRace(
         dashboardData.upcoming_race
       );
+
+      if (dashboardData.team?.id) {
+        const {
+          data: selectionProjectionData,
+          error: selectionProjectionError,
+        } = await supabase
+          .from("team_selections")
+          .select(
+            `
+              race_entry_id,
+              is_captain,
+              fantasy_points,
+              race_entry:race_entries!inner (
+                id,
+                projected_points,
+                race:races!inner (
+                  status
+                )
+              )
+            `
+          )
+          .eq("team_id", dashboardData.team.id);
+
+        if (!active) {
+          return;
+        }
+
+        if (selectionProjectionError) {
+          console.error(
+            "Dashboard projected score error:",
+            selectionProjectionError
+          );
+          setProjectedRoundScore(0);
+        } else {
+          const projectedScore = (
+            selectionProjectionData ?? []
+          ).reduce((total, selection: any) => {
+            const rawEntry = selection.race_entry;
+
+            const raceEntry = Array.isArray(rawEntry)
+              ? rawEntry[0] ?? null
+              : rawEntry;
+
+            const rawRace = raceEntry?.race;
+
+            const race = Array.isArray(rawRace)
+              ? rawRace[0] ?? null
+              : rawRace;
+
+            const raceIsOfficial =
+              race?.status === "official";
+
+            const basePoints = raceIsOfficial
+              ? Number(selection.fantasy_points ?? 0)
+              : Number(
+                  raceEntry?.projected_points ?? 0
+                );
+
+            return (
+              total +
+              (selection.is_captain
+                ? basePoints * 2
+                : basePoints)
+            );
+          }, 0);
+
+          setProjectedRoundScore(projectedScore);
+        }
+      } else {
+        setProjectedRoundScore(0);
+      }
 
       setMiniLeaderboard(
         (
@@ -648,13 +723,35 @@ export default function Dashboard() {
               Round Score
             </p>
 
-            <p className="mt-2 text-3xl font-bold">
-              {currentRoundScore}
-            </p>
+            <div className="mt-2 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Current
+                </p>
 
-            <p className="mt-1 text-xs text-slate-400">
-              points
-            </p>
+                <p className="mt-1 text-3xl font-bold">
+                  {currentRoundScore}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  points
+                </p>
+              </div>
+
+              <div className="border-l border-slate-700 pl-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-300">
+                  Projected
+                </p>
+
+                <p className="mt-1 text-3xl font-bold text-teal-300">
+                  {projectedRoundScore}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  points
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="rounded-xl bg-teal-600 p-4 text-white shadow-sm">
