@@ -622,7 +622,13 @@ export default function PrivateLeaguesPage() {
 
     const selectedLeague = data?.selected_league ?? null;
     const leagueMembers = data?.members ?? [];
-    const leagueRounds = data?.rounds ?? [];
+    const leagueRounds = useMemo(
+        () =>
+            [...(data?.rounds ?? [])].sort(
+                (a, b) => a.round_number - b.round_number
+            ),
+        [data]
+    );
     const currentUserId = data?.current_user_id ?? "";
 
     if (loading) {
