@@ -393,8 +393,15 @@ export default function AdminDashboardPage() {
 
       const races = (racesResponse.data ?? []) as RaceRow[];
       const teams = (teamsResponse.data ?? []) as TeamRow[];
+
+      // Only submitted/locked/scored teams are eligible for round scoring.
+      // Draft teams may be incomplete and should not be flagged as missing scores.
+      const eligibleTeams = teams.filter((team) =>
+        ["submitted", "locked", "scored"].includes(team.status)
+      );
+
       const raceIds = races.map((race) => race.id);
-      const teamIds = teams.map((team) => team.id);
+      const teamIds = eligibleTeams.map((team) => team.id);
 
       let entries: RaceEntryRow[] = [];
       let results: RaceResultRow[] = [];
@@ -704,22 +711,22 @@ export default function AdminDashboardPage() {
           status:
             !roundResolved
               ? "pending"
-              : teams.length === 0
+              : eligibleTeams.length === 0
                 ? "ready"
-                : scoredTeamCount >= teams.length
+                : scoredTeamCount >= eligibleTeams.length
                   ? "ready"
                   : "issue",
           detail:
             !roundResolved
               ? "Scoring completes after all races are resolved."
-              : teams.length === 0
-                ? "No teams were submitted for this round."
-                : scoredTeamCount >= teams.length
-                  ? `${scoredTeamCount} of ${teams.length} teams have round scores.`
-                  : `${teams.length - scoredTeamCount} ${
-                      teams.length - scoredTeamCount === 1
-                        ? "team is"
-                        : "teams are"
+              : eligibleTeams.length === 0
+                ? "No eligible teams were submitted for this round."
+                : scoredTeamCount >= eligibleTeams.length
+                  ? `${scoredTeamCount} of ${eligibleTeams.length} eligible teams have round scores.`
+                  : `${eligibleTeams.length - scoredTeamCount} ${
+                      eligibleTeams.length - scoredTeamCount === 1
+                        ? "eligible team is"
+                        : "eligible teams are"
                     } missing a round score.`,
         },
         {
