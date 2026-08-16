@@ -59,6 +59,28 @@ type EntryForm = {
   entry_status: EntryStatus;
 };
 
+type ProjectionGrade =
+  | "G1"
+  | "G2"
+  | "G3"
+  | "Listed"
+  | "Other";
+
+type ProjectionFormRun = {
+  id: string;
+  horse_id: string;
+  race_id: string | null;
+  race_date: string | null;
+  form_order: number | null;
+  race_grade: ProjectionGrade;
+  finish_position: number;
+};
+
+type ProjectionFormRow = {
+  race_grade: ProjectionGrade | "";
+  finish_position: number | "";
+};
+
 const emptyEntry: EntryForm = {
   race_id: "",
   horse_id: "",
@@ -66,6 +88,21 @@ const emptyEntry: EntryForm = {
   price_at_entry: 30000,
   entry_status: "runner",
 };
+
+const emptyProjectionFormRows: ProjectionFormRow[] = [
+  {
+    race_grade: "",
+    finish_position: "",
+  },
+  {
+    race_grade: "",
+    finish_position: "",
+  },
+  {
+    race_grade: "",
+    finish_position: "",
+  },
+];
 
 export default function RaceEntriesPage() {
   const [entries, setEntries] = useState<RaceEntry[]>([]);
@@ -95,6 +132,16 @@ export default function RaceEntriesPage() {
   );
 
   const [form, setForm] = useState<EntryForm>(emptyEntry);
+
+  const [showProjectionModal, setShowProjectionModal] = useState(false);
+  const [projectionEntry, setProjectionEntry] = useState<RaceEntry | null>(null);
+  const [projectionOdds, setProjectionOdds] = useState<string>("");
+  const [projectionFormRows, setProjectionFormRows] =
+    useState<ProjectionFormRow[]>(emptyProjectionFormRows);
+  const [competitionFormRuns, setCompetitionFormRuns] =
+    useState<ProjectionFormRun[]>([]);
+  const [projectionFormLoading, setProjectionFormLoading] = useState(false);
+  const [projectionErrorMessage, setProjectionErrorMessage] = useState("");
 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkRaceId, setBulkRaceId] = useState("");
@@ -131,6 +178,9 @@ export default function RaceEntriesPage() {
           price_at_entry,
           entry_status,
           scratched_at,
+          starting_odds,
+          projected_points,
+          projection_calculated_at,
           created_at,
           updated_at,
 
@@ -286,6 +336,230 @@ export default function RaceEntriesPage() {
     });
 
     setLoading(false);
+  }
+
+  async function openProjectionModal(entry: RaceEntry) {
+    setProjectionEntry(entry);
+    setProjectionOdds(
+      entry.starting_odds === null
+        ? ""
+        : String(entry.starting_odds)
+    );
+    setProjectionFormRows(
+      emptyProjectionFormRows.map((row) => ({ ...row }))
+    );
+    setCompetitionFormRuns([]);
+    setProjectionErrorMessage("");
+    setProjectionFormLoading(true);
+    setShowProjectionModal(true);
+
+    const { data, error } = await supabase.rpc(
+      "get_horse_projection_form",
+      {
+        p_horse_id: entry.horse_id,
+      }
+    );
+
+    if (error) {
+      console.error(error);
+      setProjectionErrorMessage(
+        `Could not load previous form: ${error.message}`
+      );
+      setProjectionFormLoading(false);
+      return;
+    }
+
+    const payload = data as {
+      success?: boolean;
+      runs?: ProjectionFormRun[];
+    } | null;
+
+    const loadedRuns = Array.isArray(payload?.runs)
+      ? payload?.runs ?? []
+      : [];
+
+    const manualRuns = loadedRuns.filter(
+      (run) => run.race_id === null
+    );
+
+    const generatedRuns = loadedRuns.filter(
+      (run) => run.race_id !== null
+    );
+
+    const nextRows = emptyProjectionFormRows.map(
+      (row) => ({ ...row })
+    );
+
+    manualRuns
+      .sort(
+        (a, b) =>
+          (a.form_order ?? 99) - (b.form_order ?? 99)
+      )
+      .slice(0, 3)
+      .forEach((run, index) => {
+        nextRows[index] = {
+          race_grade: run.race_grade,
+          finish_position: run.finish_position,
+        };
+      });
+
+    setProjectionFormRows(nextRows);
+    setCompetitionFormRuns(generatedRuns);
+    setProjectionFormLoading(false);
+  }
+
+  function closeProjectionModal() {
+    if (saving) {
+      return;
+    }
+
+    setShowProjectionModal(false);
+    setProjectionEntry(null);
+    setProjectionOdds("");
+    setProjectionFormRows(
+      emptyProjectionFormRows.map((row) => ({ ...row }))
+    );
+    setCompetitionFormRuns([]);
+    setProjectionFormLoading(false);
+    setProjectionErrorMessage("");
+  }
+
+  function updateProjectionFormRow(
+    index: number,
+    field: keyof ProjectionFormRow,
+    value: string
+  ) {
+    setProjectionFormRows((currentRows) =>
+      currentRows.map((row, rowIndex) => {
+        if (rowIndex !== index) {
+          return row;
+        }
+
+        if (field === "finish_position") {
+          return {
+            ...row,
+            finish_position:
+              value === "" ? "" : Number(value),
+          };
+        }
+
+        return {
+          ...row,
+          [field]: value,
+        } as ProjectionFormRow;
+      })
+    );
+
+    setProjectionErrorMessage("");
+  }
+
+  async function saveProjectionData(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!projectionEntry) {
+      return;
+    }
+
+    setProjectionErrorMessage("");
+
+    const odds =
+      projectionOdds.trim() === ""
+        ? null
+        : Number(projectionOdds);
+
+    if (
+      odds !== null &&
+      (!Number.isFinite(odds) || odds <= 1)
+    ) {
+      setProjectionErrorMessage(
+        "Starting odds must be greater than 1.00."
+      );
+      return;
+    }
+
+    const completedRuns: Array<{
+      race_grade: ProjectionGrade;
+      finish_position: number;
+    }> = [];
+
+    for (let index = 0; index < projectionFormRows.length; index += 1) {
+      const row = projectionFormRows[index];
+
+      const hasAnyValue =
+        Boolean(row.race_grade) ||
+        row.finish_position !== "";
+
+      if (!hasAnyValue) {
+        continue;
+      }
+
+      if (
+        !row.race_grade ||
+        row.finish_position === ""
+      ) {
+        setProjectionErrorMessage(
+          `Previous start ${index + 1} is incomplete. Enter the grade and finish, or leave the whole row blank.`
+        );
+        return;
+      }
+
+      if (
+        !Number.isInteger(row.finish_position) ||
+        Number(row.finish_position) < 1
+      ) {
+        setProjectionErrorMessage(
+          `Previous start ${index + 1} finish position must be a whole number of 1 or greater.`
+        );
+        return;
+      }
+
+      completedRuns.push({
+        race_grade: row.race_grade,
+        finish_position: Number(row.finish_position),
+      });
+    }
+
+    setSaving(true);
+
+    const [oddsResult, formResult] = await Promise.all([
+      supabase
+        .from("race_entries")
+        .update({
+          starting_odds: odds,
+          projected_points: null,
+          projection_calculated_at: null,
+        })
+        .eq("id", projectionEntry.id),
+
+      supabase.rpc("save_horse_projection_form", {
+        p_horse_id: projectionEntry.horse_id,
+        p_runs: completedRuns,
+      }),
+    ]);
+
+    if (oddsResult.error) {
+      console.error(oddsResult.error);
+      setProjectionErrorMessage(
+        `Could not save starting odds: ${oddsResult.error.message}`
+      );
+      setSaving(false);
+      return;
+    }
+
+    if (formResult.error) {
+      console.error(formResult.error);
+      setProjectionErrorMessage(
+        `Could not save previous form: ${formResult.error.message}`
+      );
+      setSaving(false);
+      return;
+    }
+
+    setSaving(false);
+    closeProjectionModal();
+    await loadPageData();
   }
 
   function openBulkEntryModal(raceId?: string) {
@@ -1313,6 +1587,14 @@ export default function RaceEntriesPage() {
                                           </th>
 
                                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                            Odds
+                                          </th>
+
+                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                            Projected
+                                          </th>
+
+                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                                             Status
                                           </th>
 
@@ -1343,6 +1625,18 @@ export default function RaceEntriesPage() {
                                               )}
                                             </td>
 
+                                            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                                              {entry.starting_odds === null
+                                                ? "—"
+                                                : `$${Number(entry.starting_odds).toFixed(2)}`}
+                                            </td>
+
+                                            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                                              {entry.projected_points === null
+                                                ? "—"
+                                                : `${entry.projected_points} pts`}
+                                            </td>
+
                                             <td className="px-4 py-4">
                                               <span
                                                 className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
@@ -1357,6 +1651,16 @@ export default function RaceEntriesPage() {
 
                                             <td className="px-4 py-4">
                                               <div className="flex flex-wrap gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    openProjectionModal(entry)
+                                                  }
+                                                  className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-100"
+                                                >
+                                                  Projection Data
+                                                </button>
+
                                                 <button
                                                   type="button"
                                                   onClick={() =>
@@ -1402,6 +1706,183 @@ export default function RaceEntriesPage() {
           })}
         </div>
       )}
+
+      <AdminModal
+        isOpen={showProjectionModal}
+        title="Projection Data"
+        description={
+          projectionEntry
+            ? `Manage projection inputs for ${getHorseName(projectionEntry)}.`
+            : "Manage projection inputs."
+        }
+        onClose={closeProjectionModal}
+        maxWidth="lg"
+      >
+        <form
+          onSubmit={saveProjectionData}
+          className="space-y-5"
+        >
+          {projectionErrorMessage && (
+            <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+              {projectionErrorMessage}
+            </div>
+          )}
+
+          {projectionEntry && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="font-bold text-slate-900">
+                {getHorseName(projectionEntry)}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {getRaceLabel(projectionEntry.race)}
+              </p>
+            </div>
+          )}
+
+          <div>
+            <label
+              htmlFor="projection-starting-odds"
+              className="mb-1 block font-medium"
+            >
+              Starting Odds
+            </label>
+
+            <input
+              id="projection-starting-odds"
+              type="number"
+              min="1.01"
+              step="0.01"
+              value={projectionOdds}
+              onChange={(event) =>
+                setProjectionOdds(event.target.value)
+              }
+              placeholder="e.g. 5.50"
+              className="w-full rounded-lg border p-3"
+            />
+
+            <p className="mt-1 text-sm text-slate-500">
+              Enter decimal odds without the dollar sign. Changing the odds or previous form clears any previously calculated projection so it can be regenerated later.
+            </p>
+          </div>
+
+          <div>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-900">
+                  Previous Form
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Enter up to three previous starts in order from most recent to third most recent. Leave all three blank for a debutant.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                Admin only
+              </span>
+            </div>
+
+            {projectionFormLoading ? (
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
+                Loading previous form...
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {projectionFormRows.map((row, index) => (
+                  <div
+                    key={index}
+                    className="rounded-xl border border-slate-200 p-4"
+                  >
+                    <p className="mb-3 text-sm font-bold text-slate-800">
+                      {index === 0
+                        ? "Most Recent Start"
+                        : index === 1
+                          ? "2nd Most Recent Start"
+                          : "3rd Most Recent Start"}
+                    </p>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700">
+                          Grade
+                        </label>
+                        <select
+                          value={row.race_grade}
+                          onChange={(event) =>
+                            updateProjectionFormRow(
+                              index,
+                              "race_grade",
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg border bg-white p-3"
+                        >
+                          <option value="">Select grade</option>
+                          <option value="G1">G1</option>
+                          <option value="G2">G2</option>
+                          <option value="G3">G3</option>
+                          <option value="Listed">Listed</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700">
+                          Finish
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={row.finish_position}
+                          onChange={(event) =>
+                            updateProjectionFormRow(
+                              index,
+                              "finish_position",
+                              event.target.value
+                            )
+                          }
+                          placeholder="e.g. 3"
+                          className="w-full rounded-lg border p-3"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {competitionFormRuns.length > 0 && (
+            <div className="rounded-lg border border-teal-200 bg-teal-50 p-4">
+              <p className="font-semibold text-teal-900">
+                Racecourse Fantasy form already recorded
+              </p>
+              <p className="mt-1 text-sm text-teal-800">
+                Official competition results are preserved separately and are not edited by these historical form fields.
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={closeProjectionModal}
+              disabled={saving}
+              className="rounded-lg border px-5 py-3 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving || !projectionEntry || projectionFormLoading}
+              className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400"
+            >
+              {saving ? "Saving..." : "Save Projection Data"}
+            </button>
+          </div>
+        </form>
+      </AdminModal>
 
       <AdminModal
         isOpen={showBulkModal}

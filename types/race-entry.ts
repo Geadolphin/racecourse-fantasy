@@ -14,6 +14,10 @@ export type RaceEntry = {
   entry_status: EntryStatus;
   scratched_at: string | null;
 
+  starting_odds: number | null;
+  projected_points: number | null;
+  projection_calculated_at: string | null;
+
   created_at: string;
   updated_at: string;
 
