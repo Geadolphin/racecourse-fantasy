@@ -718,12 +718,12 @@ export default function Dashboard() {
         )}
 
         <section className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-5 sm:gap-3 xl:grid-cols-4">
-          <div className="col-span-2 rounded-xl bg-slate-900 p-3.5 text-white shadow-sm sm:col-span-1 sm:p-4">
+          <div className="rounded-xl bg-slate-900 p-3.5 text-white shadow-sm sm:p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Round Score
             </p>
 
-            <div className="mt-2 grid grid-cols-2 gap-4">
+            <div className="mt-2 flex flex-col gap-2 sm:grid sm:grid-cols-2 sm:gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                   Current
@@ -738,7 +738,7 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="border-l border-slate-700 pl-4">
+              <div className="border-t border-slate-700 pt-2 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-300">
                   Projected
                 </p>
