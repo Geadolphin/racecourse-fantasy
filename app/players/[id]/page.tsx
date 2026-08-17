@@ -74,11 +74,26 @@ function formatDate(value: string | null) {
 }
 
 function rankDisplay(rank: number | null) {
-  if (!rank) return "—";
-  if (rank === 1) return "🥇";
-  if (rank === 2) return "🥈";
-  if (rank === 3) return "🥉";
-  return `#${rank}`;
+  if (!rank || rank <= 0) {
+    return "—";
+  }
+
+  const mod100 = rank % 100;
+
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${rank}th`;
+  }
+
+  switch (rank % 10) {
+    case 1:
+      return `${rank}st`;
+    case 2:
+      return `${rank}nd`;
+    case 3:
+      return `${rank}rd`;
+    default:
+      return `${rank}th`;
+  }
 }
 
 export default function PlayerProfilePage() {
