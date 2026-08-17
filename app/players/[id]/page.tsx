@@ -20,6 +20,13 @@ type PlayerProfile = {
   display_name: string;
 };
 
+type PlayerSeasonOption = {
+  id: string;
+  name: string;
+  year: number;
+  is_active: boolean;
+};
+
 type SeasonSummary = {
   season_id: string;
   season_name: string;
@@ -49,6 +56,8 @@ type PlayerProfileData = {
   success: boolean;
   message?: string;
   profile: PlayerProfile | null;
+  seasons: PlayerSeasonOption[];
+  selected_season_id: string | null;
   season_summary: SeasonSummary | null;
   round_history: RoundHistoryRow[];
 };
@@ -153,6 +162,8 @@ export default function PlayerProfilePage() {
   const playerId = params.id;
 
   const [data, setData] = useState<PlayerProfileData | null>(null);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
+  const [seasonChanging, setSeasonChanging] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -175,9 +186,10 @@ export default function PlayerProfilePage() {
       setErrorMessage("");
 
       const { data: profileData, error } = await supabase.rpc(
-        "get_player_profile",
+        "get_player_profile_by_season",
         {
           p_user_id: playerId,
+          p_season_id: null,
         }
       );
 
@@ -205,6 +217,9 @@ export default function PlayerProfilePage() {
       }
 
       setData(loadedData);
+      setSelectedSeasonId(
+        loadedData.selected_season_id ?? ""
+      );
       setLoading(false);
     }
 
@@ -214,6 +229,48 @@ export default function PlayerProfilePage() {
       active = false;
     };
   }, [playerId]);
+
+  async function changeSeason(seasonId: string) {
+    if (!seasonId || seasonId === selectedSeasonId) {
+      return;
+    }
+
+    setSelectedSeasonId(seasonId);
+    setSeasonChanging(true);
+    setErrorMessage("");
+    closeRoundTeam();
+
+    const { data: profileData, error } =
+      await supabase.rpc(
+        "get_player_profile_by_season",
+        {
+          p_user_id: playerId,
+          p_season_id: seasonId,
+        }
+      );
+
+    if (error) {
+      console.error(
+        "Player profile season change error:",
+        error
+      );
+      setErrorMessage(
+        error.message ||
+          "The selected season could not be loaded."
+      );
+      setSeasonChanging(false);
+      return;
+    }
+
+    const loadedData =
+      profileData as unknown as PlayerProfileData;
+
+    setData(loadedData);
+    setSelectedSeasonId(
+      loadedData.selected_season_id ?? seasonId
+    );
+    setSeasonChanging(false);
+  }
 
   async function openRoundTeam(roundId: string) {
     setSelectedRoundId(roundId);
@@ -254,6 +311,14 @@ export default function PlayerProfilePage() {
     setRoundTeamData(null);
     setRoundTeamError("");
   }
+
+  const selectedSeason = useMemo(() => {
+    return (
+      data?.seasons?.find(
+        (season) => season.id === selectedSeasonId
+      ) ?? null
+    );
+  }, [data, selectedSeasonId]);
 
   const averageRoundScore = useMemo(() => {
     const rounds = data?.round_history ?? [];
@@ -315,26 +380,61 @@ export default function PlayerProfilePage() {
         </Link>
 
         <header className="mt-4 rounded-2xl bg-slate-950 p-6 text-white shadow-sm md:p-8">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-teal-400 text-slate-950">
-              <UserRound className="h-8 w-8" />
-            </div>
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-teal-400 text-slate-950">
+                <UserRound className="h-8 w-8" />
+              </div>
 
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-teal-300">
-                Player profile
-              </p>
-
-              <h1 className="mt-1 text-3xl font-black md:text-4xl">
-                {data.profile.display_name}
-              </h1>
-
-              {summary && (
-                <p className="mt-2 text-slate-300">
-                  {summary.season_name}
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.18em] text-teal-300">
+                  Player profile
                 </p>
-              )}
+
+                <h1 className="mt-1 text-3xl font-black md:text-4xl">
+                  {data.profile.display_name}
+                </h1>
+
+                {selectedSeason && (
+                  <p className="mt-2 text-slate-300">
+                    {selectedSeason.name} {selectedSeason.year}
+                  </p>
+                )}
+              </div>
             </div>
+
+            {data.seasons.length > 0 && (
+              <div className="w-full md:w-auto">
+                <label
+                  htmlFor="player-profile-season"
+                  className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-400"
+                >
+                  Season
+                </label>
+
+                <select
+                  id="player-profile-season"
+                  value={selectedSeasonId}
+                  onChange={(event) =>
+                    void changeSeason(event.target.value)
+                  }
+                  disabled={seasonChanging}
+                  className="w-full min-w-56 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 font-bold text-white outline-none transition focus:border-teal-400 disabled:cursor-wait disabled:opacity-60 md:w-auto"
+                >
+                  {data.seasons.map((season) => (
+                    <option
+                      key={season.id}
+                      value={season.id}
+                    >
+                      {season.name} {season.year}
+                      {season.is_active
+                        ? " — Active"
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </header>
 
@@ -408,13 +508,19 @@ export default function PlayerProfilePage() {
           </div>
         </section>
 
+        {seasonChanging && (
+          <div className="mt-6 rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm font-bold text-teal-800">
+            Updating season...
+          </div>
+        )}
+
         <section className="mt-8">
           <div>
             <h2 className="text-2xl font-black text-slate-950">
               Round History
             </h2>
             <p className="mt-1 text-sm text-slate-600">
-              Completed rounds from the current season.
+              Completed rounds from the selected season.
             </p>
           </div>
 
