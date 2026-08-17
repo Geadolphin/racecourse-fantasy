@@ -625,14 +625,14 @@ export default function PlayerProfilePage() {
             }
           }}
         >
-          <section className="max-h-[92vh] w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-4xl sm:rounded-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-800 bg-slate-950 px-5 py-5 text-white sm:px-6">
+          <section className="w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-5xl sm:rounded-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-800 bg-slate-950 px-4 py-3 text-white sm:px-5">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-teal-300">
                   Round Team
                 </p>
 
-                <h2 className="mt-1 text-2xl font-black">
+                <h2 className="text-lg font-black sm:text-xl">
                   {roundTeamData?.team
                     ? `Round ${roundTeamData.team.round_number}${
                         roundTeamData.team.round_name
@@ -643,7 +643,7 @@ export default function PlayerProfilePage() {
                 </h2>
 
                 {roundTeamData?.team && (
-                  <p className="mt-1 text-sm text-slate-300">
+                  <p className="text-xs text-slate-300">
                     {roundTeamData.team.team_name?.trim() ||
                       data.profile.display_name}
                   </p>
@@ -660,7 +660,7 @@ export default function PlayerProfilePage() {
               </button>
             </div>
 
-            <div className="max-h-[calc(92vh-96px)] overflow-y-auto p-5 sm:p-6">
+            <div className="p-3 sm:p-4">
               {roundTeamLoading && (
                 <div className="py-16 text-center text-slate-500">
                   Loading team...
@@ -678,12 +678,12 @@ export default function PlayerProfilePage() {
                 !roundTeamError &&
                 roundTeamData?.team && (
                   <>
-                    <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <div className="rounded-xl bg-slate-100 p-4">
+                    <div className="mb-3 grid grid-cols-4 gap-2">
+                      <div className="rounded-lg bg-slate-100 p-2.5">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                           Score
                         </p>
-                        <p className="mt-1 text-xl font-black text-slate-950">
+                        <p className="text-base font-black text-slate-950 sm:text-lg">
                           {rounds.find(
                             (round) =>
                               round.round_id ===
@@ -692,11 +692,11 @@ export default function PlayerProfilePage() {
                         </p>
                       </div>
 
-                      <div className="rounded-xl bg-slate-100 p-4">
+                      <div className="rounded-lg bg-slate-100 p-2.5">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                           Rank
                         </p>
-                        <p className="mt-1 text-xl font-black text-slate-950">
+                        <p className="text-base font-black text-slate-950 sm:text-lg">
                           {rankDisplay(
                             rounds.find(
                               (round) =>
@@ -707,34 +707,34 @@ export default function PlayerProfilePage() {
                         </p>
                       </div>
 
-                      <div className="rounded-xl bg-slate-100 p-4">
+                      <div className="rounded-lg bg-slate-100 p-2.5">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                           Salary
                         </p>
-                        <p className="mt-1 text-xl font-black text-slate-950">
+                        <p className="text-base font-black text-slate-950 sm:text-lg">
                           {formatCurrency(
                             roundTeamData.team.salary_used
                           )}
                         </p>
                       </div>
 
-                      <div className="rounded-xl bg-slate-100 p-4">
+                      <div className="rounded-lg bg-slate-100 p-2.5">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                           Horses
                         </p>
-                        <p className="mt-1 text-xl font-black text-slate-950">
+                        <p className="text-base font-black text-slate-950 sm:text-lg">
                           {roundTeamData.selections.length}
                         </p>
                       </div>
                     </div>
 
-                    <div className="overflow-hidden rounded-xl border border-slate-200">
-                      <div className="divide-y divide-slate-100">
+                    <div className="overflow-hidden rounded-lg border border-slate-200">
+                      <div className="grid grid-cols-1 gap-px bg-slate-200 sm:grid-cols-2">
                         {roundTeamData.selections.map(
                           (selection) => (
                             <div
                               key={selection.race_entry_id}
-                              className={`grid gap-3 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_180px_90px] sm:items-center ${
+                              className={`grid grid-cols-[minmax(0,1fr)_55px_55px] items-center gap-2 px-3 py-2 ${
                                 selection.is_captain
                                   ? "bg-amber-50"
                                   : "bg-white"
@@ -753,16 +753,12 @@ export default function PlayerProfilePage() {
                                   )}
                                 </div>
 
-                                <p className="mt-1 text-sm text-slate-600">
+                                <p className="truncate text-[11px] text-slate-600">
                                   R{selection.race_number} ·{" "}
                                   {selection.race_name}
-                                  {selection.racecourse_name
-                                    ? ` · ${selection.racecourse_name}`
-                                    : ""}
                                 </p>
 
-                                <p className="mt-1 text-xs text-slate-500">
-                                  Selected at{" "}
+                                <p className="text-[10px] text-slate-500">
                                   {formatCurrency(
                                     selection.selected_price
                                   )}
@@ -770,10 +766,10 @@ export default function PlayerProfilePage() {
                               </div>
 
                               <div>
-                                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
                                   Result
                                 </p>
-                                <p className="mt-1 font-bold text-slate-900">
+                                <p className="text-sm font-bold text-slate-900">
                                   {finishDisplay(
                                     selection.finishing_position,
                                     selection.result_status
@@ -781,11 +777,11 @@ export default function PlayerProfilePage() {
                                 </p>
                               </div>
 
-                              <div className="sm:text-right">
-                                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                              <div className="text-right">
+                                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
                                   Points
                                 </p>
-                                <p className="mt-1 text-xl font-black text-teal-700">
+                                <p className="text-base font-black text-teal-700">
                                   {selection.is_captain
                                     ? selection.fantasy_points *
                                       2
