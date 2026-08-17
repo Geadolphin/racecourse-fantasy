@@ -10,6 +10,7 @@ import {
   Medal,
   Trophy,
   UserRound,
+  X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -50,6 +51,37 @@ type PlayerProfileData = {
   profile: PlayerProfile | null;
   season_summary: SeasonSummary | null;
   round_history: RoundHistoryRow[];
+};
+
+type PlayerRoundSelection = {
+  race_entry_id: string;
+  horse_id: string;
+  horse_name: string;
+  is_captain: boolean;
+  selected_price: number;
+  fantasy_points: number;
+  saddlecloth_number: number | null;
+  race_number: number;
+  race_name: string;
+  race_grade: "L" | "G3" | "G2" | "G1";
+  racecourse_name: string | null;
+  finishing_position: number | null;
+  result_status: string | null;
+};
+
+type PlayerRoundTeamData = {
+  success: boolean;
+  message?: string;
+  team: {
+    id: string;
+    team_name: string | null;
+    status: string;
+    salary_used: number;
+    round_id: string;
+    round_number: number;
+    round_name: string | null;
+  } | null;
+  selections: PlayerRoundSelection[];
 };
 
 function formatCurrency(value: number | null) {
@@ -96,6 +128,26 @@ function rankDisplay(rank: number | null) {
   }
 }
 
+function finishDisplay(
+  position: number | null,
+  status: string | null
+) {
+  if (status === "scratched") return "SCR";
+  if (
+    status === "non_finisher" ||
+    status === "did_not_finish" ||
+    status === "dnf"
+  ) {
+    return "DNF";
+  }
+
+  if (!position || position <= 0) {
+    return "—";
+  }
+
+  return rankDisplay(position);
+}
+
 export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
   const playerId = params.id;
@@ -103,6 +155,15 @@ export default function PlayerProfilePage() {
   const [data, setData] = useState<PlayerProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [selectedRoundId, setSelectedRoundId] =
+    useState<string | null>(null);
+  const [roundTeamData, setRoundTeamData] =
+    useState<PlayerRoundTeamData | null>(null);
+  const [roundTeamLoading, setRoundTeamLoading] =
+    useState(false);
+  const [roundTeamError, setRoundTeamError] =
+    useState("");
 
   useEffect(() => {
     if (!playerId) return;
@@ -153,6 +214,46 @@ export default function PlayerProfilePage() {
       active = false;
     };
   }, [playerId]);
+
+  async function openRoundTeam(roundId: string) {
+    setSelectedRoundId(roundId);
+    setRoundTeamData(null);
+    setRoundTeamError("");
+    setRoundTeamLoading(true);
+
+    const { data: teamDataRaw, error } =
+      await supabase.rpc(
+        "get_player_round_team",
+        {
+          p_user_id: playerId,
+          p_round_id: roundId,
+        }
+      );
+
+    if (error) {
+      console.error(
+        "Player round team RPC error:",
+        error
+      );
+      setRoundTeamError(
+        error.message ||
+          "The team could not be loaded."
+      );
+      setRoundTeamLoading(false);
+      return;
+    }
+
+    setRoundTeamData(
+      teamDataRaw as unknown as PlayerRoundTeamData
+    );
+    setRoundTeamLoading(false);
+  }
+
+  function closeRoundTeam() {
+    setSelectedRoundId(null);
+    setRoundTeamData(null);
+    setRoundTeamError("");
+  }
 
   const averageRoundScore = useMemo(() => {
     const rounds = data?.round_history ?? [];
@@ -326,7 +427,22 @@ export default function PlayerProfilePage() {
               {rounds.map((round) => (
                 <article
                   key={round.round_id}
-                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() =>
+                    void openRoundTeam(round.round_id)
+                  }
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" ||
+                      event.key === " "
+                    ) {
+                      event.preventDefault();
+                      void openRoundTeam(round.round_id);
+                    }
+                  }}
+                  className="cursor-pointer rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-teal-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                  aria-label={`View team for Round ${round.round_number}`}
                 >
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -342,6 +458,10 @@ export default function PlayerProfilePage() {
 
                       <p className="mt-1 text-sm text-slate-500">
                         {formatDate(round.round_date)}
+                      </p>
+
+                      <p className="mt-2 text-xs font-bold uppercase tracking-wide text-teal-700">
+                        View Team
                       </p>
                     </div>
 
@@ -389,6 +509,194 @@ export default function PlayerProfilePage() {
           )}
         </section>
       </div>
+
+      {selectedRoundId && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/65 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeRoundTeam();
+            }
+          }}
+        >
+          <section className="max-h-[92vh] w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-4xl sm:rounded-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-800 bg-slate-950 px-5 py-5 text-white sm:px-6">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300">
+                  Round Team
+                </p>
+
+                <h2 className="mt-1 text-2xl font-black">
+                  {roundTeamData?.team
+                    ? `Round ${roundTeamData.team.round_number}${
+                        roundTeamData.team.round_name
+                          ? ` — ${roundTeamData.team.round_name}`
+                          : ""
+                      }`
+                    : "Loading team..."}
+                </h2>
+
+                {roundTeamData?.team && (
+                  <p className="mt-1 text-sm text-slate-300">
+                    {roundTeamData.team.team_name?.trim() ||
+                      data.profile.display_name}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={closeRoundTeam}
+                className="rounded-lg border border-white/20 p-2 transition hover:bg-white/10"
+                aria-label="Close round team"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(92vh-96px)] overflow-y-auto p-5 sm:p-6">
+              {roundTeamLoading && (
+                <div className="py-16 text-center text-slate-500">
+                  Loading team...
+                </div>
+              )}
+
+              {!roundTeamLoading &&
+                roundTeamError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">
+                    {roundTeamError}
+                  </div>
+                )}
+
+              {!roundTeamLoading &&
+                !roundTeamError &&
+                roundTeamData?.team && (
+                  <>
+                    <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="rounded-xl bg-slate-100 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Score
+                        </p>
+                        <p className="mt-1 text-xl font-black text-slate-950">
+                          {rounds.find(
+                            (round) =>
+                              round.round_id ===
+                              selectedRoundId
+                          )?.total_points ?? 0}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-100 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Rank
+                        </p>
+                        <p className="mt-1 text-xl font-black text-slate-950">
+                          {rankDisplay(
+                            rounds.find(
+                              (round) =>
+                                round.round_id ===
+                                selectedRoundId
+                            )?.round_rank ?? null
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-100 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Salary
+                        </p>
+                        <p className="mt-1 text-xl font-black text-slate-950">
+                          {formatCurrency(
+                            roundTeamData.team.salary_used
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-100 p-4">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Horses
+                        </p>
+                        <p className="mt-1 text-xl font-black text-slate-950">
+                          {roundTeamData.selections.length}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-hidden rounded-xl border border-slate-200">
+                      <div className="divide-y divide-slate-100">
+                        {roundTeamData.selections.map(
+                          (selection) => (
+                            <div
+                              key={selection.race_entry_id}
+                              className={`grid gap-3 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_180px_90px] sm:items-center ${
+                                selection.is_captain
+                                  ? "bg-amber-50"
+                                  : "bg-white"
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="truncate font-black text-slate-950">
+                                    {selection.horse_name}
+                                  </p>
+
+                                  {selection.is_captain && (
+                                    <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                                      Captain
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="mt-1 text-sm text-slate-600">
+                                  R{selection.race_number} ·{" "}
+                                  {selection.race_name}
+                                  {selection.racecourse_name
+                                    ? ` · ${selection.racecourse_name}`
+                                    : ""}
+                                </p>
+
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Selected at{" "}
+                                  {formatCurrency(
+                                    selection.selected_price
+                                  )}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                  Result
+                                </p>
+                                <p className="mt-1 font-bold text-slate-900">
+                                  {finishDisplay(
+                                    selection.finishing_position,
+                                    selection.result_status
+                                  )}
+                                </p>
+                              </div>
+
+                              <div className="sm:text-right">
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                                  Points
+                                </p>
+                                <p className="mt-1 text-xl font-black text-teal-700">
+                                  {selection.is_captain
+                                    ? selection.fantasy_points *
+                                      2
+                                    : selection.fantasy_points}
+                                </p>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
