@@ -977,12 +977,6 @@ export default function MyTeamPage() {
                                   C
                                 </span>
                               )}
-
-                              {isScratched && (
-                                <span className="shrink-0 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white shadow-sm">
-                                  Scratched
-                                </span>
-                              )}
                             </div>
 
                             <div className="mt-2 space-y-1.5">
@@ -1076,11 +1070,7 @@ export default function MyTeamPage() {
                                   <>
                                     <p className="text-lg font-black uppercase leading-none text-red-700">
                                       Scratched
-                                    </p>
-                                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-red-600">
-                                      No active nomination
-                                    </p>
-                                  </>
+                                    </p>                                  </>
                                 ) : displayedProjectedPoints === null ? (
                                   <>
                                     <p className="text-lg font-semibold leading-none text-slate-400">
