@@ -133,6 +133,7 @@ type TeamSelection = {
   selected_price: number;
   fantasy_points: number;
   has_result: boolean;
+  is_scratched: boolean;
   race_entry: RaceEntry | null;
   active_nominations?: ActiveNomination[];
 };
@@ -927,6 +928,7 @@ export default function MyTeamPage() {
                     const horse = entry?.horse;
                     const race = entry?.race;
                     const activeNominations = selection.active_nominations ?? [];
+                    const isScratched = selection.is_scratched === true;
                     const displayedPoints = selection.is_captain
                       ? (selection.fantasy_points ?? 0) * 2
                       : selection.fantasy_points ?? 0;
@@ -955,10 +957,12 @@ export default function MyTeamPage() {
                             setSelectedHorseId(horse.id);
                           }
                         }}
-                        className={`cursor-pointer overflow-hidden rounded-xl border px-4 py-3.5 shadow-sm transition hover:border-teal-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
-                          selection.is_captain
-                            ? "border-amber-300 bg-amber-50/50"
-                            : "border-slate-200 bg-white"
+                        className={`cursor-pointer overflow-hidden rounded-xl border px-4 py-3.5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                          isScratched
+                            ? "border-red-300 bg-red-50 hover:border-red-400 focus:ring-red-500"
+                            : selection.is_captain
+                              ? "border-amber-300 bg-amber-50/50 hover:border-amber-400 focus:ring-amber-500"
+                              : "border-slate-200 bg-white hover:border-teal-300 focus:ring-teal-500"
                         }`}
                         aria-label={horse ? `View statistics for ${horse.name}` : "Horse statistics unavailable"}
                       >
@@ -971,6 +975,12 @@ export default function MyTeamPage() {
                               {selection.is_captain && (
                                 <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950 shadow-sm">
                                   C
+                                </span>
+                              )}
+
+                              {isScratched && (
+                                <span className="shrink-0 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white shadow-sm">
+                                  Scratched
                                 </span>
                               )}
                             </div>
@@ -1019,7 +1029,11 @@ export default function MyTeamPage() {
                                 })
                               ) : race ? (
                                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                  <span className="truncate text-sm font-semibold text-slate-800">
+                                  <span
+                                    className={`truncate text-sm font-semibold ${
+                                      isScratched ? "text-red-800" : "text-slate-800"
+                                    }`}
+                                  >
                                     R{race.race_number} • {race.race_name}
                                   </span>
 
@@ -1058,7 +1072,16 @@ export default function MyTeamPage() {
                             />
                             {!selection.has_result ? (
                               <div className="text-right">
-                                {displayedProjectedPoints === null ? (
+                                {isScratched ? (
+                                  <>
+                                    <p className="text-lg font-black uppercase leading-none text-red-700">
+                                      Scratched
+                                    </p>
+                                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-red-600">
+                                      No active nomination
+                                    </p>
+                                  </>
+                                ) : displayedProjectedPoints === null ? (
                                   <>
                                     <p className="text-lg font-semibold leading-none text-slate-400">
                                       —
