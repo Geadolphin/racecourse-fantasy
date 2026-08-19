@@ -268,7 +268,7 @@ export default function TermsPage() {
             <h2 className="mb-3 text-2xl font-semibold text-slate-900">23. Contact</h2>
             <div className="rounded-xl bg-slate-100 p-6">
               <p className="font-semibold text-slate-900">Racecourse Fantasy</p>
-              <p className="mt-2">Email: wgeary52@gmail.com</p>
+              <p className="mt-2">Email: racecoursefantasyadmin@gmail.com</p>
               <p>Website: racecoursefantasy.com</p>
             </div>
           </section>
