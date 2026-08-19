@@ -976,28 +976,6 @@ export default function MyTeamPage() {
                                 </span>
                               )}
 
-                              {activeNominations.length > 0
-                                ? activeNominations.map((nomination) =>
-                                    nomination.race ? (
-                                      <span
-                                        key={`grade-${nomination.id}`}
-                                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
-                                          nomination.race.grade
-                                        )}`}
-                                      >
-                                        {getGradeLabel(nomination.race.grade)}
-                                      </span>
-                                    ) : null
-                                  )
-                                : race && (
-                                    <span
-                                      className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
-                                        race.grade
-                                      )}`}
-                                    >
-                                      {getGradeLabel(race.grade)}
-                                    </span>
-                                  )}
                             </div>
 
                             <div className="mt-2 space-y-2">
@@ -1011,9 +989,19 @@ export default function MyTeamPage() {
 
                                   return (
                                     <div key={nomination.id} className="min-w-0">
-                                      <p className="truncate text-sm font-semibold text-slate-800">
-                                        R{nominationRace.race_number} • {nominationRace.race_name}
-                                      </p>
+                                      <div className="flex min-w-0 items-center gap-2">
+                                        <p className="truncate text-sm font-semibold text-slate-800">
+                                          R{nominationRace.race_number} • {nominationRace.race_name}
+                                        </p>
+
+                                        <span
+                                          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
+                                            nominationRace.grade
+                                          )}`}
+                                        >
+                                          {getGradeLabel(nominationRace.grade)}
+                                        </span>
+                                      </div>
 
                                       <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-600">
                                         {nominationRace.racecourse && (
@@ -1037,13 +1025,23 @@ export default function MyTeamPage() {
                                 })
                               ) : race ? (
                                 <div className="min-w-0">
-                                  <p
-                                    className={`truncate text-sm font-semibold ${
-                                      isScratched ? "text-red-800" : "text-slate-800"
-                                    }`}
-                                  >
-                                    R{race.race_number} • {race.race_name}
-                                  </p>
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <p
+                                      className={`truncate text-sm font-semibold ${
+                                        isScratched ? "text-red-800" : "text-slate-800"
+                                      }`}
+                                    >
+                                      R{race.race_number} • {race.race_name}
+                                    </p>
+
+                                    <span
+                                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
+                                        race.grade
+                                      )}`}
+                                    >
+                                      {getGradeLabel(race.grade)}
+                                    </span>
+                                  </div>
 
                                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-600">
                                     {race.racecourse && (
