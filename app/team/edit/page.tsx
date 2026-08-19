@@ -822,15 +822,11 @@ export default function EditTeamPage() {
       return;
     }
 
-    if (entry.entry_status !== "runner") {
-      setErrorMessage(
-        `${entry.horse?.name ?? "This horse"} is unavailable for selection.`
-      );
-      return;
-    }
-
     const alreadySelected = selectedEntryIds.includes(entry.id);
 
+    // An already-selected horse can still be removed before lockout even if
+    // that race entry has since been scratched. Scratched entries remain
+    // unavailable when attempting to add them back to the team.
     if (alreadySelected) {
       setSelectedEntryIds((current) =>
         current.filter((id) => id !== entry.id)
@@ -840,6 +836,13 @@ export default function EditTeamPage() {
         setCaptainEntryId(null);
       }
 
+      return;
+    }
+
+    if (entry.entry_status !== "runner") {
+      setErrorMessage(
+        `${entry.horse?.name ?? "This horse"} is unavailable for selection.`
+      );
       return;
     }
 
@@ -1628,9 +1631,10 @@ export default function EditTeamPage() {
                                 onClick={() => toggleEntry(entry)}
                                 disabled={
                                   isLocked ||
-                                  isUnavailable ||
                                   (!isSelected &&
-                                    (selectedCount >= teamSize || wouldExceedBudget))
+                                    (isUnavailable ||
+                                      selectedCount >= teamSize ||
+                                      wouldExceedBudget))
                                 }
                                 className={`inline-flex h-9 w-9 shrink-0 items-center justify-center justify-self-end rounded-md text-xl font-black leading-none ${
                                   isSelected
