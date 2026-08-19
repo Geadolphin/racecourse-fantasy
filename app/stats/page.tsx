@@ -4,10 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDown,
-  ArrowDownRight,
   ArrowUp,
   ArrowUpDown,
-  ArrowUpRight,
   BarChart3,
   Crown,
   Flag,
@@ -88,6 +86,33 @@ type RoundSpecialStats = {
   team_size: number;
 };
 
+type HorsePerformanceStats = {
+  most_points?: RoundSpecialHorse | null;
+  best_value?: (RoundSpecialHorse & { value_score?: number }) | null;
+};
+
+type RoundSummaryStats = {
+  average_score?: number | null;
+  highest_score?: number | null;
+  highest_score_player_id?: string | null;
+  highest_score_player_name?: string | null;
+  average_salary_used?: number | null;
+};
+
+type SeasonRecordStat = {
+  user_id?: string | null;
+  display_name?: string | null;
+  value?: number | null;
+  rounds?: number | null;
+};
+
+type SeasonRecordsStats = {
+  highest_round_score?: SeasonRecordStat | null;
+  most_round_wins?: SeasonRecordStat | null;
+  best_captain?: SeasonRecordStat | null;
+  biggest_rank_rise?: SeasonRecordStat | null;
+};
+
 type OwnershipRound = {
   id: string;
   round_number: number;
@@ -120,11 +145,14 @@ type StatsData = {
   most_selected: SelectionLeader[];
   most_captained: SelectionLeader[];
   special_stats: RoundSpecialStats;
+  horse_performance?: HorsePerformanceStats;
+  round_stats?: RoundSummaryStats;
+  season_records?: SeasonRecordsStats;
   price_risers: PriceLeader[];
   price_fallers: PriceLeader[];
 };
 
-type Tab = "horses" | "players" | "ownership" | "fantasy" | "prices";
+type Tab = "ownership" | "performance" | "round" | "season";
 
 type SortDirection = "asc" | "desc";
 
@@ -234,9 +262,123 @@ function SpecialHorseCard({
   );
 }
 
+
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  accent = "teal",
+}: {
+  title: string;
+  value: string;
+  subtitle?: string;
+  accent?: "teal" | "amber" | "slate";
+}) {
+  const accentClass =
+    accent === "amber"
+      ? "text-amber-700"
+      : accent === "slate"
+        ? "text-slate-950"
+        : "text-teal-700";
+
+  return (
+    <section className="rounded-2xl border bg-white p-5 shadow-sm">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+        {title}
+      </p>
+      <p className={`mt-3 text-3xl font-black ${accentClass}`}>{value}</p>
+      {subtitle && <p className="mt-2 text-sm text-slate-500">{subtitle}</p>}
+    </section>
+  );
+}
+
+function TeamPanel({
+  title,
+  description,
+  team,
+}: {
+  title: string;
+  description: string;
+  team: RoundSpecialTeam | null;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <div className="border-b bg-slate-50 px-5 py-4">
+        <h3 className="text-xl font-black text-slate-950">{title}</h3>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
+
+      {team ? (
+        <>
+          <div className="grid grid-cols-2 gap-px bg-slate-200 sm:grid-cols-3">
+            <div className="bg-white px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Team Score
+              </p>
+              <p className="mt-1 text-xl font-black text-teal-700">
+                {team.total_points}
+              </p>
+            </div>
+
+            <div className="bg-white px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Salary
+              </p>
+              <p className="mt-1 text-base font-black text-slate-950">
+                {formatCurrency(team.total_price)}
+              </p>
+            </div>
+
+            <div className="bg-white px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Combined Own.
+              </p>
+              <p className="mt-1 text-base font-black text-slate-950">
+                {Number(team.combined_ownership_percentage).toFixed(1)}%
+              </p>
+            </div>
+          </div>
+
+          <div className="divide-y">
+            {team.horses.map((horse, index) => (
+              <div
+                key={horse.horse_id}
+                className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 px-5 py-3"
+              >
+                <span className="text-sm font-black text-slate-400">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <Link
+                    href={`/horses/${horse.horse_id}`}
+                    className="truncate font-bold text-slate-950 hover:text-teal-700 hover:underline"
+                  >
+                    {horse.horse_name}
+                  </Link>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {Number(horse.ownership_percentage).toFixed(1)}% owned ·{" "}
+                    {formatCurrency(horse.price)}
+                  </p>
+                </div>
+                <span className="font-black text-teal-700">
+                  {horse.round_points} pts
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="p-8 text-center text-slate-500">
+          No valid team is available yet.
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function StatsPage() {
   const [data, setData] = useState<StatsData | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("horses");
+  const [activeTab, setActiveTab] = useState<Tab>("ownership");
   const [selectedRoundId, setSelectedRoundId] = useState("");
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState("");
@@ -576,12 +718,42 @@ export default function StatsPage() {
 
   const summary = data.season_summary;
 
+  const derivedHighestRoundPlayer = [...participatingPlayerLeaders].sort(
+    (a, b) => b.highest_round_score - a.highest_round_score
+  )[0];
+
+  const derivedMostRoundWinsPlayer = [...participatingPlayerLeaders].sort(
+    (a, b) =>
+      b.round_wins - a.round_wins ||
+      b.total_points - a.total_points ||
+      a.display_name.localeCompare(b.display_name)
+  )[0];
+
+  const highestRoundRecord =
+    data.season_records?.highest_round_score ??
+    (derivedHighestRoundPlayer
+      ? {
+          user_id: derivedHighestRoundPlayer.user_id,
+          display_name: derivedHighestRoundPlayer.display_name,
+          value: derivedHighestRoundPlayer.highest_round_score,
+        }
+      : null);
+
+  const mostRoundWinsRecord =
+    data.season_records?.most_round_wins ??
+    (derivedMostRoundWinsPlayer
+      ? {
+          user_id: derivedMostRoundWinsPlayer.user_id,
+          display_name: derivedMostRoundWinsPlayer.display_name,
+          value: derivedMostRoundWinsPlayer.round_wins,
+        }
+      : null);
+
   const tabs: { id: Tab; label: string }[] = [
-    { id: "horses", label: "Horse Leaders" },
-    { id: "players", label: "Player Leaders" },
     { id: "ownership", label: "Ownership" },
-    { id: "fantasy", label: "Fantasy Stats" },
-    { id: "prices", label: "Price Movers" },
+    { id: "performance", label: "Horse Performance" },
+    { id: "round", label: "Round Stats" },
+    { id: "season", label: "Season Records" },
   ];
 
   return (
@@ -717,329 +889,33 @@ export default function StatsPage() {
           </div>
         </div>
 
-        {activeTab === "horses" && (
-          <section className="mt-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
-            <div className="border-b bg-slate-50 px-5 py-4">
-              <h2 className="text-xl font-black text-slate-950">
-                Horse Leaders
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Official fantasy performance during the current season.
-              </p>
-            </div>
-
-            {(data.horse_leaders ?? []).length === 0 ? (
-              <div className="p-10 text-center text-slate-500">
-                No official horse statistics are available yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[780px]">
-                  <thead className="sticky top-0 z-10 bg-slate-100">
-                    <tr>
-                      <th className="px-5 py-3 text-left text-xs font-bold uppercase text-slate-600">
-                        Rank
-                      </th>
-                      <th className="px-5 py-3 text-left">
-                        <button
-                          type="button"
-                          onClick={() => changeHorseSort("horse_name")}
-                          className="inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Horse
-                          {sortIcon(
-                            horseSortKey === "horse_name",
-                            horseSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => changeHorseSort("season_points")}
-                          className="ml-auto inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Points
-                          {sortIcon(
-                            horseSortKey === "season_points",
-                            horseSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => changeHorseSort("eligible_starts")}
-                          className="ml-auto inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Starts
-                          {sortIcon(
-                            horseSortKey === "eligible_starts",
-                            horseSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => changeHorseSort("average_points")}
-                          className="ml-auto inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Average
-                          {sortIcon(
-                            horseSortKey === "average_points",
-                            horseSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => changeHorseSort("current_price")}
-                          className="ml-auto inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Price
-                          {sortIcon(
-                            horseSortKey === "current_price",
-                            horseSortDirection
-                          )}
-                        </button>
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y">
-                    {sortedHorseLeaders.map((horse, index) => (
-                      <tr key={horse.horse_id} className="hover:bg-slate-50">
-                        <td className="px-5 py-4 font-black">
-                          {rankDisplay(null, index)}
-                        </td>
-                        <td className="px-5 py-4">
-                          <Link
-                            href={`/horses/${horse.horse_id}`}
-                            className="font-bold text-slate-950 hover:text-teal-700 hover:underline"
-                          >
-                            {horse.horse_name}
-                          </Link>
-                        </td>
-                        <td className="px-5 py-4 text-right font-black text-teal-700">
-                          {horse.season_points}
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          {horse.eligible_starts}
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          {Number(horse.average_points).toFixed(1)}
-                        </td>
-                        <td className="px-5 py-4 text-right font-bold">
-                          {formatCurrency(horse.current_price)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )}
-
-        {activeTab === "players" && (
-          <section className="mt-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
-            <div className="border-b bg-slate-50 px-5 py-4">
-              <h2 className="text-xl font-black text-slate-950">
-                Player Leaders
-              </h2>
-            </div>
-
-            {participatingPlayerLeaders.length === 0 ? (
-              <div className="p-10 text-center text-slate-500">
-                Player statistics will appear after a player has a score
-                recorded in an official round.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[820px]">
-                  <thead className="sticky top-0 z-10 bg-slate-100">
-                    <tr>
-                      <th className="px-5 py-3 text-left">
-                        <button
-                          type="button"
-                          onClick={() => changePlayerSort("overall_rank")}
-                          className="inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Rank
-                          {sortIcon(
-                            playerSortKey === "overall_rank",
-                            playerSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-left">
-                        <button
-                          type="button"
-                          onClick={() => changePlayerSort("display_name")}
-                          className="inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Manager
-                          {sortIcon(
-                            playerSortKey === "display_name",
-                            playerSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => changePlayerSort("total_points")}
-                          className="ml-auto inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Points
-                          {sortIcon(
-                            playerSortKey === "total_points",
-                            playerSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => changePlayerSort("rounds_played")}
-                          className="ml-auto inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Rounds
-                          {sortIcon(
-                            playerSortKey === "rounds_played",
-                            playerSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => changePlayerSort("round_wins")}
-                          className="ml-auto inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Wins
-                          {sortIcon(
-                            playerSortKey === "round_wins",
-                            playerSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            changePlayerSort("top_ten_finishes")
-                          }
-                          className="ml-auto inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Top 10
-                          {sortIcon(
-                            playerSortKey === "top_ten_finishes",
-                            playerSortDirection
-                          )}
-                        </button>
-                      </th>
-                      <th className="px-5 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            changePlayerSort("highest_round_score")
-                          }
-                          className="ml-auto inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-teal-700"
-                        >
-                          Best Round
-                          {sortIcon(
-                            playerSortKey === "highest_round_score",
-                            playerSortDirection
-                          )}
-                        </button>
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y">
-                    {sortedPlayerLeaders.map((player, index) => (
-                      <tr key={player.user_id} className="hover:bg-slate-50">
-                        <td className="px-5 py-4 font-black">
-                          {rankDisplay(player.overall_rank, index)}
-                        </td>
-                        <td className="px-5 py-4">
-                          <Link
-                            href={`/players/${player.user_id}`}
-                            className="font-bold text-slate-950 hover:text-teal-700 hover:underline"
-                          >
-                            {player.display_name}
-                          </Link>
-                        </td>
-                        <td className="px-5 py-4 text-right font-black text-teal-700">
-                          {player.total_points}
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          {player.rounds_played}
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          {player.round_wins}
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          {player.top_ten_finishes}
-                        </td>
-                        <td className="px-5 py-4 text-right font-bold">
-                          {player.highest_round_score}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )}
-
         {activeTab === "ownership" && (
           <section className="mt-5">
             <div className="mb-5 flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-xl font-black text-slate-950">
-                  Round Ownership
-                </h2>
-
+                <h2 className="text-xl font-black text-slate-950">Ownership</h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  View selection and captain percentages for an
-                  individual round. Only locked, scoring and completed
-                  rounds are available.
+                  Most selected horses, captain trends and the best low-owned scorer.
                 </p>
               </div>
 
               <div className="w-full sm:w-72">
-                <label
-                  htmlFor="ownership-round"
-                  className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500"
-                >
+                <label htmlFor="ownership-round" className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
                   Choose round
                 </label>
-
                 <select
                   id="ownership-round"
                   value={selectedRoundId}
-                  onChange={(event) =>
-                    void changeOwnershipRound(event.target.value)
-                  }
-                  disabled={
-                    ownershipLoading ||
-                    (data.ownership_rounds ?? []).length === 0
-                  }
+                  onChange={(event) => void changeOwnershipRound(event.target.value)}
+                  disabled={ownershipLoading || (data.ownership_rounds ?? []).length === 0}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-semibold text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
                 >
                   {(data.ownership_rounds ?? []).length === 0 && (
                     <option value="">No locked rounds available</option>
                   )}
-
                   {(data.ownership_rounds ?? []).map((round) => (
                     <option key={round.id} value={round.id}>
-                      Round {round.round_number}
-                      {round.name ? ` — ${round.name}` : ""}
+                      Round {round.round_number}{round.name ? ` — ${round.name}` : ""}
                     </option>
                   ))}
                 </select>
@@ -1048,456 +924,203 @@ export default function StatsPage() {
 
             {ownershipLoading ? (
               <div className="rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
-                Loading round ownership...
+                Loading round statistics...
               </div>
             ) : !data.selected_round ? (
               <div className="rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
-                Ownership statistics become available after a round
-                locks.
+                Round statistics become available after a round locks.
               </div>
             ) : (
               <>
-                <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-5 py-4">
-                  <p className="font-black text-slate-950">
-                    Round {data.selected_round.round_number}
-                    {data.selected_round.name
-                      ? ` — ${data.selected_round.name}`
-                      : ""}
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-700">
-                    Based on {data.total_teams_in_round}{" "}
-                    {data.total_teams_in_round === 1 ? "team" : "teams"}.
-                  </p>
-                </div>
-
                 <div className="grid gap-5 lg:grid-cols-2">
                   <section className="rounded-2xl border bg-white p-5 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <Users className="h-5 w-5 text-teal-700" />
-
-                      <div>
-                        <h3 className="text-xl font-black text-slate-950">
-                          Most Selected
-                        </h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Percentage of teams that selected each horse.
-                        </p>
-                      </div>
-                    </div>
-
+                    <h3 className="text-xl font-black text-slate-950">Most Selected</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Percentage of teams that selected each horse.
+                    </p>
                     <div className="mt-5 space-y-4">
                       {(data.most_selected ?? []).map((horse, index) => {
-                        const percentage = Number(
-                          horse.ownership_percentage ?? 0
-                        );
-
+                        const percentage = Number(horse.ownership_percentage ?? 0);
                         return (
                           <div key={horse.horse_id}>
                             <div className="flex items-center justify-between gap-4 text-sm">
-                              <Link
-                                href={`/horses/${horse.horse_id}`}
-                                className="font-bold text-slate-950 hover:text-teal-700"
-                              >
+                              <Link href={`/horses/${horse.horse_id}`} className="font-bold text-slate-950 hover:text-teal-700">
                                 {index + 1}. {horse.horse_name}
                               </Link>
-
                               <div className="text-right">
-                                <span className="font-black">
-                                  {percentage.toFixed(1)}%
-                                </span>
-                                <span className="ml-2 text-xs text-slate-500">
-                                  ({horse.selection_count ?? 0})
-                                </span>
+                                <span className="font-black">{percentage.toFixed(1)}%</span>
+                                <span className="ml-2 text-xs text-slate-500">({horse.selection_count ?? 0})</span>
                               </div>
                             </div>
-
                             <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200">
-                              <div
-                                className="h-full rounded-full bg-teal-600"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.max(0, percentage)
-                                  )}%`,
-                                }}
-                              />
+                              <div className="h-full rounded-full bg-teal-600" style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }} />
                             </div>
                           </div>
                         );
                       })}
-
-                      {(data.most_selected ?? []).length === 0 && (
-                        <p className="text-slate-500">
-                          No submitted teams are available for this
-                          round.
-                        </p>
-                      )}
                     </div>
                   </section>
 
                   <section className="rounded-2xl border bg-white p-5 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <Crown className="h-5 w-5 text-amber-600" />
-
-                      <div>
-                        <h3 className="text-xl font-black text-slate-950">
-                          Most Captained
-                        </h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Percentage of teams that captained each horse.
-                        </p>
-                      </div>
-                    </div>
-
+                    <h3 className="text-xl font-black text-slate-950">Most Captained</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Percentage of teams that captained each horse.
+                    </p>
                     <div className="mt-5 space-y-4">
                       {(data.most_captained ?? []).map((horse, index) => {
-                        const percentage = Number(
-                          horse.captain_percentage ?? 0
-                        );
-
+                        const percentage = Number(horse.captain_percentage ?? 0);
                         return (
                           <div key={horse.horse_id}>
                             <div className="flex items-center justify-between gap-4 text-sm">
-                              <Link
-                                href={`/horses/${horse.horse_id}`}
-                                className="font-bold text-slate-950 hover:text-teal-700"
-                              >
+                              <Link href={`/horses/${horse.horse_id}`} className="font-bold text-slate-950 hover:text-teal-700">
                                 {index + 1}. {horse.horse_name}
                               </Link>
-
                               <div className="text-right">
-                                <span className="font-black">
-                                  {percentage.toFixed(1)}%
-                                </span>
-                                <span className="ml-2 text-xs text-slate-500">
-                                  ({horse.captain_count ?? 0})
-                                </span>
+                                <span className="font-black">{percentage.toFixed(1)}%</span>
+                                <span className="ml-2 text-xs text-slate-500">({horse.captain_count ?? 0})</span>
                               </div>
                             </div>
-
                             <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200">
-                              <div
-                                className="h-full rounded-full bg-amber-500"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.max(0, percentage)
-                                  )}%`,
-                                }}
-                              />
+                              <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }} />
                             </div>
                           </div>
                         );
                       })}
-
-                      {(data.most_captained ?? []).length === 0 && (
-                        <p className="text-slate-500">
-                          No captain selections are available for this
-                          round.
-                        </p>
-                      )}
                     </div>
                   </section>
                 </div>
 
-              </>
-            )}
-          </section>
-        )}
-
-        {activeTab === "fantasy" && (
-          <section className="mt-5">
-            <div className="mb-5 flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-xl font-black text-slate-950">
-                  Fantasy Stats
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-600">
-                  Round-specific fantasy insights, differential picks and
-                  optimal team combinations.
-                </p>
-              </div>
-
-              <div className="w-full sm:w-72">
-                <label
-                  htmlFor="fantasy-round"
-                  className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500"
-                >
-                  Choose round
-                </label>
-
-                <select
-                  id="fantasy-round"
-                  value={selectedRoundId}
-                  onChange={(event) =>
-                    void changeOwnershipRound(event.target.value)
-                  }
-                  disabled={
-                    ownershipLoading ||
-                    (data.ownership_rounds ?? []).length === 0
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-semibold text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
-                >
-                  {(data.ownership_rounds ?? []).length === 0 && (
-                    <option value="">No locked rounds available</option>
-                  )}
-
-                  {(data.ownership_rounds ?? []).map((round) => (
-                    <option key={round.id} value={round.id}>
-                      Round {round.round_number}
-                      {round.name ? ` — ${round.name}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {ownershipLoading ? (
-              <div className="rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
-                Loading fantasy statistics...
-              </div>
-            ) : !data.selected_round ? (
-              <div className="rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
-                Fantasy statistics become available after a round locks.
-              </div>
-            ) : (
-              <>
-                <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-5 py-4">
-                  <p className="font-black text-slate-950">
-                    Round {data.selected_round.round_number}
-                    {data.selected_round.name
-                      ? ` — ${data.selected_round.name}`
-                      : ""}
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-700">
-                    Based on {data.total_teams_in_round}{" "}
-                    {data.total_teams_in_round === 1 ? "team" : "teams"}.
-                  </p>
-                </div>
-
-                <div className="grid gap-5 md:grid-cols-3">
+                <div className="mt-5 max-w-xl">
                   <SpecialHorseCard
                     title="Best POD"
                     description="Highest-scoring horse owned by fewer than 10% of teams."
                     horse={data.special_stats?.best_pod ?? null}
                   />
-
-                  <SpecialHorseCard
-                    title="Popular Flop"
-                    description="Lowest-scoring horse owned by at least 25% of teams."
-                    horse={data.special_stats?.popular_flop ?? null}
-                  />
-
-                  <SpecialHorseCard
-                    title="Missed Opportunity"
-                    description="Highest-scoring horse that no team selected."
-                    horse={data.special_stats?.missed_opportunity ?? null}
-                  />
-                </div>
-
-                <div className="mt-5 grid gap-5 xl:grid-cols-2">
-                  {[
-                    {
-                      key: "template",
-                      title: "Template Team",
-                      description:
-                        "The most-owned valid 10-horse combination under the $2.5m salary cap.",
-                      team: data.special_stats?.template_team ?? null,
-                      accent: "text-teal-700",
-                    },
-                    {
-                      key: "perfect",
-                      title: "Perfect Team",
-                      description:
-                        "The highest-scoring valid 10-horse combination under the $2.5m salary cap.",
-                      team: data.special_stats?.perfect_team ?? null,
-                      accent: "text-amber-700",
-                    },
-                  ].map((panel) => (
-                    <section
-                      key={panel.key}
-                      className="overflow-hidden rounded-2xl border bg-white shadow-sm"
-                    >
-                      <div className="border-b bg-slate-50 px-5 py-4">
-                        <h3 className="text-xl font-black text-slate-950">
-                          {panel.title}
-                        </h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {panel.description}
-                        </p>
-                      </div>
-
-                      {panel.team ? (
-                        <>
-                          <div className="grid grid-cols-3 gap-px bg-slate-200">
-                            <div className="bg-white px-4 py-3">
-                              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                Team Score
-                              </p>
-                              <p className={`mt-1 text-xl font-black ${panel.accent}`}>
-                                {panel.team.total_points}
-                              </p>
-                            </div>
-
-                            <div className="bg-white px-4 py-3">
-                              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                Salary
-                              </p>
-                              <p className="mt-1 text-base font-black text-slate-950">
-                                {formatCurrency(panel.team.total_price)}
-                              </p>
-                            </div>
-
-                            <div className="bg-white px-4 py-3">
-                              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                Combined Own.
-                              </p>
-                              <p className="mt-1 text-base font-black text-slate-950">
-                                {Number(
-                                  panel.team.combined_ownership_percentage
-                                ).toFixed(1)}
-                                %
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="divide-y">
-                            {panel.team.horses.map((horse, index) => (
-                              <div
-                                key={horse.horse_id}
-                                className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 px-5 py-3"
-                              >
-                                <span className="text-sm font-black text-slate-400">
-                                  {index + 1}
-                                </span>
-
-                                <div className="min-w-0">
-                                  <Link
-                                    href={`/horses/${horse.horse_id}`}
-                                    className="truncate font-bold text-slate-950 hover:text-teal-700 hover:underline"
-                                  >
-                                    {horse.horse_name}
-                                  </Link>
-
-                                  <p className="mt-0.5 text-xs text-slate-500">
-                                    {Number(
-                                      horse.ownership_percentage
-                                    ).toFixed(1)}
-                                    % owned · {formatCurrency(horse.price)}
-                                  </p>
-                                </div>
-
-                                <span className="font-black text-teal-700">
-                                  {horse.round_points} pts
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-
-                          <div className="border-t bg-slate-50 px-5 py-3 text-xs font-semibold text-slate-500">
-                            Team score is the sum of horse points only; no captain
-                            multiplier is applied.
-                          </div>
-                        </>
-                      ) : (
-                        <div className="p-8 text-center text-slate-500">
-                          A valid 10-horse team could not be generated for this
-                          round.
-                        </div>
-                      )}
-                    </section>
-                  ))}
                 </div>
               </>
             )}
           </section>
         )}
 
-        {activeTab === "prices" && (
-          <div className="mt-5 grid gap-5 lg:grid-cols-2">
-            <section className="rounded-2xl border bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <ArrowUpRight className="h-5 w-5 text-green-700" />
-                <h2 className="text-xl font-black text-slate-950">
-                  Biggest Price Rises
-                </h2>
-              </div>
+        {activeTab === "performance" && (
+          <section className="mt-5">
+            <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
+              <h2 className="text-xl font-black text-slate-950">Horse Performance</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Most Points, Best Value, Popular Flop and Missed Opportunity.
+              </p>
+            </div>
 
-              <div className="mt-5 divide-y">
-                {(data.price_risers ?? []).map((horse, index) => (
-                  <div
-                    key={horse.horse_id}
-                    className="flex items-center justify-between gap-4 py-3"
-                  >
-                    <div>
-                      <Link
-                        href={`/horses/${horse.horse_id}`}
-                        className="font-bold text-slate-950 hover:text-teal-700"
-                      >
-                        {index + 1}. {horse.horse_name}
-                      </Link>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {formatCurrency(horse.current_price)}
-                      </p>
-                    </div>
+            <div className="grid gap-5 md:grid-cols-2">
+              <SpecialHorseCard
+                title="Most Points"
+                description="Highest-scoring horse in the selected round."
+                horse={data.horse_performance?.most_points ?? null}
+              />
+              <SpecialHorseCard
+                title="Best Value"
+                description="Best fantasy return relative to the horse's round price."
+                horse={data.horse_performance?.best_value ?? null}
+              />
+              <SpecialHorseCard
+                title="Popular Flop"
+                description="Lowest-scoring horse owned by at least 25% of teams."
+                horse={data.special_stats?.popular_flop ?? null}
+              />
+              <SpecialHorseCard
+                title="Missed Opportunity"
+                description="Highest-scoring horse that no team selected."
+                horse={data.special_stats?.missed_opportunity ?? null}
+              />
+            </div>
+          </section>
+        )}
 
-                    <span className="font-black text-green-700">
-                      {formatSignedCurrency(horse.total_change)}
-                    </span>
-                  </div>
-                ))}
+        {activeTab === "round" && (
+          <section className="mt-5">
+            <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
+              <h2 className="text-xl font-black text-slate-950">Round Stats</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Average Score, Highest Score, Average Salary Used and Perfect Team.
+              </p>
+            </div>
 
-                {(data.price_risers ?? []).length === 0 && (
-                  <p className="py-4 text-slate-500">
-                    No price rises are available yet.
-                  </p>
-                )}
-              </div>
-            </section>
+            <div className="grid gap-5 md:grid-cols-3">
+              <MetricCard
+                title="Average Score"
+                value={data.round_stats?.average_score == null ? "—" : `${Number(data.round_stats.average_score).toFixed(1)} pts`}
+                subtitle="Average final score across teams."
+              />
+              <MetricCard
+                title="Highest Score"
+                value={data.round_stats?.highest_score == null ? "—" : `${data.round_stats.highest_score} pts`}
+                subtitle={data.round_stats?.highest_score_player_name ?? "Highest player score for the round."}
+                accent="amber"
+              />
+              <MetricCard
+                title="Average Salary Used"
+                value={data.round_stats?.average_salary_used == null ? "—" : formatCurrency(data.round_stats.average_salary_used)}
+                subtitle="Average salary committed by teams."
+                accent="slate"
+              />
+            </div>
 
-            <section className="rounded-2xl border bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <ArrowDownRight className="h-5 w-5 text-red-700" />
-                <h2 className="text-xl font-black text-slate-950">
-                  Biggest Price Falls
-                </h2>
-              </div>
+            <div className="mt-5">
+              <TeamPanel
+                title="Perfect Team"
+                description="Highest-scoring valid 10-horse combination under the $2.5m salary cap."
+                team={data.special_stats?.perfect_team ?? null}
+              />
+            </div>
+          </section>
+        )}
 
-              <div className="mt-5 divide-y">
-                {(data.price_fallers ?? []).map((horse, index) => (
-                  <div
-                    key={horse.horse_id}
-                    className="flex items-center justify-between gap-4 py-3"
-                  >
-                    <div>
-                      <Link
-                        href={`/horses/${horse.horse_id}`}
-                        className="font-bold text-slate-950 hover:text-teal-700"
-                      >
-                        {index + 1}. {horse.horse_name}
-                      </Link>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {formatCurrency(horse.current_price)}
-                      </p>
-                    </div>
+        {activeTab === "season" && (
+          <section className="mt-5">
+            <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
+              <h2 className="text-xl font-black text-slate-950">Season Records</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Highest Round Score, Most Round Wins, Best Captain and Biggest Rank Rise.
+              </p>
+            </div>
 
-                    <span className="font-black text-red-700">
-                      {formatSignedCurrency(horse.total_change)}
-                    </span>
-                  </div>
-                ))}
-
-                {(data.price_fallers ?? []).length === 0 && (
-                  <p className="py-4 text-slate-500">
-                    No price falls are available yet.
-                  </p>
-                )}
-              </div>
-            </section>
-          </div>
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                title="Highest Round Score"
+                value={highestRoundRecord?.value == null ? "—" : `${highestRoundRecord.value} pts`}
+                subtitle={highestRoundRecord?.display_name ?? "No record yet"}
+                accent="amber"
+              />
+              <MetricCard
+                title="Most Round Wins"
+                value={mostRoundWinsRecord?.value == null ? "—" : `${mostRoundWinsRecord.value}`}
+                subtitle={mostRoundWinsRecord?.display_name ?? "No record yet"}
+              />
+              <MetricCard
+                title="Best Captain"
+                value={
+                  data.season_records?.best_captain?.value == null
+                    ? "—"
+                    : `${Number(data.season_records.best_captain.value).toFixed(1)} pts`
+                }
+                subtitle={
+                  data.season_records?.best_captain?.display_name
+                    ? `${data.season_records.best_captain.display_name} · average captain score`
+                    : "Highest average captain score"
+                }
+              />
+              <MetricCard
+                title="Biggest Rank Rise"
+                value={
+                  data.season_records?.biggest_rank_rise?.value == null
+                    ? "—"
+                    : `+${data.season_records.biggest_rank_rise.value}`
+                }
+                subtitle={data.season_records?.biggest_rank_rise?.display_name ?? "Largest rise between rounds"}
+                accent="slate"
+              />
+            </div>
+          </section>
         )}
 
       </div>
