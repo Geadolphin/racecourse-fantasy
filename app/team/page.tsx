@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import HorseProfileModal from "@/components/HorseProfileModal";
 
@@ -24,6 +24,22 @@ type Round = {
   lockout_at: string;
 };
 
+type LockoutGroupKey =
+  | "main"
+  | "group_a"
+  | "group_b"
+  | "group_c"
+  | "group_d";
+
+type RoundLockout = {
+  id: string;
+  round_id: string;
+  group_key: LockoutGroupKey;
+  display_name: string;
+  lockout_at: string;
+  sort_order: number;
+};
+
 type Horse = {
   id: string;
   name: string;
@@ -37,6 +53,8 @@ type Racecourse = {
 
 type Race = {
   id: string;
+  round_id: string;
+  lockout_group: LockoutGroupKey;
   race_number: number;
   race_name: string;
   grade: "L" | "G3" | "G2" | "G1";
@@ -44,74 +62,28 @@ type Race = {
   racecourse: Racecourse | null;
 };
 
-type FixtureRace = {
-  id: string;
-  race_number: number;
-  race_name: string;
-  grade: "L" | "G3" | "G2" | "G1";
-  distance_metres: number | null;
-  scheduled_start: string;
-  status: string;
-  racecourse: Racecourse | null;
-};
+type EntryStatus =
+  | "runner"
+  | "scratched_before_lockout"
+  | "scratched_after_lockout";
 
 type RaceEntry = {
   id: string;
   race_id: string;
   horse_id: string;
+
+  barrier: number | null;
   saddlecloth_number: number | null;
   price_at_entry: number;
+  entry_status: EntryStatus;
+  scratched_at: string | null;
   projected_points: number | null;
+
+  created_at: string;
+  updated_at: string;
+
   horse: Horse | null;
   race: Race | null;
-};
-
-type ActiveNomination = {
-  id: string;
-  race_id: string;
-  horse_id: string;
-  saddlecloth_number: number | null;
-  projected_points: number | null;
-  entry_status: string;
-  race: FixtureRace | null;
-};
-
-type LatestRaceResult = {
-  race_entry_id: string;
-  finishing_position: number;
-  fantasy_points: number;
-  horse_id: string;
-  horse_name: string;
-};
-
-
-type RaceResultRow = {
-  result_id: string;
-  horse_id: string;
-  horse_name: string;
-  saddlecloth_number: number | null;
-  finishing_position: number | null;
-  result_status: string;
-  fantasy_points: number;
-  price_change: number;
-  price_before: number;
-  price_after: number;
-  is_dead_heat: boolean;
-};
-
-type RaceResultsData = {
-  success: boolean;
-  race: {
-    id: string;
-    race_number: number;
-    race_name: string;
-    grade: Race["grade"];
-    scheduled_start: string;
-    status: string;
-    racecourse: Racecourse | null;
-  } | null;
-  results: RaceResultRow[];
-  message?: string;
 };
 
 type TeamStatus = "draft" | "submitted" | "locked" | "scored";
@@ -123,6 +95,7 @@ type Team = {
   team_name: string | null;
   status: TeamStatus;
   salary_used: number;
+  salary_cap: number;
 };
 
 type TeamSelection = {
@@ -132,23 +105,32 @@ type TeamSelection = {
   is_captain: boolean;
   selected_price: number;
   fantasy_points: number;
-  has_result: boolean;
-  is_scratched: boolean;
-  race_entry: RaceEntry | null;
-  active_nominations?: ActiveNomination[];
 };
 
-type MyTeamData = {
-  success: boolean;
-  message?: string;
-  round: Round | null;
-  season: Season | null;
-  team: Team | null;
-  selections: TeamSelection[];
-  fixture_races?: FixtureRace[];
-  latest_result_race?: FixtureRace | null;
-  latest_race_results?: LatestRaceResult[];
-};
+type RaceTypeFilter = "all" | "G1" | "G2" | "G3" | "L";
+
+type SortOption =
+  | "race"
+  | "projected-high"
+  | "price-high"
+  | "price-low"
+  | "name";
+
+const priceFilterOptions = [
+  30000,
+  50000,
+  100000,
+  150000,
+  200000,
+  250000,
+  300000,
+  350000,
+  400000,
+  450000,
+  500000,
+  550000,
+  600000,
+];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-AU", {
@@ -166,374 +148,343 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-function formatRaceTime(value: string) {
-  return new Intl.DateTimeFormat("en-AU", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Australia/Melbourne",
-  }).format(new Date(value));
-}
-
 function getGradeLabel(grade: Race["grade"]) {
   const labels: Record<Race["grade"], string> = {
-    G1: "G1",
-    G2: "G2",
-    G3: "G3",
     L: "Listed",
+    G3: "Group 3",
+    G2: "Group 2",
+    G1: "Group 1",
   };
 
   return labels[grade];
 }
 
-function getGradeClasses(grade: Race["grade"]) {
-  switch (grade) {
-    case "G1":
-      return "bg-amber-400 text-amber-950";
-
-    case "G2":
-      return "bg-blue-600 text-white";
-
-    case "G3":
-      return "bg-teal-600 text-white";
-
-    case "L":
-      return "bg-slate-300 text-slate-900";
-  }
-}
-
-function getStatusLabel(status: TeamStatus) {
-  const labels: Record<TeamStatus, string> = {
-    draft: "Draft",
-    submitted: "Submitted",
-    locked: "Locked",
-    scored: "Scored",
+function getEntryStatusLabel(status: EntryStatus) {
+  const labels: Record<EntryStatus, string> = {
+    runner: "Runner",
+    scratched_before_lockout: "Scratched",
+    scratched_after_lockout: "Late scratching",
   };
 
   return labels[status];
 }
 
-function titleCase(value: string) {
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
-}
+export default function EditTeamPage() {
+  const router = useRouter();
 
-function getFinishLabel(
-  finishingPosition: number | null,
-  resultStatus: string
-) {
-  if (resultStatus !== "finished" || finishingPosition === null) {
-    return titleCase(resultStatus);
-  }
-
-  const remainderTen = finishingPosition % 10;
-  const remainderHundred = finishingPosition % 100;
-  let suffix = "th";
-
-  if (remainderHundred < 11 || remainderHundred > 13) {
-    if (remainderTen === 1) suffix = "st";
-    if (remainderTen === 2) suffix = "nd";
-    if (remainderTen === 3) suffix = "rd";
-  }
-
-  return `${finishingPosition}${suffix}`;
-}
-
-function getCountdown(lockoutAt: string, currentTime: number) {
-  const difference =
-    new Date(lockoutAt).getTime() - currentTime;
-
-  if (difference <= 0) {
-    return "Round Locked";
-  }
-
-  const days = Math.floor(
-    difference / (1000 * 60 * 60 * 24)
-  );
-
-  const hours = Math.floor(
-    (difference % (1000 * 60 * 60 * 24)) /
-    (1000 * 60 * 60)
-  );
-
-  const minutes = Math.floor(
-    (difference % (1000 * 60 * 60)) /
-    (1000 * 60)
-  );
-
-  const seconds = Math.floor(
-    (difference % (1000 * 60)) / 1000
-  );
-
-  if (days > 0) {
-    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-  }
-
-  return `${hours}h ${minutes}m ${seconds}s`;
-}
-
-
-type IconName =
-  | "trophy"
-  | "wallet"
-  | "horse"
-  | "star"
-  | "clock"
-  | "calendar"
-  | "flag"
-  | "edit"
-  | "chevron"
-  | "close";
-
-function Icon({
-  name,
-  className = "h-4 w-4",
-}: {
-  name: IconName;
-  className?: string;
-}) {
-  const common = {
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-  };
-
-  const paths: Record<IconName, ReactNode> = {
-    trophy: (
-      <>
-        <path {...common} d="M8 4h8v3a4 4 0 0 1-8 0V4Z" />
-        <path {...common} d="M8 6H5v1a3 3 0 0 0 3 3" />
-        <path {...common} d="M16 6h3v1a3 3 0 0 1-3 3" />
-        <path {...common} d="M12 11v4" />
-        <path {...common} d="M9 19h6" />
-        <path {...common} d="M10 15h4v4h-4z" />
-      </>
-    ),
-    wallet: (
-      <>
-        <rect {...common} x="3" y="6" width="18" height="13" rx="2" />
-        <path {...common} d="M16 10h5v5h-5a2.5 2.5 0 0 1 0-5Z" />
-        <path {...common} d="M5 6V5a2 2 0 0 1 2-2h10" />
-      </>
-    ),
-    horse: (
-      <>
-        <path {...common} d="M6 19v-5l2-4 4-2 2-4 4 2-1 4 2 3v6" />
-        <path {...common} d="M9 19v-4h7v4" />
-        <path {...common} d="M14 8l3 2" />
-      </>
-    ),
-    star: (
-      <path
-        {...common}
-        d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.9L12 3Z"
-      />
-    ),
-    clock: (
-      <>
-        <circle {...common} cx="12" cy="12" r="8.5" />
-        <path {...common} d="M12 7v5l3 2" />
-      </>
-    ),
-    calendar: (
-      <>
-        <rect {...common} x="3" y="5" width="18" height="16" rx="2" />
-        <path {...common} d="M7 3v4M17 3v4M3 9h18" />
-      </>
-    ),
-    flag: (
-      <>
-        <path {...common} d="M5 21V4" />
-        <path {...common} d="M5 5h11l-2 3 2 3H5" />
-      </>
-    ),
-    edit: (
-      <>
-        <path {...common} d="M4 20h4l11-11-4-4L4 16v4Z" />
-        <path {...common} d="m13.5 6.5 4 4" />
-      </>
-    ),
-    chevron: <path {...common} d="m9 6 6 6-6 6" />,
-    close: (
-      <>
-        <path {...common} d="M6 6l12 12" />
-        <path {...common} d="M18 6 6 18" />
-      </>
-    ),
-  };
-
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className={className}
-    >
-      {paths[name]}
-    </svg>
-  );
-}
-
-
-function OfficialTeamStat({
-  label,
-  value,
-  emphasis = "default",
-}: {
-  label: string;
-  value: string;
-  emphasis?: "default" | "teal" | "amber";
-}) {
-  const valueClasses =
-    emphasis === "teal"
-      ? "text-teal-300"
-      : emphasis === "amber"
-        ? "text-amber-300"
-        : "text-white";
-
-
-  return (
-    <div className="min-w-0 bg-slate-900 px-4 py-3.5">
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-        {label}
-      </p>
-
-      <p className={`mt-1.5 truncate text-lg font-black ${valueClasses}`}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-export default function MyTeamPage() {
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
-
-  const [selections, setSelections] = useState<
-    TeamSelection[]
-  >([]);
-  const [currentHorsePrices, setCurrentHorsePrices] = useState<
-    Record<string, number>
-  >({});
-  const [projectedPointsByEntryId, setProjectedPointsByEntryId] = useState<
-    Record<string, number | null>
-  >({});
-  const [fixtureRaces, setFixtureRaces] = useState<FixtureRace[]>([]);
-  const [latestResultRace, setLatestResultRace] =
-    useState<FixtureRace | null>(null);
-  const [latestRaceResults, setLatestRaceResults] =
-    useState<LatestRaceResult[]>([]);
-
-  const [selectedRaceId, setSelectedRaceId] =
-    useState<string | null>(null);
-  const [raceResultsData, setRaceResultsData] =
-    useState<RaceResultsData | null>(null);
-  const [raceResultsLoading, setRaceResultsLoading] =
-    useState(false);
-  const [raceResultsError, setRaceResultsError] =
-    useState("");
-
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [selectedHorseId, setSelectedHorseId] = useState<string | null>(
+  const [salaryCap, setSalaryCap] = useState(0);
+  const [entries, setEntries] = useState<RaceEntry[]>([]);
+  const [roundLockouts, setRoundLockouts] =
+    useState<RoundLockout[]>([]);
+  const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
+  const [savedSelections, setSavedSelections] =
+    useState<TeamSelection[]>([]);
+  const [captainEntryId, setCaptainEntryId] = useState<string | null>(
     null
   );
 
-  const [currentTime, setCurrentTime] = useState(() =>
-    Date.now()
-  );
+  const [searchTerm, setSearchTerm] = useState("");
+  const [raceTypeFilter, setRaceTypeFilter] =
+    useState<RaceTypeFilter>("all");
+  const [selectedHorseId, setSelectedHorseId] = useState<string | null>(null);
 
-  const loadTeam = useCallback(async () => {
+  const [raceFilter, setRaceFilter] = useState("all");
+  const [maxPriceFilter, setMaxPriceFilter] = useState<number | null>(null);
+  const [sortOption, setSortOption] =
+    useState<SortOption>("race");
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  const loadPage = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
+    setSuccessMessage("");
 
-    const { data, error } = await supabase.rpc(
-      "get_my_team_data"
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setErrorMessage("You must be signed in to edit your team.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: roundData, error: roundError } = await supabase
+      .from("rounds")
+      .select(
+        `
+          id,
+          season_id,
+          round_number,
+          name,
+          status,
+          lockout_at
+        `
+      )
+      .eq("status", "open")
+      .order("lockout_at", {
+        ascending: true,
+      })
+      .limit(1)
+      .maybeSingle();
+
+    if (roundError) {
+      console.error("Round load error:", roundError);
+      setErrorMessage(roundError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (!roundData) {
+      setErrorMessage("There is no current round.");
+      setLoading(false);
+      return;
+    }
+
+    const currentRound = roundData as Round;
+
+    setRound(currentRound);
+
+    const {
+      data: lockoutData,
+      error: lockoutError,
+    } = await supabase.rpc("get_round_lockouts", {
+      p_round_id: currentRound.id,
+    });
+
+    if (lockoutError) {
+      console.error("Round lockouts load error:", lockoutError);
+      setErrorMessage(
+        lockoutError.message ||
+          "Could not load this round's lockout groups."
+      );
+      setLoading(false);
+      return;
+    }
+
+    const loadedLockouts =
+      ((lockoutData ?? []) as RoundLockout[]).sort(
+        (a, b) =>
+          a.sort_order - b.sort_order ||
+          new Date(a.lockout_at).getTime() -
+            new Date(b.lockout_at).getTime()
+      );
+
+    setRoundLockouts(
+      loadedLockouts.length > 0
+        ? loadedLockouts
+        : [
+            {
+              id: "legacy-main",
+              round_id: currentRound.id,
+              group_key: "main",
+              display_name: "Main Lockout",
+              lockout_at: currentRound.lockout_at,
+              sort_order: 1,
+            },
+          ]
     );
 
-    if (error) {
-      console.error("My Team RPC error:", error);
+    const { data: seasonData, error: seasonError } = await supabase
+      .from("seasons")
+      .select(
+        `
+          id,
+          name,
+          salary_cap,
+          team_size
+        `
+      )
+      .eq("id", currentRound.season_id)
+      .single();
 
-      setRound(null);
-      setSeason(null);
-      setTeam(null);
-      setSelections([]);
-      setCurrentHorsePrices({});
-      setProjectedPointsByEntryId({});
-      setFixtureRaces([]);
+    if (seasonError || !seasonData) {
+      console.error("Season load error:", seasonError);
 
       setErrorMessage(
-        error.message ||
-          "Your team information could not be loaded."
+        seasonError?.message ?? "Could not load the current season."
       );
 
       setLoading(false);
       return;
     }
 
-    const teamData = data as MyTeamData | null;
+    setSeason(seasonData as Season);
 
-    if (!teamData?.round || !teamData.season) {
-      setRound(null);
-      setSeason(null);
-      setTeam(null);
-      setSelections([]);
-      setCurrentHorsePrices({});
-      setProjectedPointsByEntryId({});
-      setFixtureRaces([]);
+    const {
+      data: playerSalaryCap,
+      error: salaryCapError,
+    } = await supabase.rpc(
+      "get_my_round_salary_cap",
+      {
+        p_round_id: currentRound.id,
+      }
+    );
+
+    if (salaryCapError) {
+      console.error(
+        "Salary cap load error:",
+        salaryCapError
+      );
 
       setErrorMessage(
-        teamData?.message ||
-          "There is no open, locked or completed round."
+        salaryCapError.message ||
+          "Unable to load your salary cap."
       );
 
       setLoading(false);
       return;
     }
 
-    setRound(teamData.round);
-    setSeason(teamData.season);
-    setTeam(teamData.team);
+    setSalaryCap(
+      typeof playerSalaryCap === "number"
+        ? playerSalaryCap
+        : seasonData.salary_cap
+    );
 
-    const loadedSelections = teamData.selections ?? [];
+    const { data: entryData, error: entryError } = await supabase
+      .from("race_entries")
+      .select(
+        `
+          id,
+          race_id,
+          horse_id,
+          barrier,
+          saddlecloth_number,
+          price_at_entry,
+          entry_status,
+          scratched_at,
+          projected_points,
+          created_at,
+          updated_at,
 
-    const priceMap: Record<string, number> = {};
-    const projectionMap: Record<string, number | null> = {};
+          horse:horses (
+            id,
+            name,
+            current_price
+          ),
 
-    for (const selection of loadedSelections) {
-      const entry = selection.race_entry;
-      const horse = entry?.horse;
+          race:races!inner (
+            id,
+            round_id,
+            lockout_group,
+            race_number,
+            race_name,
+            grade,
+            scheduled_start,
 
-      if (entry) {
-        projectionMap[entry.id] =
-          entry.projected_points == null
-            ? null
-            : Number(entry.projected_points);
-      }
+            racecourse:racecourses (
+              id,
+              name
+            )
+          )
+        `
+      )
+      .eq("race.round_id", currentRound.id);
 
-      if (horse?.id) {
-        priceMap[horse.id] = Number(
-          horse.current_price ?? selection.selected_price
-        );
-      }
+    if (entryError) {
+      console.error("Race entries load error:", entryError);
+      setErrorMessage(entryError.message);
+      setLoading(false);
+      return;
     }
 
-    setProjectedPointsByEntryId(projectionMap);
-    setCurrentHorsePrices(priceMap);
-    setSelections(loadedSelections);
+    setEntries((entryData ?? []) as unknown as RaceEntry[]);
 
-    setFixtureRaces(teamData.fixture_races ?? []);
-    setLatestResultRace(teamData.latest_result_race ?? null);
-    setLatestRaceResults(teamData.latest_race_results ?? []);
+    const { data: teamData, error: teamError } = await supabase
+      .from("teams")
+      .select(
+        `
+          id,
+          user_id,
+          round_id,
+          team_name,
+          status,
+          salary_used,
+          salary_cap
+        `
+      )
+      .eq("user_id", user.id)
+      .eq("round_id", currentRound.id)
+      .maybeSingle();
+
+    if (teamError) {
+      console.error("Team load error:", teamError);
+      setErrorMessage(teamError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (!teamData) {
+      setTeam(null);
+      setSelectedEntryIds([]);
+      setSavedSelections([]);
+      setCaptainEntryId(null);
+      setLoading(false);
+      return;
+    }
+
+    const currentTeam = teamData as Team;
+
+    setTeam(currentTeam);
+
+    const { data: selectionData, error: selectionError } =
+      await supabase
+        .from("team_selections")
+        .select(
+          `
+            id,
+            team_id,
+            race_entry_id,
+            is_captain,
+            selected_price,
+            fantasy_points
+          `
+        )
+        .eq("team_id", currentTeam.id);
+
+    if (selectionError) {
+      console.error("Team selections load error:", selectionError);
+      setErrorMessage(selectionError.message);
+      setLoading(false);
+      return;
+    }
+
+    const selections =
+      (selectionData ?? []) as TeamSelection[];
+
+    setSavedSelections(selections);
+
+    setSelectedEntryIds(
+      selections.map((selection) => selection.race_entry_id)
+    );
+
+    const captainSelection = selections.find(
+      (selection) => selection.is_captain
+    );
+
+    setCaptainEntryId(
+      captainSelection?.race_entry_id ?? null
+    );
 
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    void loadTeam();
-  }, [loadTeam]);
+    void loadPage();
+  }, [loadPage]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -545,163 +496,696 @@ export default function MyTeamPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!selectedRaceId) {
-      setRaceResultsData(null);
-      setRaceResultsError("");
-      return;
+  const lockoutByGroup = useMemo(() => {
+    return new Map(
+      roundLockouts.map((lockout) => [
+        lockout.group_key,
+        lockout,
+      ])
+    );
+  }, [roundLockouts]);
+
+  const firstLockout = useMemo(() => {
+    if (roundLockouts.length === 0) {
+      return null;
     }
 
-    let active = true;
+    return [...roundLockouts].sort(
+      (a, b) =>
+        new Date(a.lockout_at).getTime() -
+        new Date(b.lockout_at).getTime()
+    )[0];
+  }, [roundLockouts]);
 
-    async function loadRaceResults() {
-      setRaceResultsLoading(true);
-      setRaceResultsError("");
+  const nextLockout = useMemo(() => {
+    return (
+      [...roundLockouts]
+        .filter(
+          (lockout) =>
+            new Date(lockout.lockout_at).getTime() >
+            currentTime
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.lockout_at).getTime() -
+            new Date(b.lockout_at).getTime()
+        )[0] ?? null
+    );
+  }, [currentTime, roundLockouts]);
 
-      const { data, error } = await supabase.rpc(
-        "get_calendar_race_results",
-        {
-          p_race_id: selectedRaceId,
-        }
+  const firstLockoutHasStarted =
+    firstLockout !== null &&
+    currentTime >=
+      new Date(firstLockout.lockout_at).getTime();
+
+  const allLockoutsHaveStarted =
+    roundLockouts.length > 0 &&
+    roundLockouts.every(
+      (lockout) =>
+        currentTime >=
+        new Date(lockout.lockout_at).getTime()
+    );
+
+  const teamIsEditable =
+    round !== null &&
+    round.status === "open" &&
+    !allLockoutsHaveStarted;
+
+  function getEntryLockout(entry: RaceEntry) {
+    const groupKey =
+      entry.race?.lockout_group ?? "main";
+
+    return (
+      lockoutByGroup.get(groupKey) ??
+      lockoutByGroup.get("main") ??
+      null
+    );
+  }
+
+  function entryIsLocked(entry: RaceEntry) {
+    const lockout = getEntryLockout(entry);
+
+    if (!lockout) {
+      return round
+        ? currentTime >=
+            new Date(round.lockout_at).getTime()
+        : true;
+    }
+
+    return (
+      currentTime >=
+      new Date(lockout.lockout_at).getTime()
+    );
+  }
+
+  function entryIdIsLocked(entryId: string) {
+    const entry = entries.find(
+      (item) => item.id === entryId
+    );
+
+    return entry ? entryIsLocked(entry) : false;
+  }
+
+  const lockedSavedEntryIds = useMemo(() => {
+    return new Set(
+      savedSelections
+        .filter((selection) =>
+          entryIdIsLocked(selection.race_entry_id)
+        )
+        .map((selection) => selection.race_entry_id)
+    );
+  }, [currentTime, entries, savedSelections]);
+
+  const lockedCaptainEntryId = useMemo(() => {
+    const savedCaptain = savedSelections.find(
+      (selection) => selection.is_captain
+    );
+
+    if (
+      savedCaptain &&
+      lockedSavedEntryIds.has(
+        savedCaptain.race_entry_id
+      )
+    ) {
+      return savedCaptain.race_entry_id;
+    }
+
+    return null;
+  }, [lockedSavedEntryIds, savedSelections]);
+
+  const selectedEntries = useMemo(() => {
+    return entries.filter((entry) =>
+      selectedEntryIds.includes(entry.id)
+    );
+  }, [entries, selectedEntryIds]);
+
+  const salaryUsed = useMemo(() => {
+    return selectedEntries.reduce((total, entry) => {
+      return total + entry.price_at_entry;
+    }, 0);
+  }, [selectedEntries]);
+
+  const salaryRemaining = salaryCap - salaryUsed;
+
+  const selectedProjectedPoints = useMemo(() => {
+    const baseTotal = selectedEntries.reduce(
+      (total, entry) => total + (entry.projected_points ?? 0),
+      0
+    );
+
+    const captainProjection =
+      selectedEntries.find(
+        (entry) => entry.id === captainEntryId
+      )?.projected_points ?? 0;
+
+    return baseTotal + captainProjection;
+  }, [selectedEntries, captainEntryId]);
+
+  const selectedCount = selectedEntryIds.length;
+  const teamSize = season?.team_size ?? 0;
+
+  const teamIsComplete =
+    selectedCount === teamSize &&
+    captainEntryId !== null &&
+    salaryUsed <= salaryCap;
+
+  const raceOptions = useMemo(() => {
+    const uniqueRaces = new Map<string, Race>();
+
+    for (const entry of entries) {
+      if (entry.race) {
+        uniqueRaces.set(entry.race.id, entry.race);
+      }
+    }
+
+    return [...uniqueRaces.values()].sort((a, b) => {
+      const startDifference =
+        new Date(a.scheduled_start).getTime() -
+        new Date(b.scheduled_start).getTime();
+
+      if (startDifference !== 0) {
+        return startDifference;
+      }
+
+      return a.race_number - b.race_number;
+    });
+  }, [entries]);
+
+  const filteredEntries = useMemo(() => {
+    const normalisedSearch = searchTerm.trim().toLowerCase();
+
+    const filtered = entries.filter((entry) => {
+      const horseName = entry.horse?.name.toLowerCase() ?? "";
+      const raceName = entry.race?.race_name.toLowerCase() ?? "";
+      const racecourseName =
+        entry.race?.racecourse?.name.toLowerCase() ?? "";
+
+      const matchesSearch =
+        normalisedSearch.length === 0 ||
+        horseName.includes(normalisedSearch) ||
+        raceName.includes(normalisedSearch) ||
+        racecourseName.includes(normalisedSearch);
+
+      const matchesGrade =
+        raceTypeFilter === "all" ||
+        entry.race?.grade === raceTypeFilter;
+
+      const matchesRace =
+        raceFilter === "all" ||
+        entry.race_id === raceFilter;
+
+      const matchesMaxPrice =
+        maxPriceFilter === null ||
+        entry.price_at_entry <= maxPriceFilter;
+
+      return (
+        matchesSearch &&
+        matchesGrade &&
+        matchesRace &&
+        matchesMaxPrice
       );
+    });
 
-      if (!active) {
-        return;
+    return [...filtered].sort((a, b) => {
+      if (sortOption === "projected-high") {
+        const projectedA = a.projected_points ?? -1;
+        const projectedB = b.projected_points ?? -1;
+
+        if (projectedA !== projectedB) {
+          return projectedB - projectedA;
+        }
+
+        return a.price_at_entry - b.price_at_entry;
       }
 
-      if (error) {
-        console.error("My Team race results error:", error);
-        setRaceResultsError(
-          error.message || "The race results could not be loaded."
+      if (sortOption === "price-high") {
+        return b.price_at_entry - a.price_at_entry;
+      }
+
+      if (sortOption === "price-low") {
+        return a.price_at_entry - b.price_at_entry;
+      }
+
+      if (sortOption === "name") {
+        return (a.horse?.name ?? "").localeCompare(
+          b.horse?.name ?? ""
         );
-        setRaceResultsData(null);
-        setRaceResultsLoading(false);
-        return;
       }
 
-      setRaceResultsData(data as unknown as RaceResultsData);
-      setRaceResultsLoading(false);
-    }
-
-    void loadRaceResults();
-
-    return () => {
-      active = false;
-    };
-  }, [selectedRaceId]);
-
-  useEffect(() => {
-    if (!selectedRaceId) {
-      return;
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setSelectedRaceId(null);
-      }
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [selectedRaceId]);
-
-  const sortedSelections = useMemo(() => {
-    return [...selections].sort((a, b) => {
-      const scheduledStartA = a.race_entry?.race?.scheduled_start
-        ? new Date(a.race_entry.race.scheduled_start).getTime()
+      const startA = a.race?.scheduled_start
+        ? new Date(a.race.scheduled_start).getTime()
         : Number.MAX_SAFE_INTEGER;
 
-      const scheduledStartB = b.race_entry?.race?.scheduled_start
-        ? new Date(b.race_entry.race.scheduled_start).getTime()
+      const startB = b.race?.scheduled_start
+        ? new Date(b.race.scheduled_start).getTime()
         : Number.MAX_SAFE_INTEGER;
 
-      if (scheduledStartA !== scheduledStartB) {
-        return scheduledStartA - scheduledStartB;
+      if (startA !== startB) {
+        return startA - startB;
       }
 
-      const raceNumberA =
-        a.race_entry?.race?.race_number ?? 999;
-
-      const raceNumberB =
-        b.race_entry?.race?.race_number ?? 999;
+      const raceNumberA = a.race?.race_number ?? 999;
+      const raceNumberB = b.race?.race_number ?? 999;
 
       if (raceNumberA !== raceNumberB) {
         return raceNumberA - raceNumberB;
       }
 
-      const saddleclothA =
-        a.race_entry?.saddlecloth_number ?? 999;
-
-      const saddleclothB =
-        b.race_entry?.saddlecloth_number ?? 999;
-
-      if (saddleclothA !== saddleclothB) {
-        return saddleclothA - saddleclothB;
-      }
-
-      return (a.race_entry?.horse?.name ?? "").localeCompare(
-        b.race_entry?.horse?.name ?? ""
+      return (
+        (a.saddlecloth_number ?? 999) -
+        (b.saddlecloth_number ?? 999)
       );
     });
-  }, [selections]);
+  }, [
+    entries,
+    maxPriceFilter,
+    raceFilter,
+    raceTypeFilter,
+    searchTerm,
+    sortOption,
+  ]);
 
-  const salaryUsed = useMemo(() => {
-    return selections.reduce((total, selection) => {
-      return total + selection.selected_price;
-    }, 0);
-  }, [selections]);
+  const filteredEntriesByRace = useMemo(() => {
+    const groups = new Map<string, { race: Race | null; entries: RaceEntry[] }>();
 
+    for (const entry of filteredEntries) {
+      const key = entry.race?.id ?? "unassigned";
+      const existing = groups.get(key);
 
-  const totalPoints = useMemo(() => {
-    return selections.reduce((total, selection) => {
-      const basePoints = selection.fantasy_points ?? 0;
+      if (existing) {
+        existing.entries.push(entry);
+      } else {
+        groups.set(key, { race: entry.race, entries: [entry] });
+      }
+    }
 
-      return total + (selection.is_captain ? basePoints * 2 : basePoints);
-    }, 0);
-  }, [selections]);
+    return [...groups.values()].sort((a, b) => {
+      const aTime = a.race?.scheduled_start
+        ? new Date(a.race.scheduled_start).getTime()
+        : Number.MAX_SAFE_INTEGER;
+      const bTime = b.race?.scheduled_start
+        ? new Date(b.race.scheduled_start).getTime()
+        : Number.MAX_SAFE_INTEGER;
 
-  const liveProjectedScore = useMemo(() => {
-    return selections.reduce((total, selection) => {
-      const projectedPoints =
-        selection.race_entry?.projected_points ??
-        projectedPointsByEntryId[selection.race_entry_id] ??
-        0;
+      if (aTime !== bTime) return aTime - bTime;
 
-      const baseValue = selection.has_result
-        ? selection.fantasy_points ?? 0
-        : projectedPoints;
+      return (a.race?.race_number ?? 999) - (b.race?.race_number ?? 999);
+    });
+  }, [filteredEntries]);
 
-      return total + (selection.is_captain ? baseValue * 2 : baseValue);
-    }, 0);
-  }, [selections, projectedPointsByEntryId]);
+  function clearMessages() {
+    setErrorMessage("");
+    setSuccessMessage("");
+  }
 
-  const salaryRemaining = season
-    ? season.salary_cap - salaryUsed
-    : 0;
+  function toggleEntry(entry: RaceEntry) {
+    clearMessages();
 
-  const roundIsComplete = round?.status === "completed";
+    if (!teamIsEditable) {
+      setErrorMessage(
+        "This team can no longer be edited because all lockouts have commenced."
+      );
+      return;
+    }
 
-  const lockoutHasStarted =
-    round !== null &&
-    currentTime >= new Date(round.lockout_at).getTime();
+    if (entryIsLocked(entry)) {
+      setErrorMessage(
+        `${entry.horse?.name ?? "This horse"} is locked and can no longer be changed.`
+      );
+      return;
+    }
 
-  const editButtonVisible =
-    round !== null &&
-    !lockoutHasStarted &&
-    team?.status !== "locked" &&
-    team?.status !== "scored";
+    if (!team && firstLockoutHasStarted) {
+      setErrorMessage(
+        "A new team cannot be created after the first lockout has commenced."
+      );
+      return;
+    }
+
+    /*
+     * A horse may have more than one race entry in the same round.
+     * Treat selection/removal at horse level rather than race-entry level.
+     */
+    const selectedEntryForHorse = entries.find(
+      (candidate) =>
+        candidate.horse_id === entry.horse_id &&
+        selectedEntryIds.includes(candidate.id)
+    );
+
+    if (selectedEntryForHorse) {
+      setSelectedEntryIds((current) =>
+        current.filter((id) => id !== selectedEntryForHorse.id)
+      );
+
+      if (captainEntryId === selectedEntryForHorse.id) {
+        setCaptainEntryId(null);
+      }
+
+      return;
+    }
+
+    if (entry.entry_status !== "runner") {
+      setErrorMessage(
+        `${entry.horse?.name ?? "This horse"} is unavailable for selection.`
+      );
+      return;
+    }
+
+    if (selectedEntryIds.length >= teamSize) {
+      setErrorMessage(
+        `You can only select ${teamSize} horses.`
+      );
+      return;
+    }
+
+    const newSalaryUsed = salaryUsed + entry.price_at_entry;
+
+    if (newSalaryUsed > salaryCap) {
+      setErrorMessage(
+        `Selecting ${entry.horse?.name ?? "this horse"} would exceed your salary cap.`
+      );
+      return;
+    }
+
+    setSelectedEntryIds((current) => [...current, entry.id]);
+  }
+
+  function fillTeam() {
+    clearMessages();
+
+    if (!teamIsEditable) {
+      setErrorMessage(
+        "This team can no longer be edited because all lockouts have commenced."
+      );
+      return;
+    }
+
+    if (!team && firstLockoutHasStarted) {
+      setErrorMessage(
+        "A new team cannot be created after the first lockout has commenced."
+      );
+      return;
+    }
+
+    if (selectedEntryIds.length >= teamSize) {
+      setSuccessMessage("Your team is already full.");
+      return;
+    }
+
+    const spotsToFill = teamSize - selectedEntryIds.length;
+    const remainingBudget = salaryCap - salaryUsed;
+
+    if (remainingBudget < 0) {
+      setErrorMessage(
+        "Your current selections already exceed the salary cap."
+      );
+      return;
+    }
+
+    const selectedHorseIds = new Set(
+      selectedEntries.map((entry) => entry.horse_id)
+    );
+
+    const candidateGroups = new Map<string, RaceEntry[]>();
+
+    for (const entry of entries) {
+      if (
+        selectedEntryIds.includes(entry.id) ||
+        selectedHorseIds.has(entry.horse_id) ||
+        entry.entry_status !== "runner" ||
+        entry.projected_points === null ||
+        entryIsLocked(entry)
+      ) {
+        continue;
+      }
+
+      const current = candidateGroups.get(entry.horse_id) ?? [];
+      current.push(entry);
+      candidateGroups.set(entry.horse_id, current);
+    }
+
+    type FillState = {
+      cost: number;
+      points: number;
+      entryIds: string[];
+    };
+
+    let states: FillState[][] = Array.from(
+      { length: spotsToFill + 1 },
+      () => []
+    );
+    states[0] = [{ cost: 0, points: 0, entryIds: [] }];
+
+    function pruneStates(items: FillState[]) {
+      const bestByCost = new Map<number, FillState>();
+
+      for (const item of items) {
+        const existing = bestByCost.get(item.cost);
+        if (
+          !existing ||
+          item.points > existing.points
+        ) {
+          bestByCost.set(item.cost, item);
+        }
+      }
+
+      const sorted = [...bestByCost.values()].sort(
+        (a, b) => a.cost - b.cost
+      );
+
+      const pruned: FillState[] = [];
+      let bestPointsSoFar = -Infinity;
+
+      for (const item of sorted) {
+        if (item.points > bestPointsSoFar) {
+          pruned.push(item);
+          bestPointsSoFar = item.points;
+        }
+      }
+
+      return pruned;
+    }
+
+    for (const horseEntries of candidateGroups.values()) {
+      const nextStates = states.map((group) => [...group]);
+
+      for (let count = 0; count < spotsToFill; count += 1) {
+        for (const state of states[count]) {
+          for (const entry of horseEntries) {
+            const newCost = state.cost + entry.price_at_entry;
+
+            if (newCost > remainingBudget) {
+              continue;
+            }
+
+            nextStates[count + 1].push({
+              cost: newCost,
+              points:
+                state.points + (entry.projected_points ?? 0),
+              entryIds: [...state.entryIds, entry.id],
+            });
+          }
+        }
+      }
+
+      states = nextStates.map(pruneStates);
+    }
+
+    const solutions = states[spotsToFill];
+
+    if (solutions.length === 0) {
+      setErrorMessage(
+        `A valid ${teamSize}-horse team cannot be completed within the remaining salary cap using horses with projections.`
+      );
+      return;
+    }
+
+    const bestSolution = [...solutions].sort((a, b) => {
+      if (a.points !== b.points) {
+        return b.points - a.points;
+      }
+
+      return a.cost - b.cost;
+    })[0];
+
+    const completedEntryIds = [
+      ...selectedEntryIds,
+      ...bestSolution.entryIds,
+    ];
+
+    setSelectedEntryIds(completedEntryIds);
+
+    if (captainEntryId === null) {
+      const completedEntries = entries.filter((entry) =>
+        completedEntryIds.includes(entry.id)
+      );
+
+      const bestCaptain = [...completedEntries].sort((a, b) => {
+        const pointsDifference =
+          (b.projected_points ?? -1) -
+          (a.projected_points ?? -1);
+
+        if (pointsDifference !== 0) {
+          return pointsDifference;
+        }
+
+        return a.price_at_entry - b.price_at_entry;
+      })[0];
+
+      if (bestCaptain) {
+        setCaptainEntryId(bestCaptain.id);
+      }
+    }
+
+    setSuccessMessage(
+      `Team filled with the highest projected-points combination available within your remaining salary cap. Review it before saving or submitting.`
+    );
+  }
+
+  function selectCaptain(entryId: string) {
+    clearMessages();
+
+    if (!teamIsEditable) {
+      setErrorMessage(
+        "The captain cannot be changed because all lockouts have commenced."
+      );
+      return;
+    }
+
+    if (lockedCaptainEntryId) {
+      setErrorMessage(
+        "Your captain is already locked and cannot be changed."
+      );
+      return;
+    }
+
+    if (entryIdIsLocked(entryId)) {
+      setErrorMessage(
+        "A locked horse cannot be made captain."
+      );
+      return;
+    }
+
+    if (!selectedEntryIds.includes(entryId)) {
+      setErrorMessage(
+        "Your captain must be one of your selected horses."
+      );
+      return;
+    }
+
+    setCaptainEntryId(entryId);
+  }
+
+  async function saveTeamRpc(
+    status: "draft" | "submitted"
+  ): Promise<boolean> {
+    if (!round) {
+      setErrorMessage("There is no current round.");
+      return false;
+    }
+
+    const { error } = await supabase.rpc(
+      "save_my_round_team",
+      {
+        p_round_id: round.id,
+        p_entry_ids: selectedEntryIds,
+        p_captain_entry_id: captainEntryId,
+        p_status: status,
+      }
+    );
+
+    if (error) {
+      console.error("Secure save error:", error);
+      setErrorMessage(error.message);
+      return false;
+    }
+
+    await loadPage();
+    return true;
+  }
+
+  async function saveDraft() {
+    clearMessages();
+
+    if (!teamIsEditable) {
+      setErrorMessage(
+        "Your team can no longer be edited because all lockouts have commenced."
+      );
+      return;
+    }
+
+    if (salaryUsed > salaryCap) {
+      setErrorMessage("Your team is over the salary cap.");
+      return;
+    }
+
+    setSaving(true);
+
+    const ok = await saveTeamRpc("draft");
+    setSaving(false);
+
+    if (!ok) {
+      return;
+    }
+
+    setSuccessMessage("Your draft team has been saved.");
+  }
+
+  async function submitTeam() {
+    clearMessages();
+
+    if (!teamIsEditable) {
+      setErrorMessage(
+        "Your team can no longer be submitted because all lockouts have commenced."
+      );
+      return;
+    }
+
+    if (!team && firstLockoutHasStarted) {
+      setErrorMessage(
+        "A new team cannot be submitted after the first lockout has commenced."
+      );
+      return;
+    }
+
+    if (selectedCount !== teamSize) {
+      setErrorMessage(
+        `You must select exactly ${teamSize} horses before submitting your team.`
+      );
+      return;
+    }
+
+    if (!captainEntryId) {
+      setErrorMessage(
+        "You must choose one selected horse as captain."
+      );
+      return;
+    }
+
+    if (salaryUsed > salaryCap) {
+      setErrorMessage("Your team is over the salary cap.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    const ok = await saveTeamRpc("submitted");
+
+    setSubmitting(false);
+
+    if (!ok) {
+      return;
+    }
+
+    router.push("/team");
+    router.refresh();
+  }
 
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-100 p-6">
-        <div className="mx-auto max-w-6xl rounded-xl border bg-white p-10 text-center text-slate-500">
-          Loading your team...
+        <div className="mx-auto max-w-7xl rounded-xl border bg-white p-10 text-center text-slate-500">
+          Loading team selection...
         </div>
       </main>
     );
@@ -712,81 +1196,53 @@ export default function MyTeamPage() {
       <main className="min-h-screen bg-slate-100 p-6">
         <div className="mx-auto max-w-4xl rounded-xl border bg-white p-8">
           <h1 className="text-2xl font-bold text-slate-900">
-            My Team
+            Edit Team
           </h1>
 
           <p className="mt-4 text-red-700">
-            {errorMessage ||
-              "There is no current round."}
+            {errorMessage || "There is no current round."}
           </p>
+
+          <Link
+            href="/team"
+            className="mt-6 inline-flex rounded-lg bg-slate-900 px-5 py-3 font-bold text-white hover:bg-slate-800"
+          >
+            Return to My Team
+          </Link>
         </div>
       </main>
     );
   }
 
-  if (!team) {
+  if (!teamIsEditable) {
     return (
       <main className="min-h-screen bg-slate-100 p-4 md:p-8">
-        <div className="mx-auto max-w-6xl">
-          <header className="rounded-2xl bg-teal-700 p-6 text-white shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-green-200">
-              {season.name}
-            </p>
+        <div className="mx-auto max-w-5xl">
+          <section className="rounded-xl border bg-white p-8 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-200 text-2xl">
+              🔒
+            </div>
 
-            <h1 className="mt-1 text-3xl font-bold">
-              My Team
+            <h1 className="mt-5 text-3xl font-bold text-slate-900">
+              Team editing is closed
             </h1>
 
-            <p className="mt-2 text-teal-100">
-              Round {round.round_number}
-              {round.name ? ` — ${round.name}` : ""}
-            </p>
-
-            <div className="mt-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-teal-300">
-                {lockoutHasStarted
-                  ? "Lockout Status"
-                  : "Lockout Countdown"}
-              </p>
-
-              <p className="mt-1 text-2xl font-bold">
-                {lockoutHasStarted && "🔒 "}
-                {getCountdown(
-                  round.lockout_at,
-                  currentTime
-                )}
-              </p>
-
-              <p className="mt-2 text-sm text-teal-100">
-                Lockout:{" "}
-                {formatDateTime(round.lockout_at)}
-              </p>
-            </div>
-          </header>
-
-          <section className="mt-6 rounded-xl border bg-white p-10 text-center">
-            <h2 className="text-2xl font-bold text-slate-900">
-              You have not created a team yet
-            </h2>
-
             <p className="mt-3 text-slate-600">
-              Select your horses and captain before the
-              round lockout.
+              All lockout groups for Round {round.round_number} have
+              commenced.
             </p>
 
-            {!lockoutHasStarted ? (
-              <Link
-                href="/team/edit"
-                className="mt-6 inline-flex rounded-lg bg-teal-700 px-6 py-3 font-bold text-white transition hover:bg-teal-800"
-              >
-                Create Team
-              </Link>
-            ) : (
-              <p className="mt-6 font-semibold text-red-700">
-                Team selection is closed because round
-                lockout has commenced.
-              </p>
-            )}
+            <p className="mt-2 text-slate-600">
+              Your selected team can still be viewed on the My Team
+              page.
+            </p>
+
+            <Link
+              href="/team"
+              className="mt-7 inline-flex rounded-lg bg-teal-700 px-6 py-3 font-bold text-white hover:bg-teal-800"
+            >
+              View My Team
+            </Link>
           </section>
         </div>
       </main>
@@ -795,690 +1251,618 @@ export default function MyTeamPage() {
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10">
-        <header className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white shadow-lg">
-          <div className="border-b border-slate-800 px-5 py-3 md:px-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-teal-300">
-                  Official Team Sheet
-                </p>
-
-                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                  <span className="font-semibold text-slate-400">
-                    {season.name} · Round {round.round_number}
-                    {round.name ? ` — ${round.name}` : ""}
-                  </span>
-
-                  <span className="inline-flex items-center gap-1.5 text-slate-300">
-                    <Icon name="clock" className="h-3.5 w-3.5 text-teal-300" />
-                    {lockoutHasStarted ? "Round locked" : "Next lockout"}:
-                    <strong className="text-white">
-                      {getCountdown(round.lockout_at, currentTime)}
-                    </strong>
-                  </span>
-
-                  <span className="text-slate-500">
-                    {formatDateTime(round.lockout_at)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-slate-200">
-                  {getStatusLabel(team.status)}
+      <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-4 md:px-6">
+        <header className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-white shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-300">
+                Team Selection · {season.name}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h1 className="text-xl font-bold sm:text-2xl">Edit Team</h1>
+                <span className="text-sm font-semibold text-slate-400">
+                  Round {round.round_number}{round.name ? ` — ${round.name}` : ""}
                 </span>
-
-                {editButtonVisible && (
-                  <Link
-                    href="/team/edit"
-                    className="inline-flex items-center justify-center rounded-lg bg-teal-500 px-3 py-1.5 text-xs font-black text-slate-950 transition hover:bg-teal-400"
-                  >
-                    <Icon name="edit" className="mr-1.5 h-3.5 w-3.5" />
-                    Edit Team
-                  </Link>
-                )}
+                <span className="text-sm text-slate-300">
+                  {nextLockout
+                    ? `Next lockout: ${nextLockout.display_name} · ${formatDateTime(nextLockout.lockout_at)}`
+                    : "All lockouts have commenced"}
+                </span>
               </div>
             </div>
-          </div>
 
-          <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(620px,1.5fr)]">
-            <div className="p-5 md:p-6">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
-                  My Team
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-lg bg-slate-900 px-3 py-2">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Selected</p>
+                <p className="text-sm font-semibold">{selectedCount}/{teamSize}</p>
+              </div>
+              <div className="rounded-lg bg-slate-900 px-3 py-2">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Remaining</p>
+                <p className={`text-sm font-semibold ${salaryRemaining < 0 ? "text-red-300" : "text-teal-300"}`}>
+                  {formatCurrency(salaryRemaining)}
                 </p>
-
-                <h1 className="mt-1 truncate text-2xl font-black tracking-tight md:text-3xl">
-                  {team.team_name?.trim() || "My Team"}
-                </h1>
               </div>
-
-
-            </div>
-
-            <div className="grid grid-cols-2 gap-px border-t border-slate-800 bg-slate-800 lg:grid-cols-4 xl:border-l xl:border-t-0">
-              <OfficialTeamStat
-                label="Current Score"
-                value={`${totalPoints} pts`}
-                emphasis="teal"
-              />
-
-              <OfficialTeamStat
-                label="Projected Score"
-                value={`${liveProjectedScore} pts`}
-                emphasis="amber"
-              />
-
-              <OfficialTeamStat
-                label="Team Salary"
-                value={formatCurrency(salaryUsed)}
-              />
-
-              <OfficialTeamStat
-                label="Remaining"
-                value={formatCurrency(salaryRemaining)}
-                emphasis="teal"
-              />
-
+              <div className="rounded-lg bg-slate-900 px-3 py-2">
+                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Projected</p>
+                <p className="text-sm font-semibold text-teal-300">
+                  {selectedProjectedPoints} pts
+                </p>
+              </div>
+              <Link
+                href="/team"
+                className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold transition hover:bg-slate-900"
+              >
+                Cancel
+              </Link>
+              <button
+                type="button"
+                onClick={fillTeam}
+                disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting}
+                className="rounded-lg border border-teal-500 bg-slate-900 px-3 py-2 text-xs font-semibold text-teal-300 transition hover:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500 disabled:opacity-50"
+              >
+                Fill Team
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveDraft()}
+                disabled={saving || submitting}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold transition hover:bg-slate-800 disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitTeam()}
+                disabled={!teamIsComplete || submitting || saving}
+                className="rounded-lg bg-teal-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-teal-400 disabled:bg-slate-700 disabled:text-slate-400"
+              >
+                {submitting ? "Submitting..." : team?.status === "submitted" ? "Update Team" : "Submit Team"}
+              </button>
             </div>
           </div>
         </header>
 
+        <section className="mt-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Lockouts</span>
+            {roundLockouts.map((lockout) => {
+              const isLocked = currentTime >= new Date(lockout.lockout_at).getTime();
+              return (
+                <span
+                  key={lockout.id}
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                    isLocked ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {lockout.display_name} · {isLocked ? "Locked" : "Open"}
+                </span>
+              );
+            })}
+          </div>
+
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search horse, race or track"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+            />
+            <select
+              value={raceTypeFilter}
+              onChange={(event) => setRaceTypeFilter(event.target.value as RaceTypeFilter)}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+            >
+              <option value="all">All race types</option>
+              <option value="G1">Group 1</option>
+              <option value="G2">Group 2</option>
+              <option value="G3">Group 3</option>
+              <option value="L">Listed</option>
+            </select>
+            <select
+              value={raceFilter}
+              onChange={(event) => setRaceFilter(event.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+            >
+              <option value="all">All races</option>
+              {raceOptions.map((raceOption) => (
+                <option key={raceOption.id} value={raceOption.id}>
+                  {raceOption.racecourse?.name ?? "Racecourse"} R{raceOption.race_number} — {raceOption.race_name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={maxPriceFilter ?? ""}
+              onChange={(event) =>
+                setMaxPriceFilter(
+                  event.target.value === ""
+                    ? null
+                    : Number(event.target.value)
+                )
+              }
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+              aria-label="Maximum horse price"
+            >
+              <option value="">Any price</option>
+              <option value={30000}>Up to $30,000</option>
+              {Array.from(
+                { length: 14 },
+                (_, index) => (index + 1) * 50000
+              ).map((price) => (
+                <option key={price} value={price}>
+                  Up to {formatCurrency(price)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sortOption}
+              onChange={(event) => setSortOption(event.target.value as SortOption)}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+            >
+              <option value="race">Race order</option>
+              <option value="projected-high">Projected points: highest first</option>
+              <option value="price-high">Price: highest first</option>
+              <option value="price-low">Price: lowest first</option>
+              <option value="name">Horse name</option>
+            </select>
+          </div>
+        </section>
+
         {errorMessage && (
-          <div className="mt-5 rounded-xl border border-red-300 bg-red-50 p-4 font-medium text-red-800">
+          <div className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
             {errorMessage}
           </div>
         )}
 
+        {successMessage && (
+          <div className="mt-3 rounded-lg border border-teal-300 bg-teal-50 p-3 text-sm text-teal-800">
+            {successMessage}
+          </div>
+        )}
 
-        <section className="mt-7">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="min-w-0">
-              <div className="mb-4 flex flex-col gap-2 border-b border-slate-300 pb-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">
-                    Stable Line-up
-                  </p>
-
-                  <div className="mt-1">
-                    <h2 className="text-2xl font-black text-slate-950">
-                      Selected Horses
-                    </h2>
-                  </div>
-
-                  <p className="mt-1 text-sm text-slate-600">
-                    Your team for Round {round.round_number}. Select a horse card to view its statistics.
-                  </p>
-                </div>
-
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Captain scores 2× points
+        <details className="mt-3 rounded-xl border bg-white shadow-sm lg:hidden" open={selectedEntries.length > 0}>
+          <summary className="cursor-pointer list-none px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-bold text-slate-900">Your Team</p>
+                <p className="text-sm text-slate-500">
+                  {selectedCount}/{teamSize} selected · {formatCurrency(salaryRemaining)} remaining
                 </p>
               </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">View team</span>
+            </div>
+          </summary>
+          <div className="border-t p-3">
+            {selectedEntries.length === 0 ? (
+              <p className="py-5 text-center text-sm text-slate-500">No horses selected.</p>
+            ) : (
+              <div className="divide-y rounded-lg border">
+                {selectedEntries.map((entry, index) => {
+                  const isCaptain = entry.id === captainEntryId;
+                  const isLocked = entryIsLocked(entry);
+                  return (
+                    <div key={entry.id} className="flex items-center gap-3 p-3">
+                      <span className="w-5 text-center text-xs font-bold text-slate-400">{index + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="truncate font-bold text-slate-900">{entry.horse?.name ?? "Unknown horse"}</p>
+                          {isCaptain && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">C</span>}
+                          {isLocked && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">LOCKED</span>}
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                          {entry.race ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}` : "Race unavailable"}
+                        </p>
+                        <p className="mt-0.5 text-xs font-bold text-teal-700">
+                          Projected: {entry.projected_points ?? "—"} pts
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-sm font-bold text-slate-800">{formatCurrency(entry.price_at_entry)}</p>
+                      <button
+                        type="button"
+                        onClick={() => selectCaptain(entry.id)}
+                        disabled={isLocked || Boolean(lockedCaptainEntryId)}
+                        className={`rounded-md px-2 py-1.5 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
+                          isCaptain ? "bg-amber-500 text-white" : "border border-amber-400 text-amber-800"
+                        }`}
+                        aria-label={`Make ${entry.horse?.name ?? "horse"} captain`}
+                      >
+                        C
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleEntry(entry)}
+                        disabled={isLocked}
+                        className="rounded-md border border-red-200 px-2 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label={`Remove ${entry.horse?.name ?? "horse"}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </details>
 
-              {sortedSelections.length === 0 ? (
-                <div className="rounded-xl border bg-white p-10 text-center text-slate-500 shadow-sm">
-                  No horses have been selected.
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)] xl:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)]">
+          <section className="min-w-0">
+            <div className="flex items-end justify-between border-b border-slate-300 pb-2">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-700">Race Fields</p>
+                <h2 className="mt-0.5 text-xl font-bold text-slate-950">Select Horses</h2>
+              </div>
+              <p className="text-xs font-medium text-slate-500">{filteredEntries.length} runners</p>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3">
+              {filteredEntries.length === 0 ? (
+                <div className="rounded-xl border bg-white p-8 text-center text-slate-500">
+                  No horses match your filters.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {sortedSelections.map((selection) => {
-                    const entry = selection.race_entry;
-                    const horse = entry?.horse;
-                    const race = entry?.race;
-                    const activeNominations = selection.active_nominations ?? [];
-                    const isScratched = selection.is_scratched === true;
-                    const displayedPoints = selection.is_captain
-                      ? (selection.fantasy_points ?? 0) * 2
-                      : selection.fantasy_points ?? 0;
+                filteredEntriesByRace.map(({ race: raceGroup, entries: raceEntries }) => {
+                  const raceLockout = raceEntries[0] ? getEntryLockout(raceEntries[0]) : null;
+                  const raceLocked = raceEntries[0] ? entryIsLocked(raceEntries[0]) : false;
+                  const selectedInRace = raceEntries.filter((entry) =>
+                    selectedEntryIds.includes(entry.id)
+                  ).length;
 
-                    const projectedPoints =
-                      entry?.projected_points ??
-                      projectedPointsByEntryId[selection.race_entry_id] ??
-                      null;
-
-                    const displayedProjectedPoints =
-                      projectedPoints === null
-                        ? null
-                        : selection.is_captain
-                          ? projectedPoints * 2
-                          : projectedPoints;
-
-                    return (
-                      <article
-                        key={selection.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => horse?.id && setSelectedHorseId(horse.id)}
-                        onKeyDown={(event) => {
-                          if ((event.key === "Enter" || event.key === " ") && horse?.id) {
-                            event.preventDefault();
-                            setSelectedHorseId(horse.id);
-                          }
-                        }}
-                        className={`cursor-pointer overflow-hidden rounded-xl border px-4 py-3.5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                          isScratched
-                            ? "border-red-300 bg-red-50 hover:border-red-400 focus:ring-red-500"
-                            : selection.is_captain
-                              ? "border-amber-300 bg-amber-50/50 hover:border-amber-400 focus:ring-amber-500"
-                              : "border-slate-200 bg-white hover:border-teal-300 focus:ring-teal-500"
-                        }`}
-                        aria-label={horse ? `View statistics for ${horse.name}` : "Horse statistics unavailable"}
-                      >
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+                  return (
+                    <section
+                      key={raceGroup?.id ?? "unassigned"}
+                      className="self-start overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                    >
+                      <div className="border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <h3 className="truncate text-base font-bold text-slate-950 sm:text-lg">
-                                {horse?.name ?? "Unknown horse"}
-                              </h3>
-                              {selection.is_captain && (
-                                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950 shadow-sm">
-                                  C
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded bg-teal-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                                {raceGroup ? getGradeLabel(raceGroup.grade) : "Race"}
+                              </span>
+
+                              {raceGroup && (
+                                <span className="text-[11px] font-black uppercase tracking-wide text-slate-300">
+                                  {raceGroup.racecourse?.name ?? "Racecourse"} · Race {raceGroup.race_number}
+                                </span>
+                              )}
+
+                              {selectedInRace > 0 && (
+                                <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-black text-teal-900">
+                                  {selectedInRace} selected
+                                </span>
+                              )}
+
+                              {raceLocked && (
+                                <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-black text-slate-200">
+                                  Locked
                                 </span>
                               )}
                             </div>
 
-                            <div className="mt-2 space-y-1.5">
-                              {activeNominations.length > 0 ? (
-                                activeNominations.map((nomination) => {
-                                  const nominationRace = nomination.race;
+                            <h3 className="mt-1 truncate text-base font-semibold">
+                              {raceGroup?.race_name ?? "Race unavailable"}
+                            </h3>
 
-                                  if (!nominationRace) {
-                                    return null;
-                                  }
+                            {raceGroup && (
+                              <p className="mt-0.5 text-[11px] text-slate-400">
+                                {formatDateTime(raceGroup.scheduled_start)}
+                                {raceLockout ? ` · ${raceLockout.display_name}` : ""}
+                              </p>
+                            )}
+                          </div>
 
-                                  return (
-                                    <div
-                                      key={nomination.id}
-                                      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
-                                    >
-                                      <span className="truncate text-sm font-semibold text-slate-800">
-                                        R{nominationRace.race_number} • {nominationRace.race_name}
-                                      </span>
+                          <span className="shrink-0 text-xs font-bold text-slate-400">
+                            {raceEntries.length} runner{raceEntries.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                      </div>
 
-                                      <span
-                                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
-                                          nominationRace.grade
-                                        )}`}
-                                      >
-                                        {getGradeLabel(nominationRace.grade)}
-                                      </span>
+                      <div className="divide-y divide-slate-100">
+                        {raceEntries.map((entry) => {
+                          const isSelected = entries.some(
+                            (candidate) =>
+                              candidate.horse_id === entry.horse_id &&
+                              selectedEntryIds.includes(candidate.id)
+                          );
+                          const isUnavailable = entry.entry_status !== "runner";
+                          const isLocked = entryIsLocked(entry);
+                          const wouldExceedBudget =
+                            !isSelected && salaryUsed + entry.price_at_entry > salaryCap;
 
-                                      {nominationRace.racecourse && (
-                                        <span className="text-xs font-medium text-slate-600">
-                                          {nominationRace.racecourse.name}
-                                        </span>
-                                      )}
-
-                                      <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600">
-                                        <Icon
-                                          name="clock"
-                                          className="h-3 w-3 text-slate-400"
-                                        />
-                                        {formatRaceTime(nominationRace.scheduled_start)}
-                                      </span>
-                                    </div>
-                                  );
-                                })
-                              ) : race ? (
-                                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                  <span
-                                    className={`truncate text-sm font-semibold ${
-                                      isScratched ? "text-red-800" : "text-slate-800"
-                                    }`}
-                                  >
-                                    R{race.race_number} • {race.race_name}
-                                  </span>
-
-                                  <span
-                                    className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
-                                      race.grade
-                                    )}`}
-                                  >
-                                    {getGradeLabel(race.grade)}
-                                  </span>
-
-                                  {race.racecourse && (
-                                    <span className="text-xs font-medium text-slate-600">
-                                      {race.racecourse.name}
+                          return (
+                            <article
+                              key={entry.id}
+                              className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-2.5 transition sm:grid-cols-[minmax(0,1fr)_max-content_36px] ${
+                                isSelected ? "bg-teal-50" : "bg-white hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                  {entry.saddlecloth_number && (
+                                    <span className="inline-flex min-w-5 items-center justify-center text-xs font-medium text-slate-500">
+                                      {entry.saddlecloth_number}
                                     </span>
                                   )}
 
-                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600">
-                                    <Icon
-                                      name="clock"
-                                      className="h-3 w-3 text-slate-400"
-                                    />
-                                    {formatRaceTime(race.scheduled_start)}
-                                  </span>
+                                  {entry.horse?.id ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedHorseId(entry.horse!.id)}
+                                      className="min-w-0 whitespace-normal break-words text-left text-base font-semibold text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                      aria-label={`View statistics for ${entry.horse.name}`}
+                                    >
+                                      {entry.horse.name}
+                                    </button>
+                                  ) : (
+                                    <span className="truncate text-sm font-semibold text-slate-950">
+                                      Unknown horse
+                                    </span>
+                                  )}
+
+                                  {isSelected && (
+                                    <span className="rounded bg-teal-700 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">
+                                      Selected
+                                    </span>
+                                  )}
+
+                                  {isUnavailable && (
+                                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-semibold text-red-800">
+                                      {getEntryStatusLabel(entry.entry_status)}
+                                    </span>
+                                  )}
+
+                                  {isLocked && (
+                                    <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700">
+                                      Locked
+                                    </span>
+                                  )}
                                 </div>
-                              ) : (
-                                <p className="text-sm text-slate-500">Race unavailable</p>
-                              )}
-                            </div>
-                          </div>
 
-                          <div className="flex min-w-[108px] flex-col items-end">
-                            <Icon
-                              name="chevron"
-                              className="mb-1 hidden h-4 w-4 text-slate-300 sm:block"
-                            />
-                            {!selection.has_result ? (
-                              <div className="text-right">
-                                {isScratched ? (
-                                  <>
-                                    <p className="text-lg font-black uppercase leading-none text-red-700">
-                                      Scratched
-                                    </p>                                  </>
-                                ) : displayedProjectedPoints === null ? (
-                                  <>
-                                    <p className="text-lg font-semibold leading-none text-slate-400">
-                                      —
-                                    </p>
-                                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                      Projection
-                                    </p>
-                                  </>
-                                ) : (
-                                  <>
-                                    <p className="text-2xl font-bold leading-none text-amber-600 sm:text-3xl">
-                                      {displayedProjectedPoints}
-                                    </p>
-                                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                      {selection.is_captain
-                                        ? "projected pts · 2×"
-                                        : "projected pts"}
-                                    </p>
-                                  </>
-                                )}
                               </div>
-                            ) : (
-                              <div className="text-right">
-                                <p className="text-2xl font-bold leading-none text-teal-600 sm:text-3xl">{displayedPoints}</p>
-                                <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{selection.is_captain ? "pts · 2×" : "pts"}</p>
-                              </div>
-                            )}
-                            <div className="mt-3 text-right">
-                              <p className="text-sm font-bold text-slate-950">
-                                {formatCurrency(
-                                  roundIsComplete && horse?.id
-                                    ? currentHorsePrices[horse.id] ??
-                                        selection.selected_price
-                                    : selection.selected_price
-                                )}
-                              </p>
 
-                              {roundIsComplete &&
-                                horse?.id &&
-                                currentHorsePrices[horse.id] !== undefined &&
-                                currentHorsePrices[horse.id] !==
-                                  selection.selected_price && (
-                                  <p
-                                    className={`mt-0.5 text-[11px] font-bold ${
-                                      currentHorsePrices[horse.id] >
-                                      selection.selected_price
-                                        ? "text-emerald-700"
-                                        : "text-red-700"
-                                    }`}
-                                  >
-                                    {currentHorsePrices[horse.id] >
-                                    selection.selected_price
-                                      ? "+"
-                                      : ""}
-                                    {formatCurrency(
-                                      currentHorsePrices[horse.id] -
-                                        selection.selected_price
-                                    )}
+                              <div className="shrink-0 whitespace-nowrap text-right">
+                                <p className="text-sm font-semibold text-slate-950">
+                                  {formatCurrency(entry.price_at_entry)}
+                                </p>
+                                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-700">
+                                  Proj {entry.projected_points ?? "—"} pts
+                                </p>
+                                {wouldExceedBudget && (
+                                  <p className="text-[10px] font-bold text-red-700">
+                                    Over budget
                                   </p>
                                 )}
-                            </div>
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => toggleEntry(entry)}
+                                disabled={
+                                  isLocked ||
+                                  (!isSelected &&
+                                    (isUnavailable ||
+                                      selectedCount >= teamSize ||
+                                      wouldExceedBudget))
+                                }
+                                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center justify-self-end rounded-md text-xl font-black leading-none ${
+                                  isSelected
+                                    ? "bg-red-100 text-red-800 hover:bg-red-200"
+                                    : "bg-teal-800 text-white hover:bg-teal-700"
+                                } disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500`}
+                                aria-label={
+                                  isSelected
+                                    ? `Remove ${entry.horse?.name ?? "horse"} from team`
+                                    : `Add ${entry.horse?.name ?? "horse"} to team`
+                                }
+                                title={
+                                  isLocked
+                                    ? "Locked"
+                                    : isSelected
+                                      ? "Remove from team"
+                                      : "Add to team"
+                                }
+                              >
+                                {isLocked ? "–" : isSelected ? "−" : "+"}
+                              </button>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                })
               )}
             </div>
+          </section>
 
-            <aside className="space-y-4">
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-800 bg-slate-950 px-4 py-3 text-white">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-teal-300 ring-1 ring-slate-700">
-                      <Icon name="calendar" />
-                    </span>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-300">
-                        Race day
-                      </p>
-                      <h2 className="text-sm font-black uppercase tracking-wide text-white">
-                        Round {round.round_number} Fixture
-                      </h2>
-                    </div>
+          <aside className="hidden lg:block">
+            <div className="sticky top-4 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md">
+              <div className="border-b border-slate-800 bg-slate-950 px-5 py-4 text-white">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-black text-white">
+                      Your Team
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-300">
+                      Your 10-horse stable and captain.
+                    </p>
+                  </div>
+
+                  <span className="text-2xl font-black text-teal-300">
+                    {selectedCount}/{teamSize}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-white p-2.5 ring-1 ring-slate-200">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Remaining
+                    </p>
+                    <p
+                      className={`mt-1 text-lg font-bold ${
+                        salaryRemaining < 0 ? "text-red-700" : "text-green-800"
+                      }`}
+                    >
+                      {formatCurrency(salaryRemaining)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-white p-2.5 ring-1 ring-slate-200">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Used
+                    </p>
+                    <p className="mt-1 text-lg font-bold text-slate-800">
+                      {formatCurrency(salaryUsed)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-white p-2.5 ring-1 ring-slate-200">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                      Captain
+                    </p>
+                    <p className="mt-1 truncate text-sm font-bold text-slate-800">
+                      {entries.find((entry) => entry.id === captainEntryId)?.horse?.name ?? "Not selected"}
+                    </p>
                   </div>
                 </div>
-                {fixtureRaces.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-slate-500">Fixture details are not available yet.</div>
+
+
+              </div>
+
+              <div className="p-3">
+                {selectedEntries.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+                    No horses selected.
+                  </div>
                 ) : (
-                  <div className="divide-y divide-slate-100">
-                    {fixtureRaces.map((fixtureRace) => {
-                      const isComplete = ["official", "abandoned", "cancelled"].includes(fixtureRace.status);
+                  <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-2">
+                    {selectedEntries.map((entry) => {
+                      const isCaptain = entry.id === captainEntryId;
+                      const isLocked = entryIsLocked(entry);
+                      const entryLockout = getEntryLockout(entry);
+
                       return (
-                        <button
-                          key={fixtureRace.id}
-                          type="button"
-                          onClick={() => setSelectedRaceId(fixtureRace.id)}
-                          className="grid w-full grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500"
-                          aria-label={`View race details for ${fixtureRace.race_name}`}
+                        <article
+                          key={entry.id}
+                          className={`rounded-xl border px-4 py-3 ${
+                            isCaptain
+                              ? "border-amber-300 bg-amber-50"
+                              : "border-slate-200 bg-white"
+                          }`}
                         >
-                          <p className="text-sm font-bold text-slate-950">
-                            {formatRaceTime(fixtureRace.scheduled_start)}
-                          </p>
-
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-950">
-                              R{fixtureRace.race_number} · {fixtureRace.race_name}
-                            </p>
-
-                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
-                              <span className={`rounded px-1.5 py-0.5 font-bold ${getGradeClasses(fixtureRace.grade)}`}>
-                                {getGradeLabel(fixtureRace.grade)}
-                              </span>
-
-                              {fixtureRace.distance_metres && (
-                                <span>{fixtureRace.distance_metres}m</span>
-                              )}
-
-                              {fixtureRace.racecourse && (
-                                <>
-                                  <span>•</span>
-                                  <span>{fixtureRace.racecourse.name}</span>
-                                </>
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="min-w-0 flex-1">
+                              {entry.horse?.id ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedHorseId(entry.horse!.id)
+                                  }
+                                  className="truncate text-left text-lg font-semibold leading-tight text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                  aria-label={`View statistics for ${entry.horse.name}`}
+                                >
+                                  {entry.horse.name}
+                                </button>
+                              ) : (
+                                <p className="truncate text-lg font-semibold leading-tight text-slate-950">
+                                  Unknown horse
+                                </p>
                               )}
                             </div>
+
+                            <p className="shrink-0 text-lg font-semibold leading-tight text-slate-950">
+                              {formatCurrency(entry.price_at_entry)}
+                            </p>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                                isComplete
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : fixtureRace.status === "running"
-                                    ? "bg-amber-100 text-amber-800"
-                                    : "bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {fixtureRace.status === "official"
-                                ? "Complete"
-                                : fixtureRace.status}
-                            </span>
+                          <div className="mt-2 flex items-center gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-slate-950">
+                                {entry.race
+                                  ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number} · ${entry.race.race_name}`
+                                  : "Race unavailable"}
+                              </p>
 
-                            <Icon
-                              name="chevron"
-                              className="h-4 w-4 text-slate-400"
-                            />
+                              {entryLockout && (
+                                <p className="mt-0.5 truncate text-[10px] font-medium text-slate-700">
+                                  {entryLockout.display_name} ·{" "}
+                                  {formatDateTime(entryLockout.lockout_at)}
+                                </p>
+                              )}
+                              <p className="mt-1 text-xs font-bold text-teal-700">
+                                Projected: {entry.projected_points ?? "—"} pts
+                              </p>
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => selectCaptain(entry.id)}
+                                disabled={isLocked || Boolean(lockedCaptainEntryId)}
+                                className={`inline-flex h-7 items-center justify-center rounded-md px-2.5 text-[10px] font-bold disabled:cursor-not-allowed disabled:opacity-40 ${
+                                  isCaptain
+                                    ? "bg-amber-500 text-white"
+                                    : "border border-amber-400 bg-white text-amber-800 hover:bg-amber-50"
+                                }`}
+                                title={isCaptain ? "Captain" : "Make captain"}
+                              >
+                                {isCaptain ? "Captain" : "Make C"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => toggleEntry(entry)}
+                                disabled={isLocked}
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-white text-sm font-bold leading-none text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                title="Remove horse"
+                                aria-label={`Remove ${entry.horse?.name ?? "horse"}`}
+                              >
+                                ×
+                              </button>
+                            </div>
                           </div>
-                        </button>
+                        </article>
                       );
                     })}
                   </div>
                 )}
               </div>
 
-              <div className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
-                <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-950 px-4 py-3 text-white">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-teal-300 ring-1 ring-slate-700">
-                    <Icon name="flag" />
-                  </span>
-                  <h2 className="text-sm font-black uppercase tracking-wide text-white">
-                    Latest Result
-                  </h2>
-                </div>
 
-                <div>
-                  {latestResultRace && latestRaceResults.length > 0 ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRaceId(latestResultRace.id)}
-                        className="w-full border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500"
-                        aria-label={`View full results for ${latestResultRace.race_name}`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-black text-slate-950">
-                              R{latestResultRace.race_number} · {latestResultRace.race_name}
-                            </p>
-                            <p className="mt-1 text-xs font-medium text-slate-500">
-                              {getGradeLabel(latestResultRace.grade)}
-                              {latestResultRace.racecourse
-                                ? ` · ${latestResultRace.racecourse.name}`
-                                : ""}
-                            </p>
-                          </div>
+            </div>
+          </aside>
+        </div>
 
-                          <span className="shrink-0 text-xs font-black text-teal-700">
-                            Full results →
-                          </span>
-                        </div>
-                      </button>
-
-                      <div className="divide-y divide-slate-100">
-                        {latestRaceResults.map((result) => (
-                          <button
-                            key={result.race_entry_id}
-                            type="button"
-                            onClick={() =>
-                              result.horse_id &&
-                              setSelectedHorseId(result.horse_id)
-                            }
-                            className="grid w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
-                          >
-                            <span className="text-center text-sm font-black text-slate-500">
-                              {result.finishing_position}
-                            </span>
-
-                            <span className="truncate font-bold text-slate-950">
-                              {result.horse_name}
-                            </span>
-
-                            <span className="shrink-0 text-right">
-                              <span className="text-lg font-black text-teal-700">
-                                {result.fantasy_points}
-                              </span>
-                              <span className="ml-1 text-xs font-bold uppercase text-slate-500">
-                                pts
-                              </span>
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="p-4 text-sm text-slate-500">
-                      No official results yet.
-                    </p>
-                  )}
-                </div>
-              </div>
-            </aside>
+        <section className="sticky bottom-0 z-20 mt-4 border-t border-slate-200 bg-white/95 p-3 shadow-[0_-6px_20px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-2xl items-center gap-2">
+            <button
+              type="button"
+              onClick={fillTeam}
+              disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting}
+              className="rounded-lg border border-teal-600 bg-white px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-50 disabled:border-slate-300 disabled:text-slate-400 disabled:opacity-50"
+            >
+              Fill Team
+            </button>
+            <button
+              type="button"
+              onClick={() => void saveDraft()}
+              disabled={saving || submitting}
+              className="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save Draft"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void submitTeam()}
+              disabled={!teamIsComplete || submitting || saving}
+              className="flex-1 rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+            >
+              {submitting ? "Submitting..." : team?.status === "submitted" ? "Update Team" : "Submit Team"}
+            </button>
           </div>
         </section>
       </div>
-
-      {selectedRaceId && (
-        <div
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-6"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setSelectedRaceId(null);
-            }
-          }}
-          role="presentation"
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label="Race results"
-            className="max-h-[92vh] w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-5xl sm:rounded-2xl"
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-950 px-5 py-5 text-white sm:px-6">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300">
-                  Race results
-                </p>
-
-                <h2 className="mt-1 text-2xl font-black">
-                  {raceResultsData?.race
-                    ? `R${raceResultsData.race.race_number} — ${raceResultsData.race.race_name}`
-                    : "Loading race..."}
-                </h2>
-
-                {raceResultsData?.race?.racecourse && (
-                  <p className="mt-1 text-sm text-slate-300">
-                    {raceResultsData.race.racecourse.name}
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedRaceId(null)}
-                className="rounded-lg border border-white/20 p-2 transition hover:bg-white/10"
-                aria-label="Close race results"
-              >
-                <Icon name="close" className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="max-h-[calc(92vh-96px)] overflow-y-auto p-5 sm:p-6">
-              {raceResultsLoading && (
-                <div className="py-16 text-center text-slate-500">
-                  Loading race results...
-                </div>
-              )}
-
-              {!raceResultsLoading && raceResultsError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">
-                  {raceResultsError}
-                </div>
-              )}
-
-              {!raceResultsLoading &&
-                !raceResultsError &&
-                raceResultsData?.race && (
-                  <>
-                    <div className="mb-5 grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-xl bg-slate-100 p-4">
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                          Grade
-                        </p>
-                        <p className="mt-1 font-black text-slate-950">
-                          {getGradeLabel(raceResultsData.race.grade)}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-100 p-4">
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                          Start time
-                        </p>
-                        <p className="mt-1 font-black text-slate-950">
-                          {formatRaceTime(raceResultsData.race.scheduled_start)}
-                        </p>
-                      </div>
-
-                      <div className="rounded-xl bg-slate-100 p-4">
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                          Status
-                        </p>
-                        <p className="mt-1 font-black text-slate-950">
-                          {titleCase(raceResultsData.race.status)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {(raceResultsData.results ?? []).length === 0 ? (
-                      <div className="rounded-xl border border-slate-200 p-8 text-center text-slate-500">
-                        No official results are available for this race yet.
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto rounded-xl border border-slate-200">
-                        <table className="w-full min-w-[760px] divide-y divide-slate-200">
-                          <thead className="bg-slate-100">
-                            <tr>
-                              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                                Finish
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                                Horse
-                              </th>
-                              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">
-                                Points
-                              </th>
-                              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">
-                                Price change
-                              </th>
-                              <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-600">
-                                New price
-                              </th>
-                            </tr>
-                          </thead>
-
-                          <tbody className="divide-y divide-slate-200">
-                            {raceResultsData.results.map((result) => (
-                              <tr key={result.result_id}>
-                                <td className="px-4 py-4 font-black text-slate-950">
-                                  {getFinishLabel(
-                                    result.finishing_position,
-                                    result.result_status
-                                  )}
-                                  {result.is_dead_heat ? " (DH)" : ""}
-                                </td>
-
-                                <td className="px-4 py-4">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedHorseId(result.horse_id)}
-                                    className="font-bold text-slate-950 hover:text-teal-700"
-                                  >
-                                    {result.horse_name}
-                                  </button>
-                                </td>
-
-                                <td className="px-4 py-4 text-right font-bold text-teal-700">
-                                  {result.fantasy_points}
-                                </td>
-
-                                <td
-                                  className={`px-4 py-4 text-right font-bold ${
-                                    result.price_change > 0
-                                      ? "text-green-700"
-                                      : result.price_change < 0
-                                        ? "text-red-700"
-                                        : "text-slate-600"
-                                  }`}
-                                >
-                                  {result.price_change > 0 ? "+" : ""}
-                                  {formatCurrency(result.price_change)}
-                                </td>
-
-                                <td className="px-4 py-4 text-right font-bold text-slate-950">
-                                  {formatCurrency(result.price_after)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </>
-                )}
-            </div>
-          </section>
-        </div>
-      )}
 
       <HorseProfileModal
         horseId={selectedHorseId}
