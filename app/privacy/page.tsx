@@ -162,7 +162,7 @@ export default function PrivacyPolicyPage() {
               </p>
 
               <p className="mt-2">
-                Email: wgeary52@gmail.com
+                Email: racecoursefantasyadmin@gmail.com
               </p>
 
               <p>
