@@ -294,6 +294,9 @@ export default function Dashboard() {
   const [horsesRanCount, setHorsesRanCount] =
     useState(0);
 
+  const [scratchedHorseCount, setScratchedHorseCount] =
+    useState(0);
+
   const [selectedHorseCount, setSelectedHorseCount] =
     useState(0);
 
@@ -392,6 +395,7 @@ export default function Dashboard() {
         setSeasonScore(null);
         setProjectedRoundScore(0);
         setHorsesRanCount(0);
+        setScratchedHorseCount(0);
         setSelectedHorseCount(0);
         setPreviousOverallRank(null);
         setUpcomingRace(null);
@@ -542,6 +546,7 @@ export default function Dashboard() {
         if (!resolvedDashboardData.team?.id) {
           setProjectedRoundScore(0);
           setHorsesRanCount(0);
+          setScratchedHorseCount(0);
           setSelectedHorseCount(0);
           return;
         }
@@ -558,6 +563,7 @@ export default function Dashboard() {
               fantasy_points,
               race_entry:race_entries!inner (
                 id,
+                horse_id,
                 projected_points,
                 race:races!inner (
                   status
@@ -578,6 +584,7 @@ export default function Dashboard() {
           );
           setProjectedRoundScore(0);
           setHorsesRanCount(0);
+          setScratchedHorseCount(0);
           setSelectedHorseCount(0);
           return;
         }
@@ -585,6 +592,78 @@ export default function Dashboard() {
         setSelectedHorseCount(
           (selectionProjectionData ?? []).length
         );
+
+        /*
+         * Count a selected horse as scratched only when it has no remaining
+         * live nomination in this round. This prevents a dual-nominated horse
+         * from being flagged when one entry is scratched but another is still
+         * a runner.
+         */
+        const selectedHorseIds = Array.from(
+          new Set(
+            (selectionProjectionData ?? [])
+              .map((selection: any) => {
+                const rawEntry = selection.race_entry;
+                const raceEntry = Array.isArray(rawEntry)
+                  ? rawEntry[0] ?? null
+                  : rawEntry;
+
+                return raceEntry?.horse_id ?? null;
+              })
+              .filter(Boolean)
+          )
+        ) as string[];
+
+        if (selectedHorseIds.length > 0) {
+          const {
+            data: nominationData,
+            error: nominationError,
+          } = await supabase
+            .from("race_entries")
+            .select(
+              `
+                horse_id,
+                entry_status,
+                race:races!inner (
+                  round_id
+                )
+              `
+            )
+            .in("horse_id", selectedHorseIds)
+            .eq("race.round_id", resolvedDashboardData.round!.id);
+
+          if (!active) {
+            return;
+          }
+
+          if (nominationError) {
+            console.error(
+              "Dashboard scratched horses error:",
+              nominationError
+            );
+            setScratchedHorseCount(0);
+          } else {
+            const liveHorseIds = new Set(
+              (nominationData ?? [])
+                .filter(
+                  (nomination: any) =>
+                    nomination.entry_status === "runner"
+                )
+                .map(
+                  (nomination: any) =>
+                    nomination.horse_id
+                )
+            );
+
+            setScratchedHorseCount(
+              selectedHorseIds.filter(
+                (horseId) => !liveHorseIds.has(horseId)
+              ).length
+            );
+          }
+        } else {
+          setScratchedHorseCount(0);
+        }
 
         const projectedScore = (
           selectionProjectionData ?? []
@@ -966,9 +1045,18 @@ export default function Dashboard() {
               </div>
 
               <div className="pl-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Horses Ran
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Horses Ran
+                  </p>
+
+                  {scratchedHorseCount > 0 && (
+                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-400 ring-1 ring-inset ring-red-500/30">
+                      {scratchedHorseCount}{" "}
+                      {scratchedHorseCount === 1 ? "horse" : "horses"} scratched
+                    </span>
+                  )}
+                </div>
 
                 <p className="mt-1 text-2xl font-bold text-white sm:text-3xl">
                   {horsesRanCount}/{season.team_size}
