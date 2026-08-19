@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toBlob } from "html-to-image";
 
 import HorseProfileModal from "@/components/HorseProfileModal";
 
@@ -279,6 +280,7 @@ type IconName =
   | "calendar"
   | "flag"
   | "edit"
+  | "share"
   | "chevron"
   | "close";
 
@@ -350,6 +352,14 @@ function Icon({
       <>
         <path {...common} d="M4 20h4l11-11-4-4L4 16v4Z" />
         <path {...common} d="m13.5 6.5 4 4" />
+      </>
+    ),
+    share: (
+      <>
+        <circle {...common} cx="18" cy="5" r="2.5" />
+        <circle {...common} cx="6" cy="12" r="2.5" />
+        <circle {...common} cx="18" cy="19" r="2.5" />
+        <path {...common} d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" />
       </>
     ),
     chevron: <path {...common} d="m9 6 6 6-6 6" />,
@@ -437,6 +447,11 @@ export default function MyTeamPage() {
   const [selectedHorseId, setSelectedHorseId] = useState<string | null>(
     null
   );
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState("");
+  const shareCardRef = useRef<HTMLDivElement | null>(null);
 
   const [currentTime, setCurrentTime] = useState(() =>
     Date.now()
@@ -694,6 +709,60 @@ export default function MyTeamPage() {
     team?.status !== "locked" &&
     team?.status !== "scored";
 
+  const handleShareTeam = useCallback(async () => {
+    if (!shareCardRef.current || !team || !round) return;
+
+    setShareBusy(true);
+    setShareError("");
+
+    try {
+      const blob = await toBlob(shareCardRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#f8fafc",
+      });
+
+      if (!blob) {
+        throw new Error("The team image could not be created.");
+      }
+
+      const fileName = `racecourse-fantasy-round-${round.round_number}-team.png`;
+      const file = new File([blob], fileName, { type: "image/png" });
+
+      if (
+        typeof navigator !== "undefined" &&
+        typeof navigator.share === "function" &&
+        (!navigator.canShare || navigator.canShare({ files: [file] }))
+      ) {
+        await navigator.share({
+          title: `${team.team_name?.trim() || "My Team"} — Racecourse Fantasy`,
+          text: `My Racecourse Fantasy team for Round ${round.round_number}`,
+          files: [file],
+        });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      console.error("Share team error:", error);
+      setShareError(
+        error instanceof Error ? error.message : "The team image could not be shared."
+      );
+    } finally {
+      setShareBusy(false);
+    }
+  }, [round, team]);
+
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-100 p-6">
@@ -825,6 +894,18 @@ export default function MyTeamPage() {
                 <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-slate-200">
                   {getStatusLabel(team.status)}
                 </span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShareError("");
+                    setShareOpen(true);
+                  }}
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-black text-white transition hover:border-teal-400 hover:text-teal-300"
+                >
+                  <Icon name="share" className="mr-1.5 h-3.5 w-3.5" />
+                  Share Team
+                </button>
 
                 {editButtonVisible && (
                   <Link
@@ -1317,6 +1398,250 @@ export default function MyTeamPage() {
           </div>
         </section>
       </div>
+
+      {shareOpen && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !shareBusy) {
+              setShareOpen(false);
+            }
+          }}
+          role="presentation"
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Share team"
+            className="w-full max-w-[620px] overflow-hidden rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+                  Share Team
+                </p>
+                <h2 className="mt-0.5 text-lg font-black text-slate-950">
+                  Team image preview
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => !shareBusy && setShareOpen(false)}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+                aria-label="Close share team"
+              >
+                <Icon name="close" className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[72vh] overflow-y-auto bg-slate-200 p-3 sm:p-5">
+              <div className="mx-auto w-full max-w-[540px] overflow-hidden rounded-xl shadow-xl">
+                <div
+                  ref={shareCardRef}
+                  className="w-[540px] bg-slate-50 text-slate-950"
+                  style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
+                >
+                  <div className="bg-slate-950 px-7 pb-5 pt-6 text-white">
+                    <div className="flex items-start justify-between gap-5">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-teal-300">
+                          Racecourse Fantasy
+                        </p>
+                        <h2 className="mt-2 truncate text-[28px] font-black leading-none">
+                          {team.team_name?.trim() || "My Team"}
+                        </h2>
+                        <p className="mt-2 text-[13px] font-bold text-slate-300">
+                          {season.name} · Round {round.round_number}
+                          {round.name ? ` — ${round.name}` : ""}
+                        </p>
+                      </div>
+
+                      <div className="shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-right">
+                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          Team Salary
+                        </p>
+                        <p className="mt-1 text-[17px] font-black text-white">
+                          {formatCurrency(salaryUsed)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-px bg-slate-200">
+                    <div className="bg-white px-5 py-3">
+                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                        Current Score
+                      </p>
+                      <p className="mt-1 text-[22px] font-black text-teal-700">
+                        {totalPoints} pts
+                      </p>
+                    </div>
+                    <div className="bg-white px-5 py-3">
+                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                        Projected Score
+                      </p>
+                      <p className="mt-1 text-[22px] font-black text-amber-600">
+                        {liveProjectedScore} pts
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="px-5 py-4">
+                    <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                      Selected Horses
+                    </p>
+
+                    <div className="space-y-1.5">
+                      {sortedSelections.map((selection, index) => {
+                        const entry = selection.race_entry;
+                        const horse = entry?.horse;
+                        const race = entry?.race;
+                        const activeNominations = selection.active_nominations ?? [];
+                        const isScratched = selection.is_scratched === true;
+                        const shareRaces =
+                          activeNominations.length > 0
+                            ? activeNominations
+                                .map((nomination) => nomination.race)
+                                .filter((item): item is FixtureRace => Boolean(item))
+                            : race
+                              ? [race]
+                              : [];
+
+                        const points = selection.is_captain
+                          ? (selection.fantasy_points ?? 0) * 2
+                          : selection.fantasy_points ?? 0;
+
+                        const projected =
+                          entry?.projected_points ??
+                          projectedPointsByEntryId[selection.race_entry_id] ??
+                          null;
+
+                        const shownProjection =
+                          projected === null
+                            ? null
+                            : selection.is_captain
+                              ? projected * 2
+                              : projected;
+
+                        return (
+                          <div
+                            key={selection.id}
+                            className={`grid grid-cols-[28px_minmax(0,1fr)_86px] items-center gap-3 rounded-lg border px-3 py-2 ${
+                              isScratched
+                                ? "border-red-300 bg-red-50"
+                                : selection.is_captain
+                                  ? "border-amber-300 bg-amber-50"
+                                  : "border-slate-200 bg-white"
+                            }`}
+                          >
+                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-[11px] font-black text-white">
+                              {index + 1}
+                            </div>
+
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="truncate text-[14px] font-black text-slate-950">
+                                  {horse?.name ?? "Unknown horse"}
+                                </p>
+                                {selection.is_captain && (
+                                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-amber-950">
+                                    C
+                                  </span>
+                                )}
+                                {isScratched && (
+                                  <span className="shrink-0 text-[9px] font-black uppercase text-red-700">
+                                    Scratched
+                                  </span>
+                                )}
+                              </div>
+
+                              {shareRaces.length > 0 ? (
+                                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                                  {shareRaces.map((shareRace) => (
+                                    <span
+                                      key={shareRace.id}
+                                      className="text-[10px] font-bold text-slate-600"
+                                    >
+                                      R{shareRace.race_number} {shareRace.race_name} ·{" "}
+                                      {getGradeLabel(shareRace.grade)}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-1 text-[10px] font-bold text-slate-400">
+                                  Race unavailable
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="text-right">
+                              {selection.has_result ? (
+                                <>
+                                  <p className="text-[17px] font-black leading-none text-teal-700">
+                                    {points}
+                                  </p>
+                                  <p className="mt-1 text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                    points
+                                  </p>
+                                </>
+                              ) : isScratched ? (
+                                <p className="text-[10px] font-black uppercase text-red-700">
+                                  Scratched
+                                </p>
+                              ) : (
+                                <>
+                                  <p className="text-[17px] font-black leading-none text-amber-600">
+                                    {shownProjection ?? "—"}
+                                  </p>
+                                  <p className="mt-1 text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                    projected
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-3">
+                    <p className="text-[9px] font-bold text-slate-400">
+                      Captain scores 2× points
+                    </p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-700">
+                      Racecourse Fantasy
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 bg-white p-4 sm:px-5">
+              {shareError && (
+                <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                  {shareError}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => void handleShareTeam()}
+                disabled={shareBusy}
+                className="inline-flex w-full items-center justify-center rounded-xl bg-teal-700 px-5 py-3 font-black text-white transition hover:bg-teal-800 disabled:cursor-wait disabled:opacity-60"
+              >
+                <Icon name="share" className="mr-2 h-4 w-4" />
+                {shareBusy ? "Creating Image..." : "Share Team Image"}
+              </button>
+
+              <p className="mt-2 text-center text-xs text-slate-500">
+                On supported phones this opens the native share menu. Otherwise the PNG is saved to your device.
+              </p>
+            </div>
+          </section>
+        </div>
+      )}
 
       {selectedRaceId && (
         <div
