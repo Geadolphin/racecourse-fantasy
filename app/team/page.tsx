@@ -1492,8 +1492,8 @@ export default function MyTeamPage() {
                       Selected Horses
                     </p>
 
-                    <div className="space-y-1.5">
-                      {sortedSelections.map((selection, index) => {
+                    <div className="grid grid-cols-2 gap-2">
+                      {sortedSelections.map((selection) => {
                         const entry = selection.race_entry;
                         const horse = entry?.horse;
                         const race = entry?.race;
@@ -1527,7 +1527,7 @@ export default function MyTeamPage() {
                         return (
                           <div
                             key={selection.id}
-                            className={`grid grid-cols-[28px_minmax(0,1fr)_86px] items-center gap-3 rounded-lg border px-3 py-2 ${
+                            className={`grid min-h-[92px] grid-cols-[minmax(0,1fr)_68px] items-center gap-2 rounded-lg border px-3 py-2 ${
                               isScratched
                                 ? "border-red-300 bg-red-50"
                                 : selection.is_captain
@@ -1535,41 +1535,39 @@ export default function MyTeamPage() {
                                   : "border-slate-200 bg-white"
                             }`}
                           >
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-[11px] font-black text-white">
-                              {index + 1}
-                            </div>
-
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <p className="truncate text-[14px] font-black text-slate-950">
+                                <p className="truncate text-[13px] font-black text-slate-950">
                                   {horse?.name ?? "Unknown horse"}
                                 </p>
+
                                 {selection.is_captain && (
                                   <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-amber-950">
                                     C
                                   </span>
                                 )}
-                                {isScratched && (
-                                  <span className="shrink-0 text-[9px] font-black uppercase text-red-700">
-                                    Scratched
-                                  </span>
-                                )}
                               </div>
 
+                              {isScratched && (
+                                <p className="mt-0.5 text-[9px] font-black uppercase text-red-700">
+                                  Scratched
+                                </p>
+                              )}
+
                               {shareRaces.length > 0 ? (
-                                <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                                <div className="mt-1 space-y-0.5">
                                   {shareRaces.map((shareRace) => (
-                                    <span
+                                    <p
                                       key={shareRace.id}
-                                      className="text-[10px] font-bold text-slate-600"
+                                      className="truncate text-[9px] font-bold text-slate-600"
                                     >
                                       R{shareRace.race_number} {shareRace.race_name} ·{" "}
                                       {getGradeLabel(shareRace.grade)}
-                                    </span>
+                                    </p>
                                   ))}
                                 </div>
                               ) : (
-                                <p className="mt-1 text-[10px] font-bold text-slate-400">
+                                <p className="mt-1 text-[9px] font-bold text-slate-400">
                                   Race unavailable
                                 </p>
                               )}
@@ -1578,7 +1576,7 @@ export default function MyTeamPage() {
                             <div className="text-right">
                               {selection.has_result ? (
                                 <>
-                                  <p className="text-[17px] font-black leading-none text-teal-700">
+                                  <p className="text-[16px] font-black leading-none text-teal-700">
                                     {points}
                                   </p>
                                   <p className="mt-1 text-[8px] font-black uppercase tracking-wide text-slate-400">
@@ -1586,12 +1584,12 @@ export default function MyTeamPage() {
                                   </p>
                                 </>
                               ) : isScratched ? (
-                                <p className="text-[10px] font-black uppercase text-red-700">
+                                <p className="text-[9px] font-black uppercase text-red-700">
                                   Scratched
                                 </p>
                               ) : (
                                 <>
-                                  <p className="text-[17px] font-black leading-none text-amber-600">
+                                  <p className="text-[16px] font-black leading-none text-amber-600">
                                     {shownProjection ?? "—"}
                                   </p>
                                   <p className="mt-1 text-[8px] font-black uppercase tracking-wide text-slate-400">
