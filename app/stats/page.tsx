@@ -124,7 +124,7 @@ type StatsData = {
   price_fallers: PriceLeader[];
 };
 
-type Tab = "horses" | "players" | "ownership" | "prices";
+type Tab = "horses" | "players" | "ownership" | "fantasy" | "prices";
 
 type SortDirection = "asc" | "desc";
 
@@ -580,6 +580,7 @@ export default function StatsPage() {
     { id: "horses", label: "Horse Leaders" },
     { id: "players", label: "Player Leaders" },
     { id: "ownership", label: "Ownership" },
+    { id: "fantasy", label: "Fantasy Stats" },
     { id: "prices", label: "Price Movers" },
   ];
 
@@ -1200,7 +1201,84 @@ export default function StatsPage() {
                   </section>
                 </div>
 
-                <div className="mt-5 grid gap-5 md:grid-cols-3">
+              </>
+            )}
+          </section>
+        )}
+
+        {activeTab === "fantasy" && (
+          <section className="mt-5">
+            <div className="mb-5 flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-950">
+                  Fantasy Stats
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-600">
+                  Round-specific fantasy insights, differential picks and
+                  optimal team combinations.
+                </p>
+              </div>
+
+              <div className="w-full sm:w-72">
+                <label
+                  htmlFor="fantasy-round"
+                  className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500"
+                >
+                  Choose round
+                </label>
+
+                <select
+                  id="fantasy-round"
+                  value={selectedRoundId}
+                  onChange={(event) =>
+                    void changeOwnershipRound(event.target.value)
+                  }
+                  disabled={
+                    ownershipLoading ||
+                    (data.ownership_rounds ?? []).length === 0
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-semibold text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
+                >
+                  {(data.ownership_rounds ?? []).length === 0 && (
+                    <option value="">No locked rounds available</option>
+                  )}
+
+                  {(data.ownership_rounds ?? []).map((round) => (
+                    <option key={round.id} value={round.id}>
+                      Round {round.round_number}
+                      {round.name ? ` — ${round.name}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {ownershipLoading ? (
+              <div className="rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
+                Loading fantasy statistics...
+              </div>
+            ) : !data.selected_round ? (
+              <div className="rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
+                Fantasy statistics become available after a round locks.
+              </div>
+            ) : (
+              <>
+                <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-5 py-4">
+                  <p className="font-black text-slate-950">
+                    Round {data.selected_round.round_number}
+                    {data.selected_round.name
+                      ? ` — ${data.selected_round.name}`
+                      : ""}
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-700">
+                    Based on {data.total_teams_in_round}{" "}
+                    {data.total_teams_in_round === 1 ? "team" : "teams"}.
+                  </p>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-3">
                   <SpecialHorseCard
                     title="Best POD"
                     description="Highest-scoring horse owned by fewer than 10% of teams."
