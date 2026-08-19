@@ -66,6 +66,16 @@ type RaceEntry = {
   race: Race | null;
 };
 
+type ActiveNomination = {
+  id: string;
+  race_id: string;
+  horse_id: string;
+  saddlecloth_number: number | null;
+  projected_points: number | null;
+  entry_status: string;
+  race: FixtureRace | null;
+};
+
 type LatestRaceResult = {
   race_entry_id: string;
   finishing_position: number;
@@ -124,6 +134,7 @@ type TeamSelection = {
   fantasy_points: number;
   has_result: boolean;
   race_entry: RaceEntry | null;
+  active_nominations?: ActiveNomination[];
 };
 
 type MyTeamData = {
@@ -915,6 +926,7 @@ export default function MyTeamPage() {
                     const entry = selection.race_entry;
                     const horse = entry?.horse;
                     const race = entry?.race;
+                    const activeNominations = selection.active_nominations ?? [];
                     const displayedPoints = selection.is_captain
                       ? (selection.fantasy_points ?? 0) * 2
                       : selection.fantasy_points ?? 0;
@@ -963,25 +975,78 @@ export default function MyTeamPage() {
                               )}
                             </div>
 
-                            <p className="mt-1 truncate text-sm font-medium text-slate-800">
-                              {race ? `R${race.race_number} • ${race.race_name}` : "Race unavailable"}
-                            </p>
+                            <div className="mt-2 space-y-1.5">
+                              {activeNominations.length > 0 ? (
+                                activeNominations.map((nomination) => {
+                                  const nominationRace = nomination.race;
 
-                            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
-                              {race && (
-                                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${getGradeClasses(race.grade)}`}>
-                                  {getGradeLabel(race.grade)}
-                                </span>
-                              )}
-                              {race?.racecourse && <span className="text-sm font-medium text-slate-700">{race.racecourse.name}</span>}
-                              {race && (
-                                <>
-                                  <span className="text-slate-300">•</span>
-                                  <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-700">
-                                    <Icon name="clock" className="h-3.5 w-3.5 text-slate-400" />
+                                  if (!nominationRace) {
+                                    return null;
+                                  }
+
+                                  return (
+                                    <div
+                                      key={nomination.id}
+                                      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
+                                    >
+                                      <span className="truncate text-sm font-semibold text-slate-800">
+                                        R{nominationRace.race_number} • {nominationRace.race_name}
+                                      </span>
+
+                                      <span
+                                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
+                                          nominationRace.grade
+                                        )}`}
+                                      >
+                                        {getGradeLabel(nominationRace.grade)}
+                                      </span>
+
+                                      {nominationRace.racecourse && (
+                                        <span className="text-xs font-medium text-slate-600">
+                                          {nominationRace.racecourse.name}
+                                        </span>
+                                      )}
+
+                                      <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600">
+                                        <Icon
+                                          name="clock"
+                                          className="h-3 w-3 text-slate-400"
+                                        />
+                                        {formatRaceTime(nominationRace.scheduled_start)}
+                                      </span>
+                                    </div>
+                                  );
+                                })
+                              ) : race ? (
+                                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                  <span className="truncate text-sm font-semibold text-slate-800">
+                                    R{race.race_number} • {race.race_name}
+                                  </span>
+
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
+                                      race.grade
+                                    )}`}
+                                  >
+                                    {getGradeLabel(race.grade)}
+                                  </span>
+
+                                  {race.racecourse && (
+                                    <span className="text-xs font-medium text-slate-600">
+                                      {race.racecourse.name}
+                                    </span>
+                                  )}
+
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600">
+                                    <Icon
+                                      name="clock"
+                                      className="h-3 w-3 text-slate-400"
+                                    />
                                     {formatRaceTime(race.scheduled_start)}
                                   </span>
-                                </>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-slate-500">Race unavailable</p>
                               )}
                             </div>
                           </div>
