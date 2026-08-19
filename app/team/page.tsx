@@ -1537,19 +1537,19 @@ export default function MyTeamPage() {
                           >
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                <p className="truncate text-[13px] font-black text-slate-950">
+                                <p className="truncate text-[17px] font-black leading-tight text-slate-950">
                                   {horse?.name ?? "Unknown horse"}
                                 </p>
 
                                 {selection.is_captain && (
-                                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[9px] font-black text-amber-950">
+                                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[11px] font-black text-amber-950">
                                     C
                                   </span>
                                 )}
                               </div>
 
                               {isScratched && (
-                                <p className="mt-0.5 text-[9px] font-black uppercase text-red-700">
+                                <p className="mt-1 text-[11px] font-black uppercase text-red-700">
                                   Scratched
                                 </p>
                               )}
@@ -1559,7 +1559,7 @@ export default function MyTeamPage() {
                                   {shareRaces.map((shareRace) => (
                                     <p
                                       key={shareRace.id}
-                                      className="truncate text-[9px] font-bold text-slate-600"
+                                      className="truncate text-[12px] font-bold leading-snug text-slate-600"
                                     >
                                       R{shareRace.race_number} {shareRace.race_name} ·{" "}
                                       {getGradeLabel(shareRace.grade)}
@@ -1567,7 +1567,7 @@ export default function MyTeamPage() {
                                   ))}
                                 </div>
                               ) : (
-                                <p className="mt-1 text-[9px] font-bold text-slate-400">
+                                <p className="mt-1 text-[12px] font-bold text-slate-400">
                                   Race unavailable
                                 </p>
                               )}
@@ -1576,23 +1576,23 @@ export default function MyTeamPage() {
                             <div className="text-right">
                               {selection.has_result ? (
                                 <>
-                                  <p className="text-[16px] font-black leading-none text-teal-700">
+                                  <p className="text-[21px] font-black leading-none text-teal-700">
                                     {points}
                                   </p>
-                                  <p className="mt-1 text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                  <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-400">
                                     points
                                   </p>
                                 </>
                               ) : isScratched ? (
-                                <p className="text-[9px] font-black uppercase text-red-700">
+                                <p className="text-[11px] font-black uppercase text-red-700">
                                   Scratched
                                 </p>
                               ) : (
                                 <>
-                                  <p className="text-[16px] font-black leading-none text-amber-600">
+                                  <p className="text-[21px] font-black leading-none text-amber-600">
                                     {shownProjection ?? "—"}
                                   </p>
-                                  <p className="mt-1 text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                  <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-400">
                                     projected
                                   </p>
                                 </>
