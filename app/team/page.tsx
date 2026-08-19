@@ -192,7 +192,7 @@ function getGradeClasses(grade: Race["grade"]) {
     case "G2":
       return "bg-slate-400 text-white";
     case "G3":
-      return "bg-orange-700 text-white";
+      return "bg-teal-500 text-white";
     case "L":
       return "bg-blue-100 text-blue-800";
   }
