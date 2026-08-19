@@ -1435,13 +1435,29 @@ export default function EditTeamPage() {
                 {selectedEntries.map((entry, index) => {
                   const isCaptain = entry.id === captainEntryId;
                   const isLocked = entryIsLocked(entry);
+                  const isHorseScratched = !entries.some(
+                    (candidate) =>
+                      candidate.horse_id === entry.horse_id &&
+                      candidate.entry_status === "runner"
+                  );
+
                   return (
-                    <div key={entry.id} className="flex items-center gap-3 p-3">
+                    <div
+                      key={entry.id}
+                      className={`flex items-center gap-3 p-3 ${
+                        isHorseScratched ? "bg-red-50" : ""
+                      }`}
+                    >
                       <span className="w-5 text-center text-xs font-bold text-slate-400">{index + 1}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <p className="truncate font-bold text-slate-900">{entry.horse?.name ?? "Unknown horse"}</p>
                           {isCaptain && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">C</span>}
+                          {isHorseScratched && (
+                            <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
+                              Scratched
+                            </span>
+                          )}
                           {isLocked && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">LOCKED</span>}
                         </div>
                         <p className="mt-0.5 truncate text-xs text-slate-500">
@@ -1732,14 +1748,21 @@ export default function EditTeamPage() {
                       const isCaptain = entry.id === captainEntryId;
                       const isLocked = entryIsLocked(entry);
                       const entryLockout = getEntryLockout(entry);
+                      const isHorseScratched = !entries.some(
+                        (candidate) =>
+                          candidate.horse_id === entry.horse_id &&
+                          candidate.entry_status === "runner"
+                      );
 
                       return (
                         <article
                           key={entry.id}
                           className={`rounded-xl border px-4 py-3 ${
-                            isCaptain
-                              ? "border-amber-300 bg-amber-50"
-                              : "border-slate-200 bg-white"
+                            isHorseScratched
+                              ? "border-red-300 bg-red-50"
+                              : isCaptain
+                                ? "border-amber-300 bg-amber-50"
+                                : "border-slate-200 bg-white"
                           }`}
                         >
                           <div className="flex items-center justify-between gap-4">
@@ -1759,6 +1782,12 @@ export default function EditTeamPage() {
                                 <p className="truncate text-lg font-semibold leading-tight text-slate-950">
                                   Unknown horse
                                 </p>
+                              )}
+
+                              {isHorseScratched && (
+                                <span className="shrink-0 rounded bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                                  Scratched
+                                </span>
                               )}
                             </div>
 

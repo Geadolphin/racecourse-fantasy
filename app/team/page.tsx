@@ -148,6 +148,14 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatRaceTime(value: string) {
+  return new Intl.DateTimeFormat("en-AU", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Australia/Melbourne",
+  }).format(new Date(value));
+}
+
 function getGradeLabel(grade: Race["grade"]) {
   const labels: Record<Race["grade"], string> = {
     L: "Listed",
@@ -1440,19 +1448,74 @@ export default function EditTeamPage() {
                 {selectedEntries.map((entry, index) => {
                   const isCaptain = entry.id === captainEntryId;
                   const isLocked = entryIsLocked(entry);
+                  const activeHorseEntries = entries
+                    .filter(
+                      (candidate) =>
+                        candidate.horse_id === entry.horse_id &&
+                        candidate.entry_status === "runner"
+                    )
+                    .sort((a, b) => {
+                      const timeA = a.race?.scheduled_start
+                        ? new Date(a.race.scheduled_start).getTime()
+                        : Number.MAX_SAFE_INTEGER;
+                      const timeB = b.race?.scheduled_start
+                        ? new Date(b.race.scheduled_start).getTime()
+                        : Number.MAX_SAFE_INTEGER;
+                      return timeA - timeB;
+                    });
+                  const displayEntries =
+                    activeHorseEntries.length > 0 ? activeHorseEntries : [entry];
+
                   return (
                     <div key={entry.id} className="flex items-center gap-3 p-3">
                       <span className="w-5 text-center text-xs font-bold text-slate-400">{index + 1}</span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="truncate font-bold text-slate-900">{entry.horse?.name ?? "Unknown horse"}</p>
-                          {isCaptain && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">C</span>}
-                          {isLocked && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">LOCKED</span>}
+                          <p className="truncate font-bold text-slate-900">
+                            {entry.horse?.name ?? "Unknown horse"}
+                          </p>
+
+                          {isCaptain && (
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                              C
+                            </span>
+                          )}
+
+                          {displayEntries.map((nomination) =>
+                            nomination.race ? (
+                              <span
+                                key={`mobile-grade-${nomination.id}`}
+                                className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[10px] font-bold text-teal-900"
+                              >
+                                {getGradeLabel(nomination.race.grade)}
+                              </span>
+                            ) : null
+                          )}
+
+                          {isLocked && (
+                            <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
+                              LOCKED
+                            </span>
+                          )}
                         </div>
-                        <p className="mt-0.5 truncate text-xs text-slate-500">
-                          {entry.race ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}` : "Race unavailable"}
-                        </p>
-                        <p className="mt-0.5 text-xs font-bold text-teal-700">
+
+                        <div className="mt-1 space-y-1">
+                          {displayEntries.map((nomination) =>
+                            nomination.race ? (
+                              <div key={`mobile-race-${nomination.id}`}>
+                                <p className="truncate text-xs font-semibold text-slate-700">
+                                  R{nomination.race.race_number} · {nomination.race.race_name}
+                                </p>
+                                <p className="truncate text-[11px] text-slate-500">
+                                  {nomination.race.racecourse?.name ?? "Racecourse"} ·{" "}
+                                  {formatRaceTime(nomination.race.scheduled_start)}
+                                </p>
+                              </div>
+                            ) : null
+                          )}
+                        </div>
+
+                        <p className="mt-1 text-xs font-bold text-teal-700">
                           Projected: {entry.projected_points ?? "—"} pts
                         </p>
                       </div>
@@ -1741,6 +1804,23 @@ export default function EditTeamPage() {
                       const isCaptain = entry.id === captainEntryId;
                       const isLocked = entryIsLocked(entry);
                       const entryLockout = getEntryLockout(entry);
+                      const activeHorseEntries = entries
+                        .filter(
+                          (candidate) =>
+                            candidate.horse_id === entry.horse_id &&
+                            candidate.entry_status === "runner"
+                        )
+                        .sort((a, b) => {
+                          const timeA = a.race?.scheduled_start
+                            ? new Date(a.race.scheduled_start).getTime()
+                            : Number.MAX_SAFE_INTEGER;
+                          const timeB = b.race?.scheduled_start
+                            ? new Date(b.race.scheduled_start).getTime()
+                            : Number.MAX_SAFE_INTEGER;
+                          return timeA - timeB;
+                        });
+                      const displayEntries =
+                        activeHorseEntries.length > 0 ? activeHorseEntries : [entry];
 
                       return (
                         <article
@@ -1753,22 +1833,35 @@ export default function EditTeamPage() {
                         >
                           <div className="flex items-center justify-between gap-4">
                             <div className="min-w-0 flex-1">
-                              {entry.horse?.id ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setSelectedHorseId(entry.horse!.id)
-                                  }
-                                  className="truncate text-left text-lg font-semibold leading-tight text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
-                                  aria-label={`View statistics for ${entry.horse.name}`}
-                                >
-                                  {entry.horse.name}
-                                </button>
-                              ) : (
-                                <p className="truncate text-lg font-semibold leading-tight text-slate-950">
-                                  Unknown horse
-                                </p>
-                              )}
+                              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                {entry.horse?.id ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedHorseId(entry.horse!.id)
+                                    }
+                                    className="truncate text-left text-lg font-semibold leading-tight text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                    aria-label={`View statistics for ${entry.horse.name}`}
+                                  >
+                                    {entry.horse.name}
+                                  </button>
+                                ) : (
+                                  <p className="truncate text-lg font-semibold leading-tight text-slate-950">
+                                    Unknown horse
+                                  </p>
+                                )}
+
+                                {displayEntries.map((nomination) =>
+                                  nomination.race ? (
+                                    <span
+                                      key={`desktop-grade-${nomination.id}`}
+                                      className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-900"
+                                    >
+                                      {getGradeLabel(nomination.race.grade)}
+                                    </span>
+                                  ) : null
+                                )}
+                              </div>
                             </div>
 
                             <p className="shrink-0 text-lg font-semibold leading-tight text-slate-950">
@@ -1778,18 +1871,29 @@ export default function EditTeamPage() {
 
                           <div className="mt-2 flex items-center gap-3">
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium text-slate-950">
-                                {entry.race
-                                  ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number} · ${entry.race.race_name}`
-                                  : "Race unavailable"}
-                              </p>
+                              <div className="space-y-1.5">
+                                {displayEntries.map((nomination) =>
+                                  nomination.race ? (
+                                    <div key={`desktop-race-${nomination.id}`}>
+                                      <p className="truncate text-sm font-semibold text-slate-950">
+                                        R{nomination.race.race_number} · {nomination.race.race_name}
+                                      </p>
+                                      <p className="mt-0.5 truncate text-xs font-medium text-slate-600">
+                                        {nomination.race.racecourse?.name ?? "Racecourse"} ·{" "}
+                                        {formatRaceTime(nomination.race.scheduled_start)}
+                                      </p>
+                                    </div>
+                                  ) : null
+                                )}
+                              </div>
 
                               {entryLockout && (
-                                <p className="mt-0.5 truncate text-[10px] font-medium text-slate-700">
+                                <p className="mt-1 truncate text-[10px] font-medium text-slate-700">
                                   {entryLockout.display_name} ·{" "}
                                   {formatDateTime(entryLockout.lockout_at)}
                                 </p>
                               )}
+
                               <p className="mt-1 text-xs font-bold text-teal-700">
                                 Projected: {entry.projected_points ?? "—"} pts
                               </p>
