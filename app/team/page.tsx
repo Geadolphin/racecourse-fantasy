@@ -1559,7 +1559,7 @@ export default function MyTeamPage() {
                                   {shareRaces.map((shareRace) => (
                                     <p
                                       key={shareRace.id}
-                                      className="truncate text-[11px] font-bold leading-snug text-slate-600"
+                                      className="truncate text-[9px] font-bold leading-snug text-slate-600"
                                     >
                                       R{shareRace.race_number} {shareRace.race_name} ·{" "}
                                       {getGradeLabel(shareRace.grade)}
@@ -1592,7 +1592,7 @@ export default function MyTeamPage() {
                                   <p className="text-[21px] font-black leading-none text-amber-600">
                                     {shownProjection ?? "—"}
                                   </p>
-                                  <p className="mt-1 text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                  <p className="mt-1 text-[7px] font-black uppercase tracking-wide text-slate-400">
                                     projected
                                   </p>
                                 </>
