@@ -1047,7 +1047,7 @@ export default function MyTeamPage() {
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                           <div className="min-w-0">
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
-                              <h3 className="truncate text-base font-bold text-slate-950 sm:text-lg">
+                              <h3 className="truncate text-base font-bold text-slate-950 md:text-xl">
                                 {horse?.name ?? "Unknown horse"}
                               </h3>
 
