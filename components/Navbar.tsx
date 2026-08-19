@@ -219,11 +219,11 @@ export default function Navbar() {
               </Link>
 
               <Link
-                href="/leagues"
-                className={desktopLinkClasses("/leagues")}
+                href="/stats"
+                className={desktopLinkClasses("/stats")}
               >
-                <Network className="h-4 w-4" />
-                <span>Leagues</span>
+                <BarChart3 className="h-4 w-4" />
+                <span>Stats</span>
               </Link>
 
               <Link
@@ -277,12 +277,12 @@ export default function Navbar() {
                     </Link>
 
                     <Link
-                      href="/stats"
+                      href="/leagues"
                       role="menuitem"
                       className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-teal-300"
                     >
-                      <BarChart3 className="h-4 w-4" />
-                      <span>Stats</span>
+                      <Network className="h-4 w-4" />
+                      <span>Leagues</span>
                     </Link>
 
                     <Link
