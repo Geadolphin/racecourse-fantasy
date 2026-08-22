@@ -106,6 +106,7 @@ type DashboardCupMatchup = {
   opponent_name: string | null;
   my_score: number | null;
   opponent_score: number | null;
+  score_status?: "scheduled" | "live" | "final";
 };
 
 function formatCurrency(value: number) {
@@ -900,6 +901,96 @@ export default function Dashboard() {
                 participant?.id === opponentId
             );
 
+          /*
+           * Build a live Cup score from each player's team for this fantasy round.
+           * Official races use actual fantasy points; races still to run contribute 0.
+           * Captain points are doubled. Once the stored Cup match is final, use its
+           * official saved scores instead.
+           */
+          async function getLiveCupScore(userId: string | null) {
+            if (!userId) return null;
+
+            const { data: opponentTeam, error: opponentTeamError } =
+              await supabase
+                .from("teams")
+                .select("id")
+                .eq("user_id", userId)
+                .eq("round_id", resolvedDashboardData.round!.id)
+                .maybeSingle();
+
+            if (opponentTeamError || !opponentTeam?.id) {
+              if (opponentTeamError) {
+                console.error("Dashboard Cup team error:", opponentTeamError);
+              }
+              return null;
+            }
+
+            const { data: scoreSelections, error: scoreError } =
+              await supabase
+                .from("team_selections")
+                .select(`
+                  is_captain,
+                  fantasy_points,
+                  race_entry:race_entries!inner (
+                    race:races!inner (
+                      status
+                    )
+                  )
+                `)
+                .eq("team_id", opponentTeam.id);
+
+            if (scoreError) {
+              console.error("Dashboard Cup live score error:", scoreError);
+              return null;
+            }
+
+            return (scoreSelections ?? []).reduce(
+              (total: number, selection: any) => {
+                const rawEntry = selection.race_entry;
+                const entry = Array.isArray(rawEntry)
+                  ? rawEntry[0] ?? null
+                  : rawEntry;
+                const rawRace = entry?.race;
+                const race = Array.isArray(rawRace)
+                  ? rawRace[0] ?? null
+                  : rawRace;
+
+                if (race?.status !== "official") {
+                  return total;
+                }
+
+                const points = Number(selection.fantasy_points ?? 0);
+                return total + (selection.is_captain ? points * 2 : points);
+              },
+              0
+            );
+          }
+
+          const matchIsFinal =
+            match.match_status === "completed" ||
+            match.match_status === "final" ||
+            match.match_status === "scored";
+
+          const myParticipant = (detail?.participants ?? []).find(
+            (participant: any) => participant?.id === participantId
+          );
+
+          const myUserId =
+            myParticipant?.user_id ??
+            resolvedUser.id;
+
+          const opponentUserId =
+            opponent?.user_id ?? null;
+
+          const [liveMyScore, liveOpponentScore] = matchIsFinal
+            ? [null, null]
+            : await Promise.all([
+                getLiveCupScore(myUserId),
+                getLiveCupScore(opponentUserId),
+              ]);
+
+          if (!active) return;
+
           setCupMatchup({
             cup_id: cup.id,
             cup_name:
@@ -917,16 +1008,21 @@ export default function Dashboard() {
             opponent_name:
               opponent?.display_name ??
               "Opponent",
-            my_score:
-              (iAmParticipantOne
-                ? match.participant_1_score
-                : match.participant_2_score) ??
-              null,
-            opponent_score:
-              (iAmParticipantOne
-                ? match.participant_2_score
-                : match.participant_1_score) ??
-              null,
+            my_score: matchIsFinal
+              ? (iAmParticipantOne
+                  ? match.participant_1_score
+                  : match.participant_2_score) ?? null
+              : liveMyScore,
+            opponent_score: matchIsFinal
+              ? (iAmParticipantOne
+                  ? match.participant_2_score
+                  : match.participant_1_score) ?? null
+              : liveOpponentScore,
+            score_status: matchIsFinal
+              ? "final"
+              : lockoutHasPassed
+                ? "live"
+                : "scheduled",
           });
 
           return;
@@ -1257,6 +1353,20 @@ export default function Dashboard() {
                     <span className="text-sm font-semibold text-slate-500">
                       {cupMatchup.stage_name}
                     </span>
+
+                    {cupMatchup.status === "matchup" &&
+                      cupMatchup.score_status === "live" && (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-700">
+                          Live
+                        </span>
+                      )}
+
+                    {cupMatchup.status === "matchup" &&
+                      cupMatchup.score_status === "final" && (
+                        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
+                          Final
+                        </span>
+                      )}
                   </div>
 
                   {cupMatchup.status === "matchup" ? (
