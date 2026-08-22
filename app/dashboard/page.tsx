@@ -932,6 +932,7 @@ export default function Dashboard() {
                   is_captain,
                   fantasy_points,
                   race_entry:race_entries!inner (
+                    projected_points,
                     race:races!inner (
                       status
                     )
@@ -950,23 +951,32 @@ export default function Dashboard() {
                 const entry = Array.isArray(rawEntry)
                   ? rawEntry[0] ?? null
                   : rawEntry;
+
                 const rawRace = entry?.race;
                 const race = Array.isArray(rawRace)
                   ? rawRace[0] ?? null
                   : rawRace;
 
-                if (race?.status !== "official") {
-                  return total;
-                }
+                const raceIsOfficial =
+                  race?.status === "official";
 
-                const points = Number(selection.fantasy_points ?? 0);
-                return total + (selection.is_captain ? points * 2 : points);
+                const basePoints = raceIsOfficial
+                  ? Number(selection.fantasy_points ?? 0)
+                  : Number(entry?.projected_points ?? 0);
+
+                return (
+                  total +
+                  (selection.is_captain
+                    ? basePoints * 2
+                    : basePoints)
+                );
               },
               0
             );
           }
 
           const matchIsFinal =
+            match.match_status === "complete" ||
             match.match_status === "completed" ||
             match.match_status === "final" ||
             match.match_status === "scored";
@@ -1353,6 +1363,13 @@ export default function Dashboard() {
                     <span className="text-sm font-semibold text-slate-500">
                       {cupMatchup.stage_name}
                     </span>
+
+                    {cupMatchup.status === "matchup" &&
+                      cupMatchup.score_status === "scheduled" && (
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-blue-700">
+                          Projected
+                        </span>
+                      )}
 
                     {cupMatchup.status === "matchup" &&
                       cupMatchup.score_status === "live" && (
