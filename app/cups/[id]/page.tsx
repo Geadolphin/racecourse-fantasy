@@ -137,6 +137,7 @@ type FixtureCompareSelection = {
   race_entry_id: string;
   horse_id: string;
   horse_name: string;
+  silks_url: string | null;
   is_captain: boolean;
   selected_price: number;
   fantasy_points: number;
@@ -1560,11 +1561,12 @@ function FixtureCompareTeam({
   );
 
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200">
-      <div className="bg-slate-100 px-4 py-3">
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-100 px-4 py-3">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
           Team Sheet
         </p>
+
         <h3 className="mt-0.5 truncate font-black text-slate-950">
           {title}
         </h3>
@@ -1577,10 +1579,25 @@ function FixtureCompareTeam({
           return (
             <div
               key={selection.race_entry_id}
-              className={`grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 ${
+              className={`grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 ${
                 shared ? "bg-slate-50" : "bg-white"
               }`}
             >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center">
+                {selection.silks_url ? (
+                  <img
+                    src={selection.silks_url}
+                    alt={`${selection.horse_name} silks`}
+                    className="max-h-12 max-w-12 object-contain"
+                    loading="lazy"
+                  />
+                ) : (
+                  <span className="text-center text-[8px] font-black uppercase leading-tight tracking-wide text-slate-400">
+                    No Silk
+                  </span>
+                )}
+              </div>
+
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="truncate font-bold text-slate-900">
@@ -1588,7 +1605,10 @@ function FixtureCompareTeam({
                   </p>
 
                   {selection.is_captain && (
-                    <span className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900">
+                    <span
+                      className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900"
+                      title="Captain"
+                    >
                       C
                     </span>
                   )}
@@ -1601,9 +1621,15 @@ function FixtureCompareTeam({
                 </p>
               </div>
 
-              <span className="text-lg font-black text-teal-700">
-                {selection.display_points ?? 0}
-              </span>
+              <div className="shrink-0 text-right">
+                <p className="text-lg font-black tabular-nums text-teal-700">
+                  {selection.display_points ?? 0}
+                </p>
+
+                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                  pts
+                </p>
+              </div>
             </div>
           );
         })}
