@@ -97,6 +97,17 @@ type DashboardExtras = {
   leagues: DashboardLeaguePosition[];
 };
 
+type DashboardCupMatchup = {
+  cup_id: string;
+  cup_name: string;
+  stage_name: string;
+  stage_type: "group" | "knockout";
+  status: "matchup" | "eliminated" | "tbc";
+  opponent_name: string | null;
+  my_score: number | null;
+  opponent_score: number | null;
+};
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -317,6 +328,9 @@ export default function Dashboard() {
     leagues: [],
   });
 
+  const [cupMatchup, setCupMatchup] =
+    useState<DashboardCupMatchup | null>(null);
+
   const [loading, setLoading] =
     useState(true);
 
@@ -405,6 +419,7 @@ export default function Dashboard() {
           season_ranked_count: 0,
           leagues: [],
         });
+        setCupMatchup(null);
 
         setErrorMessage(
           dashboardData?.message ||
@@ -766,10 +781,142 @@ export default function Dashboard() {
         });
       }
 
+      async function loadCupMatchup() {
+        setCupMatchup(null);
+
+        const { data: participantRows, error: participantError } =
+          await supabase
+            .from("cup_participants")
+            .select(
+              `
+                id,
+                cup_id,
+                cup:cup_competitions!inner (
+                  id,
+                  name,
+                  season_id
+                )
+              `
+            )
+            .eq("user_id", resolvedUser.id)
+            .eq("cup.season_id", resolvedDashboardData.season!.id);
+
+        if (!active) return;
+
+        if (participantError) {
+          console.error("Dashboard Cup participant error:", participantError);
+          return;
+        }
+
+        for (const participantRow of participantRows ?? []) {
+          const rawCup = (participantRow as any).cup;
+          const cup = Array.isArray(rawCup) ? rawCup[0] ?? null : rawCup;
+
+          if (!cup?.id) continue;
+
+          const { data: stage, error: stageError } = await supabase
+            .from("cup_stages")
+            .select("id, stage_name, stage_type, sequence_number")
+            .eq("cup_id", cup.id)
+            .eq("round_id", resolvedDashboardData.round!.id)
+            .order("sequence_number", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (!active) return;
+
+          if (stageError) {
+            console.error("Dashboard Cup stage error:", stageError);
+            continue;
+          }
+
+          if (!stage?.id) continue;
+
+          const participantId = String((participantRow as any).id);
+
+          const { data: matches, error: matchError } = await supabase
+            .from("cup_matches")
+            .select(
+              "id, participant_1_id, participant_2_id, participant_1_score, participant_2_score"
+            )
+            .eq("stage_id", stage.id)
+            .or(
+              `participant_1_id.eq.${participantId},participant_2_id.eq.${participantId}`
+            )
+            .limit(1);
+
+          if (!active) return;
+
+          if (matchError) {
+            console.error("Dashboard Cup matchup error:", matchError);
+            continue;
+          }
+
+          const match = matches?.[0] ?? null;
+
+          if (!match) {
+            setCupMatchup({
+              cup_id: cup.id,
+              cup_name: cup.name,
+              stage_name: stage.stage_name,
+              stage_type: stage.stage_type as "group" | "knockout",
+              status: stage.stage_type === "knockout" ? "eliminated" : "tbc",
+              opponent_name: null,
+              my_score: null,
+              opponent_score: null,
+            });
+            return;
+          }
+
+          const iAmParticipantOne =
+            match.participant_1_id === participantId;
+          const opponentId = iAmParticipantOne
+            ? match.participant_2_id
+            : match.participant_1_id;
+
+          let opponentName = "Opponent";
+
+          if (opponentId) {
+            const { data: opponent, error: opponentError } = await supabase
+              .from("cup_participants")
+              .select("display_name")
+              .eq("id", opponentId)
+              .maybeSingle();
+
+            if (!active) return;
+
+            if (opponentError) {
+              console.error("Dashboard Cup opponent error:", opponentError);
+            } else if (opponent?.display_name?.trim()) {
+              opponentName = opponent.display_name.trim();
+            }
+          }
+
+          setCupMatchup({
+            cup_id: cup.id,
+            cup_name: cup.name,
+            stage_name: stage.stage_name,
+            stage_type: stage.stage_type as "group" | "knockout",
+            status: "matchup",
+            opponent_name: opponentName,
+            my_score:
+              (iAmParticipantOne
+                ? match.participant_1_score
+                : match.participant_2_score) ?? null,
+            opponent_score:
+              (iAmParticipantOne
+                ? match.participant_2_score
+                : match.participant_1_score) ?? null,
+          });
+          return;
+        }
+      }
+
       void Promise.allSettled([
         loadPreviousOverallRank(),
         loadProjectedScore(),
         loadDashboardExtras(),
+        loadCupMatchup(),
       ]);
       setLoading(false);
     }
@@ -1069,6 +1216,69 @@ export default function Dashboard() {
             </div>
           )}
         </section>
+
+        {cupMatchup && (
+          <section className="mt-4 sm:mt-5">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-teal-700">
+                    <Trophy className="h-4 w-4" />
+                    <p className="text-xs font-bold uppercase tracking-wide">
+                      Cup Matchup
+                    </p>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <h2 className="text-xl font-bold text-slate-900">
+                      {cupMatchup.cup_name}
+                    </h2>
+                    <span className="text-sm font-semibold text-slate-500">
+                      {cupMatchup.stage_name}
+                    </span>
+                  </div>
+
+                  {cupMatchup.status === "matchup" ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
+                      <span>{displayName}</span>
+                      {cupMatchup.my_score !== null && (
+                        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-base">
+                          {cupMatchup.my_score}
+                        </span>
+                      )}
+                      <span className="text-sm font-black uppercase tracking-wide text-slate-400">
+                        vs
+                      </span>
+                      {cupMatchup.opponent_score !== null && (
+                        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-base">
+                          {cupMatchup.opponent_score}
+                        </span>
+                      )}
+                      <span>{cupMatchup.opponent_name}</span>
+                    </div>
+                  ) : cupMatchup.status === "eliminated" ? (
+                    <div className="mt-3">
+                      <span className="inline-flex rounded-full bg-red-100 px-3 py-1 text-sm font-black uppercase tracking-wide text-red-700">
+                        Eliminated
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="mt-3 font-semibold text-slate-500">
+                      Matchup TBC
+                    </p>
+                  )}
+                </div>
+
+                <Link
+                  href={`/cups/${cupMatchup.cup_id}`}
+                  className="shrink-0 rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  View Cup →
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="mt-4 grid gap-4 sm:mt-5 sm:gap-5 lg:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
