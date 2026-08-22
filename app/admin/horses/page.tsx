@@ -21,6 +21,8 @@ export default function HorsesPage() {
   const [horses, setHorses] = useState<Horse[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingSilksHorseId, setUploadingSilksHorseId] =
+    useState<string | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -159,6 +161,83 @@ export default function HorsesPage() {
     setShowModal(false);
   }
 
+  async function uploadSilks(
+    horse: Horse,
+    file: File
+  ) {
+    setErrorMessage("");
+    setUploadingSilksHorseId(horse.id);
+
+    try {
+      if (!file.type.startsWith("image/")) {
+        throw new Error("Please choose an image file.");
+      }
+
+      const maxSizeBytes = 5 * 1024 * 1024;
+
+      if (file.size > maxSizeBytes) {
+        throw new Error(
+          "Silks image must be 5 MB or smaller."
+        );
+      }
+
+      const extension =
+        file.name.split(".").pop()?.toLowerCase() || "png";
+
+      const safeExtension = extension.replace(
+        /[^a-z0-9]/g,
+        ""
+      );
+
+      const storagePath = `${horse.id}/silks.${
+        safeExtension || "png"
+      }`;
+
+      const { error: uploadError } =
+        await supabase.storage
+          .from("horse-silks")
+          .upload(storagePath, file, {
+            cacheControl: "3600",
+            upsert: true,
+            contentType: file.type,
+          });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } =
+        supabase.storage
+          .from("horse-silks")
+          .getPublicUrl(storagePath);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from("horses")
+        .update({
+          silks_url: publicUrl,
+        })
+        .eq("id", horse.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      await loadHorses();
+    } catch (error) {
+      console.error("Silks upload error:", error);
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not upload the silks image."
+      );
+    } finally {
+      setUploadingSilksHorseId(null);
+    }
+  }
+
   function formatMoney(amount: number) {
     return new Intl.NumberFormat("en-AU", {
       style: "currency",
@@ -229,6 +308,10 @@ export default function HorsesPage() {
                   </th>
 
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Silks
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                     Starting Price
                   </th>
 
@@ -262,6 +345,28 @@ export default function HorsesPage() {
                   >
                     <td className="px-4 py-4 font-semibold text-slate-900">
                       {horse.name}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {(horse as Horse & {
+                        silks_url?: string | null;
+                      }).silks_url ? (
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                          <img
+                            src={
+                              (horse as Horse & {
+                                silks_url?: string | null;
+                              }).silks_url ?? ""
+                            }
+                            alt={`${horse.name} silks`}
+                            className="h-full w-full object-contain p-1"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-[10px] font-bold uppercase text-slate-400">
+                          None
+                        </div>
+                      )}
                     </td>
 
                     <td className="px-4 py-4 text-sm text-slate-700">
@@ -299,15 +404,55 @@ export default function HorsesPage() {
                     </td>
 
                     <td className="px-4 py-4">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          editHorse(horse)
-                        }
-                        className="rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            editHorse(horse)
+                          }
+                          className="rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-slate-50"
+                        >
+                          Edit
+                        </button>
+
+                        <label
+                          className={`cursor-pointer rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                            uploadingSilksHorseId === horse.id
+                              ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                              : "bg-slate-950 text-white hover:bg-slate-800"
+                          }`}
+                        >
+                          {uploadingSilksHorseId === horse.id
+                            ? "Uploading..."
+                            : (horse as Horse & {
+                                  silks_url?: string | null;
+                                }).silks_url
+                              ? "Change Silks"
+                              : "Add Silks"}
+
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                            className="hidden"
+                            disabled={
+                              uploadingSilksHorseId === horse.id
+                            }
+                            onChange={(event) => {
+                              const file =
+                                event.target.files?.[0];
+
+                              event.currentTarget.value = "";
+
+                              if (file) {
+                                void uploadSilks(
+                                  horse,
+                                  file
+                                );
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
                     </td>
                   </tr>
                 ))}
