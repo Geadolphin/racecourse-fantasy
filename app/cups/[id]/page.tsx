@@ -380,7 +380,10 @@ export default function CupDetailPage() {
                 {data.cup.automatic_qualifiers_per_group === 1
                   ? "team"
                   : "teams"}{" "}
-                from each group qualify automatically
+                from each group qualify for the knockout stage. Teams finishing
+                1st or 2nd earn a bye through the Preliminary Round and advance
+                directly to the Round of 32, while teams finishing 3rd–6th
+                qualify for the Preliminary Round
                 {data.cup.additional_qualifier_count > 0 &&
                 data.cup.additional_qualifier_position !== null
                   ? `, with the best ${data.cup.additional_qualifier_count} ${ordinal(
