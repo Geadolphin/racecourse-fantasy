@@ -375,6 +375,25 @@ export default function CupDetailPage() {
                 Group-stage qualification followed by knockout racing through to the Final.
               </p>
 
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
+                The top {data.cup.automatic_qualifiers_per_group}{" "}
+                {data.cup.automatic_qualifiers_per_group === 1
+                  ? "team"
+                  : "teams"}{" "}
+                from each group qualify automatically
+                {data.cup.additional_qualifier_count > 0 &&
+                data.cup.additional_qualifier_position !== null
+                  ? `, with the best ${data.cup.additional_qualifier_count} ${ordinal(
+                      data.cup.additional_qualifier_position
+                    )}-placed ${
+                      data.cup.additional_qualifier_count === 1
+                        ? "team"
+                        : "teams"
+                    } across all groups also advancing`
+                  : ""}
+                .
+              </p>
+
               {data.my_participant_id && (
                 <div className="mt-5 inline-flex items-center rounded-full border border-teal-400/30 bg-teal-400/10 px-3 py-1.5 text-sm font-black text-teal-200">
                   You are competing in this Cup
@@ -417,7 +436,7 @@ export default function CupDetailPage() {
             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-800">
               Automatic qualifier
             </span>
-            <span className="rounded-full bg-teal-100 px-2.5 py-1 text-teal-800">
+            <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-800">
               Your team
             </span>
           </div>
@@ -477,7 +496,7 @@ export default function CupDetailPage() {
                               key={member.participant_id}
                               className={`border-t border-slate-100 ${
                                 isMe(member.participant_id)
-                                  ? "bg-teal-50"
+                                  ? "bg-blue-100"
                                   : member.group_position !== null &&
                                       member.group_position <=
                                         data.cup.automatic_qualifiers_per_group
@@ -500,7 +519,7 @@ export default function CupDetailPage() {
                                 >
                                   {participantName(member.participant_id)}
                                   {isMe(member.participant_id) && (
-                                    <span className="ml-2 text-xs font-bold text-teal-700">
+                                    <span className="ml-2 text-xs font-black text-blue-700">
                                       YOU
                                     </span>
                                   )}
@@ -576,7 +595,7 @@ export default function CupDetailPage() {
                               )}
                               <tr className={`border-t border-slate-100 ${
                                 isMe(member.participant_id)
-                                  ? "bg-teal-50"
+                                  ? "bg-blue-100"
                                   : qualifying
                                     ? "bg-emerald-50/60"
                                     : ""
@@ -590,7 +609,7 @@ export default function CupDetailPage() {
                                   >
                                     {participantName(member.participant_id)}
                                     {isMe(member.participant_id) && (
-                                      <span className="ml-2 text-xs font-bold text-teal-700">YOU</span>
+                                      <span className="ml-2 text-xs font-black text-blue-700">YOU</span>
                                     )}
                                   </button>
                                 </td>
