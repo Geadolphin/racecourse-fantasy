@@ -119,6 +119,7 @@ type SeasonRecordStat = {
 type SeasonRecordsStats = {
   highest_round_score?: SeasonRecordStat | null;
   most_round_wins?: SeasonRecordStat | null;
+  best_captain?: SeasonRecordStat | null;
   biggest_rank_rise?: SeasonRecordStat | null;
 };
 
@@ -432,6 +433,9 @@ export default function StatsPage() {
 
   const [roundStatsFallback, setRoundStatsFallback] =
     useState<RoundSummaryStats | null>(null);
+
+  const [bestCaptainFallback, setBestCaptainFallback] =
+    useState<SeasonRecordStat | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -809,6 +813,193 @@ export default function StatsPage() {
     };
   }, [selectedRoundId]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadBestCaptainFallback() {
+      if (!selectedSeasonId) {
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const {
+        data: seasonRounds,
+        error: roundsError,
+      } = await supabase
+        .from("rounds")
+        .select("id")
+        .eq("season_id", selectedSeasonId);
+
+      if (!active) return;
+
+      if (roundsError) {
+        console.error(
+          "Best captain rounds load error:",
+          roundsError
+        );
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const roundIds = (seasonRounds ?? []).map(
+        (round) => round.id
+      );
+
+      if (roundIds.length === 0) {
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const {
+        data: seasonTeams,
+        error: teamsError,
+      } = await supabase
+        .from("teams")
+        .select("id, user_id")
+        .in("round_id", roundIds)
+        .in("status", [
+          "submitted",
+          "locked",
+          "scored",
+        ]);
+
+      if (!active) return;
+
+      if (teamsError) {
+        console.error(
+          "Best captain teams load error:",
+          teamsError
+        );
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const teams = seasonTeams ?? [];
+      const teamIds = teams.map((team) => team.id);
+
+      if (teamIds.length === 0) {
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const userByTeamId = new Map(
+        teams.map((team) => [
+          team.id,
+          team.user_id,
+        ])
+      );
+
+      const {
+        data: captainSelections,
+        error: captainError,
+      } = await supabase
+        .from("team_selections")
+        .select("team_id, fantasy_points")
+        .in("team_id", teamIds)
+        .eq("is_captain", true);
+
+      if (!active) return;
+
+      if (captainError) {
+        console.error(
+          "Best captain selections load error:",
+          captainError
+        );
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const totalsByUser = new Map<
+        string,
+        {
+          total: number;
+          rounds: number;
+        }
+      >();
+
+      for (const selection of captainSelections ?? []) {
+        const userId = userByTeamId.get(
+          selection.team_id
+        );
+
+        if (!userId) {
+          continue;
+        }
+
+        const doubledCaptainPoints =
+          Number(selection.fantasy_points ?? 0) *
+          2;
+
+        const current =
+          totalsByUser.get(userId) ?? {
+            total: 0,
+            rounds: 0,
+          };
+
+        current.total += doubledCaptainPoints;
+        current.rounds += 1;
+
+        totalsByUser.set(userId, current);
+      }
+
+      const bestCaptain = Array.from(
+        totalsByUser.entries()
+      )
+        .map(([userId, record]) => ({
+          userId,
+          rounds: record.rounds,
+          average:
+            record.rounds > 0
+              ? record.total / record.rounds
+              : 0,
+        }))
+        .filter((record) => record.rounds > 0)
+        .sort(
+          (a, b) =>
+            b.average - a.average ||
+            b.rounds - a.rounds
+        )[0];
+
+      if (!bestCaptain) {
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const {
+        data: profileData,
+        error: profileError,
+      } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", bestCaptain.userId)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (profileError) {
+        console.error(
+          "Best captain profile load error:",
+          profileError
+        );
+      }
+
+      setBestCaptainFallback({
+        user_id: bestCaptain.userId,
+        display_name:
+          profileData?.display_name ??
+          "Player",
+        value: bestCaptain.average,
+        rounds: bestCaptain.rounds,
+      });
+    }
+
+    void loadBestCaptainFallback();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedSeasonId]);
+
   function changeHorseSort(nextKey: HorseSortKey) {
     if (horseSortKey === nextKey) {
       setHorseSortDirection((current) =>
@@ -940,6 +1131,10 @@ export default function StatsPage() {
           value: derivedHighestRoundPlayer.highest_round_score,
         }
       : null);
+
+  const bestCaptainRecord =
+    data.season_records?.best_captain ??
+    bestCaptainFallback;
 
   const mostRoundWinsRecord =
     data.season_records?.most_round_wins ??
@@ -1472,11 +1667,11 @@ export default function StatsPage() {
             <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
               <h2 className="text-xl font-black text-slate-950">Season Records</h2>
               <p className="mt-1 text-sm text-slate-600">
-                Highest Round Score, Most Round Wins and Biggest Rank Rise.
+                Highest Round Score, Most Round Wins, Best Captain and Biggest Rank Rise.
               </p>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               <MetricCard
                 title="Highest Round Score"
                 value={highestRoundRecord?.value == null ? "—" : `${highestRoundRecord.value} pts`}
@@ -1487,6 +1682,29 @@ export default function StatsPage() {
                 title="Most Round Wins"
                 value={mostRoundWinsRecord?.value == null ? "—" : `${mostRoundWinsRecord.value}`}
                 subtitle={mostRoundWinsRecord?.display_name ?? "No record yet"}
+              />
+              <MetricCard
+                title="Best Captain"
+                value={
+                  bestCaptainRecord?.value == null
+                    ? "—"
+                    : `${Number(
+                        bestCaptainRecord.value
+                      ).toFixed(1)} pts`
+                }
+                subtitle={
+                  bestCaptainRecord?.display_name
+                    ? `${bestCaptainRecord.display_name} · average captain score${
+                        bestCaptainRecord.rounds
+                          ? ` over ${bestCaptainRecord.rounds} round${
+                              bestCaptainRecord.rounds === 1
+                                ? ""
+                                : "s"
+                            }`
+                          : ""
+                      }`
+                    : "Highest average captain score"
+                }
               />
               <MetricCard
                 title="Biggest Rank Rise"
