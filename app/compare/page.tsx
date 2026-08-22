@@ -970,15 +970,15 @@ export default function CompareTeamsPage() {
                       Official Head-to-Head
                     </p>
                     <h2 className="mt-1 text-xl font-black sm:text-2xl">
-                      Round {comparisonData.round?.round_number}
-                      {comparisonData.round?.name
+                      Round {comparisonData?.round?.round_number ?? "—"}
+                      {comparisonData?.round?.name
                         ? ` · ${comparisonData.round.name}`
                         : ""}
                     </h2>
                   </div>
 
                   <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-slate-300">
-                    {comparisonData.round?.status ?? "Locked"}
+                    {comparisonData?.round?.status ?? "Locked"}
                   </span>
                 </div>
               </div>
@@ -1073,7 +1073,7 @@ export default function CompareTeamsPage() {
                       You
                     </span>
                     <span className="truncate text-right text-sm font-black text-slate-950">
-                      {myTeam.selections.find(
+                      {mySelections.find(
                         (selection) => selection.is_captain
                       )?.horse_name ?? "—"}
                     </span>
@@ -1084,7 +1084,7 @@ export default function CompareTeamsPage() {
                       Opponent
                     </span>
                     <span className="truncate text-right text-sm font-black text-slate-950">
-                      {opponentTeam.selections.find(
+                      {opponentSelections.find(
                         (selection) => selection.is_captain
                       )?.horse_name ?? "—"}
                     </span>
