@@ -1919,18 +1919,26 @@ function CupCompareTeam({
   subtitle,
   selections,
   otherSelections,
+  highlightMine = false,
 }: {
   title: string;
   subtitle?: string;
   selections: CupCompareSelection[];
   otherSelections: CupCompareSelection[];
+  highlightMine?: boolean;
 }) {
   const otherHorseIds = new Set(
     otherSelections.map((selection) => selection.horse_id)
   );
 
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <section
+      className={`overflow-hidden rounded-xl border bg-white ${
+        highlightMine
+          ? "border-teal-300 ring-1 ring-teal-100"
+          : "border-slate-200"
+      }`}
+    >
       <div className="border-b border-slate-200 bg-slate-100 px-4 py-3">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
           Team Sheet
