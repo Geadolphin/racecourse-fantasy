@@ -805,6 +805,79 @@ export default function StatsPage() {
         }
       : null);
 
+  const derivedMostPointsHorse = useMemo(() => {
+    const leader = [...(data.horse_leaders ?? [])]
+      .sort(
+        (a, b) =>
+          Number(b.season_points ?? 0) -
+            Number(a.season_points ?? 0) ||
+          a.horse_name.localeCompare(b.horse_name)
+      )[0];
+
+    if (!leader) {
+      return null;
+    }
+
+    return {
+      horse_id: leader.horse_id,
+      horse_name: leader.horse_name,
+      price: Number(leader.current_price ?? 0),
+      selection_count: 0,
+      ownership_percentage: 0,
+      round_points: Number(leader.season_points ?? 0),
+    } satisfies RoundSpecialHorse;
+  }, [data.horse_leaders]);
+
+  const derivedBestValueHorse = useMemo(() => {
+    const eligible = (data.horse_leaders ?? [])
+      .filter(
+        (horse) =>
+          Number(horse.season_points ?? 0) > 0 &&
+          Number(horse.current_price ?? 0) > 0
+      )
+      .map((horse) => ({
+        horse,
+        valueScore:
+          Number(horse.season_points ?? 0) /
+          Number(horse.current_price ?? 1),
+      }))
+      .sort(
+        (a, b) =>
+          b.valueScore - a.valueScore ||
+          Number(b.horse.season_points ?? 0) -
+            Number(a.horse.season_points ?? 0) ||
+          a.horse.horse_name.localeCompare(
+            b.horse.horse_name
+          )
+      )[0];
+
+    if (!eligible) {
+      return null;
+    }
+
+    return {
+      horse_id: eligible.horse.horse_id,
+      horse_name: eligible.horse.horse_name,
+      price: Number(eligible.horse.current_price ?? 0),
+      selection_count: 0,
+      ownership_percentage: 0,
+      round_points: Number(
+        eligible.horse.season_points ?? 0
+      ),
+      value_score: eligible.valueScore,
+    } satisfies RoundSpecialHorse & {
+      value_score: number;
+    };
+  }, [data.horse_leaders]);
+
+  const mostPointsHorse =
+    data.horse_performance?.most_points ??
+    derivedMostPointsHorse;
+
+  const bestValueHorse =
+    data.horse_performance?.best_value ??
+    derivedBestValueHorse;
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "ownership", label: "Ownership" },
     { id: "performance", label: "Horse Performance" },
@@ -1142,12 +1215,12 @@ export default function StatsPage() {
               <SpecialHorseCard
                 title="Most Points"
                 description="Highest-scoring horse in the selected round."
-                horse={data.horse_performance?.most_points ?? null}
+                horse={mostPointsHorse}
               />
               <SpecialHorseCard
                 title="Best Value"
                 description="Best fantasy return relative to the horse's round price."
-                horse={data.horse_performance?.best_value ?? null}
+                horse={bestValueHorse}
               />
               <SpecialHorseCard
                 title="Popular Flop"
