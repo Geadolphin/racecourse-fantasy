@@ -267,32 +267,26 @@ export default function RulesPage() {
                             <ul className="list-disc space-y-2 pl-5">
                                 <li>
                                     Lockout occurs at the advertised lockout time for the
-                                    round.
+                                    round and is based on the first designated race of the
+                                    day.
                                 </li>
                                 <li>
-                                    If a round contains races across multiple days (for
-                                    example, Saturday and Sunday), separate lockout times
-                                    will apply. Horses become locked at the scheduled
-                                    lockout time for their assigned lockout group.
-                                </li>
-                                <li>
-                                    Once a lockout group has commenced, those horses
-                                    cannot be added, removed or changed, while horses in
-                                    later lockout groups remain editable until their own
-                                    lockout time.
-                                </li>
-                                <li>
-                                    Once all lockout groups for the round have
-                                    commenced, teams and captains can no longer be
+                                    Teams may be edited up until lockout. Once lockout
+                                    occurs, teams and captains can no longer be manually
                                     changed.
                                 </li>
                                 <li>
-                                    Other players&apos; teams remain private before the
-                                    first lockout.
+                                    If a player has not completed their team before
+                                    lockout, the remaining positions will be automatically
+                                    filled using projected scores and the player&apos;s
+                                    available salary cap.
                                 </li>
                                 <li>
-                                    Team comparison becomes available after the first
+                                    Other players&apos; teams remain private before
                                     lockout.
+                                </li>
+                                <li>
+                                    Team comparison becomes available after lockout.
                                 </li>
                             </ul>
                         </RuleSection>
@@ -463,10 +457,48 @@ export default function RulesPage() {
                                     <h3 className="font-bold text-slate-900">
                                         Scratchings
                                     </h3>
+                                    <div className="mt-2 space-y-2 text-sm text-slate-700">
+                                        <p>
+                                            If a horse in a team is scratched before
+                                            lockout, it will automatically be replaced by
+                                            the highest-projected horse the team can afford
+                                            that is not already selected.
+                                        </p>
+                                        <p>
+                                            A horse with another live nomination in the
+                                            round is not treated as fully scratched.
+                                        </p>
+                                        <p>
+                                            If no eligible replacement can be afforded, the
+                                            scratched horse remains in the team and scores
+                                            zero points.
+                                        </p>
+                                        <p>
+                                            If a scratched captain is replaced, the
+                                            highest-projected horse in the updated team
+                                            becomes captain. If the scratched captain
+                                            cannot be replaced, captaincy moves to the
+                                            highest-projected other horse in the team.
+                                        </p>
+                                        <p>
+                                            Scratchings after lockout remain in the team
+                                            and score zero points, including when the
+                                            scratched horse is captain.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border bg-slate-50 p-4">
+                                    <h3 className="font-bold text-slate-900">
+                                        Automatic team fill
+                                    </h3>
+
                                     <p className="mt-2 text-sm text-slate-700">
-                                        Scratchings before lockout may be replaced.
-                                        Scratchings after lockout remain in the team and
-                                        score zero points.
+                                        If a player does not complete their team before
+                                        lockout, the remaining positions will be
+                                        automatically filled using projected scores and
+                                        the team&apos;s available salary cap. Existing
+                                        valid selections are retained where possible.
                                     </p>
                                 </div>
 
