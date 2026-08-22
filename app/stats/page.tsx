@@ -9,7 +9,6 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
-  Crown,
   Flag,
   Trophy,
   Users,
@@ -373,7 +372,6 @@ function TeamPanel({
                         className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-800"
                         title="Captain — scores double points"
                       >
-                        <Crown className="h-3 w-3" />
                         C
                       </span>
                     )}
@@ -432,6 +430,9 @@ export default function StatsPage() {
     useState<SortDirection>("asc");
 
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [roundStatsFallback, setRoundStatsFallback] =
+    useState<RoundSummaryStats | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -663,6 +664,122 @@ export default function StatsPage() {
     playerSortKey,
   ]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadRoundStatsFallback() {
+      if (!selectedRoundId) {
+        setRoundStatsFallback(null);
+        return;
+      }
+
+      const { data: teamsData, error: teamsError } =
+        await supabase
+          .from("teams")
+          .select("id, user_id, salary_used")
+          .eq("round_id", selectedRoundId)
+          .in("status", ["submitted", "locked", "scored"]);
+
+      if (!active) return;
+
+      if (teamsError) {
+        console.error("Round stats teams load error:", teamsError);
+        setRoundStatsFallback(null);
+        return;
+      }
+
+      const teams = teamsData ?? [];
+
+      if (teams.length === 0) {
+        setRoundStatsFallback(null);
+        return;
+      }
+
+      const teamIds = teams.map((team) => team.id);
+
+      const { data: scoresData, error: scoresError } =
+        await supabase
+          .from("player_round_scores")
+          .select("team_id, total_points")
+          .in("team_id", teamIds);
+
+      if (!active) return;
+
+      if (scoresError) {
+        console.error("Round stats scores load error:", scoresError);
+        setRoundStatsFallback(null);
+        return;
+      }
+
+      const scores = (scoresData ?? []).map((score) => ({
+        team_id: score.team_id,
+        total_points: Number(score.total_points ?? 0),
+      }));
+
+      const scoreByTeamId = new Map(
+        scores.map((score) => [score.team_id, score.total_points])
+      );
+
+      const scoredTeams = teams.map((team) => ({
+        ...team,
+        total_points: scoreByTeamId.get(team.id) ?? 0,
+      }));
+
+      const averageScore =
+        scoredTeams.reduce(
+          (sum, team) => sum + team.total_points,
+          0
+        ) / scoredTeams.length;
+
+      const highestTeam = [...scoredTeams].sort(
+        (a, b) => b.total_points - a.total_points
+      )[0];
+
+      const salaryValues = teams
+        .map((team) => Number(team.salary_used ?? 0))
+        .filter((salary) => Number.isFinite(salary));
+
+      const averageSalaryUsed =
+        salaryValues.length > 0
+          ? salaryValues.reduce(
+              (sum, salary) => sum + salary,
+              0
+            ) / salaryValues.length
+          : null;
+
+      let highestScorePlayerName: string | null = null;
+
+      if (highestTeam?.user_id) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", highestTeam.user_id)
+          .maybeSingle();
+
+        if (!active) return;
+
+        highestScorePlayerName =
+          profileData?.display_name ?? null;
+      }
+
+      setRoundStatsFallback({
+        average_score: averageScore,
+        highest_score: highestTeam?.total_points ?? null,
+        highest_score_player_id:
+          highestTeam?.user_id ?? null,
+        highest_score_player_name:
+          highestScorePlayerName,
+        average_salary_used: averageSalaryUsed,
+      });
+    }
+
+    loadRoundStatsFallback();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedRoundId]);
+
   function changeHorseSort(nextKey: HorseSortKey) {
     if (horseSortKey === nextKey) {
       setHorseSortDirection((current) =>
@@ -877,6 +994,29 @@ export default function StatsPage() {
   const bestValueHorse =
     data.horse_performance?.best_value ??
     derivedBestValueHorse;
+
+  const resolvedRoundStats: RoundSummaryStats = {
+    average_score:
+      data.round_stats?.average_score ??
+      roundStatsFallback?.average_score ??
+      null,
+    highest_score:
+      data.round_stats?.highest_score ??
+      roundStatsFallback?.highest_score ??
+      null,
+    highest_score_player_id:
+      data.round_stats?.highest_score_player_id ??
+      roundStatsFallback?.highest_score_player_id ??
+      null,
+    highest_score_player_name:
+      data.round_stats?.highest_score_player_name ??
+      roundStatsFallback?.highest_score_player_name ??
+      null,
+    average_salary_used:
+      data.round_stats?.average_salary_used ??
+      roundStatsFallback?.average_salary_used ??
+      null,
+  };
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "ownership", label: "Ownership" },
@@ -1248,18 +1388,18 @@ export default function StatsPage() {
             <div className="grid gap-5 md:grid-cols-3">
               <MetricCard
                 title="Average Score"
-                value={data.round_stats?.average_score == null ? "—" : `${Number(data.round_stats.average_score).toFixed(1)} pts`}
+                value={resolvedRoundStats.average_score == null ? "—" : `${Number(resolvedRoundStats.average_score).toFixed(1)} pts`}
                 subtitle="Average final score across teams."
               />
               <MetricCard
                 title="Highest Score"
-                value={data.round_stats?.highest_score == null ? "—" : `${data.round_stats.highest_score} pts`}
-                subtitle={data.round_stats?.highest_score_player_name ?? "Highest player score for the round."}
+                value={resolvedRoundStats.highest_score == null ? "—" : `${resolvedRoundStats.highest_score} pts`}
+                subtitle={resolvedRoundStats.highest_score_player_name ?? "Highest player score for the round."}
                 accent="amber"
               />
               <MetricCard
                 title="Average Salary Used"
-                value={data.round_stats?.average_salary_used == null ? "—" : formatCurrency(data.round_stats.average_salary_used)}
+                value={resolvedRoundStats.average_salary_used == null ? "—" : formatCurrency(resolvedRoundStats.average_salary_used)}
                 subtitle="Average salary committed by teams."
                 accent="slate"
               />
