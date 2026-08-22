@@ -83,6 +83,17 @@ function getKnockoutStageLabel(teamCount: number) {
 }
 
 function buildKnockoutPath(teamCount: number) {
+  if (teamCount === 48) {
+    return [
+      "Preliminary Round",
+      "Round of 32",
+      "Round of 16",
+      "Quarter-finals",
+      "Semi-finals",
+      "Final",
+    ];
+  }
+
   if (!isPowerOfTwo(teamCount)) {
     return [];
   }
@@ -274,6 +285,7 @@ export default function AdminCupsPage() {
     form.additional_qualifier_count;
 
   const knockoutValid =
+    knockoutTeamCount === 48 ||
     isPowerOfTwo(
       knockoutTeamCount
     );
@@ -880,7 +892,7 @@ export default function AdminCupsPage() {
                   </p>
                 ) : (
                   <p className="mt-1 text-sm font-semibold text-red-700">
-                    Knockout field must be a
+                    Knockout field must be 48 or a
                     power of two.
                   </p>
                 )}
