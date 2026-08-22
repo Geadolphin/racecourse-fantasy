@@ -962,210 +962,232 @@ export default function CompareTeamsPage() {
 
         {!loadingComparison && myTeam && opponentTeam && (
           <>
-            <section className="mt-6 grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
-                  Your Team
-                </p>
-
-                <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {myTeam.team_name?.trim() || "My Team"}
-                </h2>
-
-                <div className="mt-6 grid grid-cols-2 gap-4">
-                  <div className="rounded-xl bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Current Score
+            <section className="mt-6 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white shadow-lg">
+              <div className="border-b border-slate-800 px-5 py-4 sm:px-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-teal-300">
+                      Official Head-to-Head
                     </p>
-
-                    <p className="mt-1 text-3xl font-bold text-slate-900">
-                      {myScore}
-                    </p>
+                    <h2 className="mt-1 text-xl font-black sm:text-2xl">
+                      Round {comparisonData.round?.round_number}
+                      {comparisonData.round?.name
+                        ? ` · ${comparisonData.round.name}`
+                        : ""}
+                    </h2>
                   </div>
 
-                  <div className="rounded-xl bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Rank
-                    </p>
-
-                    <p className="mt-1 text-3xl font-bold text-slate-900">
-                      {getRankDisplay(myTeam.score?.round_rank)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Salary Used
-                    </p>
-
-                    <p className="mt-1 text-lg font-bold text-slate-900">
-                      {formatCurrency(myTeam.salary_used)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Projected Score
-                    </p>
-                    <p className="mt-1 text-3xl font-bold text-slate-900">
-                      {myProjectedScore}
-                    </p>
-                  </div>
+                  <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-slate-300">
+                    {comparisonData.round?.status ?? "Locked"}
+                  </span>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-orange-200 bg-orange-50 p-6 shadow-sm">
-                <p className="text-sm font-semibold uppercase tracking-wide text-orange-700">
-                  Opponent
-                </p>
+              <div className="grid lg:grid-cols-[1fr_auto_1fr]">
+                <div className="p-5 sm:p-6 lg:text-right">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+                    Your Team
+                  </p>
 
-                <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {selectedOpponent?.display_name?.trim() ||
-                    opponentTeam.team_name?.trim() ||
-                    "Opponent"}
-                </h2>
+                  <h3 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
+                    {myTeam.team_name?.trim() || "My Team"}
+                  </h3>
 
-                <div className="mt-6 grid grid-cols-2 gap-4">
-                  <div className="rounded-xl bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <div className="mt-4 flex flex-wrap gap-2 lg:justify-end">
+                    <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">
+                      Rank {getRankDisplay(myTeam.score?.round_rank)}
+                    </span>
+                    <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">
+                      {formatCurrency(myTeam.salary_used)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-center border-y border-slate-800 bg-slate-900 px-6 py-6 lg:border-x lg:border-y-0">
+                  <div className="text-center">
+                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                       Current Score
                     </p>
 
-                    <p className="mt-1 text-3xl font-bold text-slate-900">
-                      {opponentScore}
+                    <div className="mt-2 flex items-center justify-center gap-4">
+                      <span className="text-4xl font-black tabular-nums sm:text-5xl">
+                        {myScore}
+                      </span>
+
+                      <span className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">
+                        vs
+                      </span>
+
+                      <span className="text-4xl font-black tabular-nums sm:text-5xl">
+                        {opponentScore}
+                      </span>
+                    </div>
+
+                    <p className="mt-3 text-xs font-semibold text-slate-400">
+                      Projected {myProjectedScore} – {opponentProjectedScore}
                     </p>
                   </div>
+                </div>
 
-                  <div className="rounded-xl bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Rank
-                    </p>
+                <div className="p-5 sm:p-6">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+                    Opponent
+                  </p>
 
-                    <p className="mt-1 text-3xl font-bold text-slate-900">
-                      {getRankDisplay(
-                        opponentTeam.score?.round_rank
-                      )}
-                    </p>
-                  </div>
+                  <h3 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
+                    {selectedOpponent?.display_name?.trim() ||
+                      opponentTeam.team_name?.trim() ||
+                      "Opponent"}
+                  </h3>
 
-                  <div className="rounded-xl bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Salary Used
-                    </p>
-
-                    <p className="mt-1 text-lg font-bold text-slate-900">
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">
+                      Rank {getRankDisplay(opponentTeam.score?.round_rank)}
+                    </span>
+                    <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">
                       {formatCurrency(opponentTeam.salary_used)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Projected Score
-                    </p>
-                    <p className="mt-1 text-3xl font-bold text-slate-900">
-                      {opponentProjectedScore}
-                    </p>
+                    </span>
                   </div>
                 </div>
               </div>
             </section>
 
-            <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <section className="mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-4">
+              <div className="border-b border-slate-200 p-5 sm:border-b-0 sm:border-r">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                   Shared Horses
                 </p>
-
-                <p className="mt-2 text-3xl font-bold text-slate-900">
+                <p className="mt-2 text-3xl font-black text-slate-950">
                   {sharedHorseIds.size}
                 </p>
               </div>
 
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Different Horses
+              <div className="border-b border-slate-200 p-5 xl:border-b-0 xl:border-r">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  Captains
                 </p>
 
-                <p className="mt-2 text-3xl font-bold text-slate-900">
-                  {myUniqueCount}
-                </p>
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      You
+                    </span>
+                    <span className="truncate text-right text-sm font-black text-slate-950">
+                      {myTeam.selections.find(
+                        (selection) => selection.is_captain
+                      )?.horse_name ?? "—"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Opponent
+                    </span>
+                    <span className="truncate text-right text-sm font-black text-slate-950">
+                      {opponentTeam.selections.find(
+                        (selection) => selection.is_captain
+                      )?.horse_name ?? "—"}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Score Difference
+              <div className="border-b border-slate-200 p-5 sm:border-b-0 sm:border-r">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  Score Margin
                 </p>
 
                 <p
-                  className={`mt-2 text-3xl font-bold ${
+                  className={`mt-2 text-3xl font-black ${
                     scoreDifference > 0
-                      ? "text-green-700"
+                      ? "text-emerald-700"
                       : scoreDifference < 0
                         ? "text-red-700"
-                        : "text-slate-900"
+                        : "text-slate-950"
                   }`}
                 >
                   {formatSignedNumber(scoreDifference)}
                 </p>
               </div>
 
-              <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Salary Difference
+              <div className="p-5">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  Salary Margin
                 </p>
-
-                <p className="mt-2 text-3xl font-bold text-slate-900">
+                <p className="mt-2 text-3xl font-black text-slate-950">
                   {formatSignedCurrency(salaryDifference)}
                 </p>
               </div>
             </section>
 
             <section className="mt-8">
-              <div className="mb-4">
-                <h2 className="text-2xl font-bold text-slate-900">
-                  Horse Comparison
-                </h2>
+              <div className="mb-4 flex flex-col gap-3 border-b border-slate-300 pb-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">
+                    Team Sheets
+                  </p>
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                    Horse-by-Horse Comparison
+                  </h2>
+                </div>
 
-                <p className="mt-1 text-sm text-slate-600">
-                  Green selections are shared. Blue selections are
-                  unique to you. Orange selections are unique to your
-                  opponent.
-                </p>
+                <div className="flex flex-wrap gap-2 text-xs font-bold">
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-800">
+                    Shared
+                  </span>
+                  <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-800">
+                    Your unique
+                  </span>
+                  <span className="rounded-full bg-orange-100 px-2.5 py-1 text-orange-800">
+                    Opponent unique
+                  </span>
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-900">
+                    Captain
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-5">
                 {raceGroups.map((group) => (
                   <article
                     key={group.race_id}
-                    className="overflow-hidden rounded-2xl border bg-white shadow-sm"
+                    className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm"
                   >
-                    <div className="border-b bg-slate-900 p-5 text-white">
-                      <p className="text-sm font-semibold text-teal-300">
-                        {group.racecourse_name ?? "Racecourse"} R
-                        {group.race_number}
-                      </p>
+                    <div className="border-b border-slate-800 bg-slate-950 px-5 py-4 text-white">
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-teal-300">
+                            {group.racecourse_name ?? "Racecourse"} · Race {group.race_number}
+                          </p>
 
-                      <h3 className="mt-1 text-xl font-bold">
-                        {group.race_name}
-                      </h3>
+                          <h3 className="mt-1 text-xl font-black">
+                            {group.race_name}
+                          </h3>
+                        </div>
 
-                      <p className="mt-1 text-sm text-slate-300">
-                        {getGradeLabel(group.race_grade)}
-                      </p>
+                        <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">
+                          {getGradeLabel(group.race_grade)}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="grid lg:grid-cols-2">
-                      <div className="border-b p-5 lg:border-b-0 lg:border-r">
-                        <p className="mb-3 text-sm font-bold uppercase tracking-wide text-blue-700">
-                          Your selections
-                        </p>
+                      <div className="border-b border-slate-200 p-5 lg:border-b-0 lg:border-r">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">
+                            Your Team Sheet
+                          </p>
+                          <span className="text-xs font-bold text-slate-400">
+                            {group.mySelections.length} selected
+                          </span>
+                        </div>
 
                         {group.mySelections.length === 0 ? (
                           <p className="rounded-xl bg-slate-100 p-4 text-sm text-slate-500">
                             No selection in this race.
                           </p>
                         ) : (
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                             {group.mySelections.map((selection) => {
                               const shared = sharedHorseIds.has(
                                 selection.horse_id
@@ -1177,53 +1199,53 @@ export default function CompareTeamsPage() {
                               return (
                                 <div
                                   key={selection.race_entry_id}
-                                  className={`rounded-xl border p-4 ${
+                                  className={`rounded-xl border px-4 py-3 ${
                                     shared
-                                      ? "border-green-200 bg-green-50"
+                                      ? "border-emerald-200 bg-emerald-50"
                                       : "border-blue-200 bg-blue-50"
                                   }`}
                                 >
-                                  <div className="flex items-start justify-between gap-4">
+                                  <div className="flex items-center justify-between gap-4">
                                     <div className="min-w-0">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <Link
                                           href={`/horses/${selection.horse_id}`}
-                                          className="truncate font-bold text-slate-900 hover:text-teal-700"
+                                          className="truncate font-black text-slate-900 transition hover:text-teal-700"
                                         >
                                           {selection.horse_name}
                                         </Link>
 
                                         {selection.is_captain && (
-                                          <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-bold text-amber-900">
+                                          <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-900">
                                             Captain
                                           </span>
                                         )}
 
                                         {shared && (
-                                          <span className="rounded-full bg-green-200 px-2 py-1 text-xs font-bold text-green-900">
+                                          <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-900">
                                             Shared
                                           </span>
                                         )}
                                       </div>
 
-                                      <p className="mt-1 text-sm text-slate-600">
+                                      <p className="mt-1 text-xs font-semibold text-slate-500">
                                         {formatCurrency(
                                           selection.selected_price
                                         )}
                                       </p>
                                     </div>
 
-                                    <div className="text-right">
+                                    <div className="shrink-0 text-right">
                                       <p
-                                        className={`text-xl font-bold ${
+                                        className={`text-xl font-black tabular-nums ${
                                           displayed.projected
                                             ? "text-amber-700"
-                                            : "text-slate-900"
+                                            : "text-slate-950"
                                         }`}
                                       >
                                         {displayed.points ?? "—"}
                                       </p>
-                                      <p className="text-xs text-slate-500">
+                                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                                         {displayed.label}
                                       </p>
                                     </div>
@@ -1236,78 +1258,83 @@ export default function CompareTeamsPage() {
                       </div>
 
                       <div className="p-5">
-                        <p className="mb-3 text-sm font-bold uppercase tracking-wide text-orange-700">
-                          Opponent selections
-                        </p>
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">
+                            Opponent Team Sheet
+                          </p>
+                          <span className="text-xs font-bold text-slate-400">
+                            {group.opponentSelections.length} selected
+                          </span>
+                        </div>
 
                         {group.opponentSelections.length === 0 ? (
                           <p className="rounded-xl bg-slate-100 p-4 text-sm text-slate-500">
                             No selection in this race.
                           </p>
                         ) : (
-                          <div className="space-y-3">
+                          <div className="space-y-2">
                             {group.opponentSelections.map(
                               (selection) => {
                                 const shared = sharedHorseIds.has(
                                   selection.horse_id
                                 );
 
-                              const displayed =
-                                getSelectionDisplay(selection);
+                                const displayed =
+                                  getSelectionDisplay(selection);
 
                                 return (
                                   <div
                                     key={selection.race_entry_id}
-                                    className={`rounded-xl border p-4 ${
+                                    className={`rounded-xl border px-4 py-3 ${
                                       shared
-                                        ? "border-green-200 bg-green-50"
+                                        ? "border-emerald-200 bg-emerald-50"
                                         : "border-orange-200 bg-orange-50"
                                     }`}
                                   >
-                                    <div className="flex items-start justify-between gap-4">
+                                    <div className="flex items-center justify-between gap-4">
                                       <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                           <Link
                                             href={`/horses/${selection.horse_id}`}
-                                            className="truncate font-bold text-slate-900 hover:text-teal-700"
+                                            className="truncate font-black text-slate-900 transition hover:text-teal-700"
                                           >
                                             {selection.horse_name}
                                           </Link>
 
                                           {selection.is_captain && (
-                                            <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-bold text-amber-900">
+                                            <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-900">
                                               Captain
                                             </span>
                                           )}
 
                                           {shared && (
-                                            <span className="rounded-full bg-green-200 px-2 py-1 text-xs font-bold text-green-900">
+                                            <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-900">
                                               Shared
                                             </span>
                                           )}
                                         </div>
 
-                                        <p className="mt-1 text-sm text-slate-600">
+                                        <p className="mt-1 text-xs font-semibold text-slate-500">
                                           {formatCurrency(
                                             selection.selected_price
                                           )}
                                         </p>
                                       </div>
 
-                                      <div className="text-right">
-                                      <p
-                                        className={`text-xl font-bold ${
-                                          displayed.projected
-                                            ? "text-amber-700"
-                                            : "text-slate-900"
-                                        }`}
-                                      >
-                                        {displayed.points ?? "—"}
-                                      </p>
-                                      <p className="text-xs text-slate-500">
-                                        {displayed.label}
-                                      </p>
-                                    </div>
+                                      <div className="shrink-0 text-right">
+                                        <p
+                                          className={`text-xl font-black tabular-nums ${
+                                            displayed.projected
+                                              ? "text-amber-700"
+                                              : "text-slate-950"
+                                          }`}
+                                        >
+                                          {displayed.points ?? "—"}
+                                        </p>
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                          {displayed.label}
+                                        </p>
+                                      </div>
                                     </div>
                                   </div>
                                 );
