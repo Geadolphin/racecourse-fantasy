@@ -585,6 +585,9 @@ export default function AdminCupDetailPage() {
   const knockoutAlreadyGenerated =
     firstKnockoutMatches.length > 0;
 
+  const is48TeamKnockout =
+    firstKnockoutStage?.knockout_team_count === 48;
+
   const selectedCount = participants.length;
   const requiredCount = cup?.competing_teams ?? 0;
   const selectionComplete =
@@ -1500,8 +1503,9 @@ export default function AdminCupDetailPage() {
               </h2>
 
               <p className="mt-2 max-w-3xl text-sm text-slate-500">
-                The bracket is generated from the final group standings using this Cup&apos;s qualification settings.
-                The first knockout round avoids same-group rematches where possible and then follows a fixed bracket path.
+                {is48TeamKnockout
+                  ? "The top 48 teams qualify from the group stage. Seeds 1–16 receive a bye to the Round of 32, while seeds 17–48 play 16 Preliminary Round matches. The 16 Preliminary Round winners then join the 16 bye teams in the Round of 32."
+                  : "The bracket is generated from the final group standings using this Cup's qualification settings. The first knockout round avoids same-group rematches where possible and then follows a fixed bracket path."}
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1590,9 +1594,12 @@ export default function AdminCupDetailPage() {
                     >
                       {stage.stage_type === "group"
                         ? "Group"
-                        : stage.knockout_team_count
-                          ? `${stage.knockout_team_count} teams`
-                          : "Knockout"}
+                        : stage.knockout_team_count === 48 &&
+                            stage.stage_name === "Preliminary Round"
+                          ? "32 play · 16 byes"
+                          : stage.knockout_team_count
+                            ? `${stage.knockout_team_count} teams`
+                            : "Knockout"}
                     </span>
 
                     {stage.is_complete && (
@@ -1605,6 +1612,14 @@ export default function AdminCupDetailPage() {
                   <p className="mt-1 text-sm text-slate-500">
                     Stage {stage.sequence_number}
                   </p>
+
+                  {stage.stage_type === "knockout" &&
+                    stage.knockout_team_count === 48 &&
+                    stage.stage_name === "Preliminary Round" && (
+                      <p className="mt-1 text-xs font-semibold text-purple-700">
+                        Seeds 1–16 have a bye. Seeds 17–48 play in this stage.
+                      </p>
+                    )}
                 </div>
 
                 <div>
