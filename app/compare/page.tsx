@@ -164,6 +164,9 @@ export default function CompareTeamsPage() {
   const [opponentSearch, setOpponentSearch] =
     useState("");
 
+  const [opponentSearchFocused, setOpponentSearchFocused] =
+    useState(false);
+
   const [comparisonData, setComparisonData] =
     useState<ComparisonData | null>(null);
 
@@ -453,6 +456,18 @@ export default function CompareTeamsPage() {
     );
   }, [availableTeams, selectedOpponentUserId]);
 
+  function selectOpponent(team: AvailableTeam) {
+    setSelectedOpponentUserId(team.user_id);
+    setOpponentSearch(getTeamLabel(team));
+    setOpponentSearchFocused(false);
+  }
+
+  function clearOpponent() {
+    setSelectedOpponentUserId("");
+    setOpponentSearch("");
+    setOpponentSearchFocused(false);
+  }
+
   const mySelections = myTeam?.selections ?? [];
   const opponentSelections = opponentTeam?.selections ?? [];
 
@@ -653,57 +668,170 @@ export default function CompareTeamsPage() {
             </div>
 
             <div>
-              <label
-                htmlFor="comparison-opponent-search"
-                className="block text-sm font-bold text-slate-800"
-              >
-                Compare with
-              </label>
+              <div className="flex items-center justify-between gap-3">
+                <label
+                  htmlFor="comparison-opponent-search"
+                  className="block text-sm font-bold text-slate-800"
+                >
+                  Compare with
+                </label>
 
-              <input
-                id="comparison-opponent-search"
-                type="search"
-                value={opponentSearch}
-                onChange={(event) =>
-                  setOpponentSearch(event.target.value)
-                }
-                placeholder="Search player or team..."
-                disabled={
-                  loadingComparison ||
-                  !comparisonData?.locked ||
-                  availableTeams.length === 0
-                }
-                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
-              />
+                {selectedOpponent && (
+                  <button
+                    type="button"
+                    onClick={clearOpponent}
+                    className="text-xs font-bold text-teal-700 transition hover:text-slate-950 hover:underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="relative mt-2">
+                <input
+                  id="comparison-opponent-search"
+                  type="search"
+                  value={opponentSearch}
+                  onChange={(event) => {
+                    setOpponentSearch(event.target.value);
+                    setOpponentSearchFocused(true);
+
+                    if (
+                      selectedOpponent &&
+                      event.target.value !== getTeamLabel(selectedOpponent)
+                    ) {
+                      setSelectedOpponentUserId("");
+                    }
+                  }}
+                  onFocus={() => setOpponentSearchFocused(true)}
+                  onBlur={() => {
+                    window.setTimeout(
+                      () => setOpponentSearchFocused(false),
+                      150
+                    );
+                  }}
+                  placeholder="Search by player or team name..."
+                  disabled={
+                    loadingComparison ||
+                    !comparisonData?.locked ||
+                    availableTeams.length === 0
+                  }
+                  autoComplete="off"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 pr-24 text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                />
+
+                {opponentSearch.trim() && (
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      setOpponentSearch("");
+                      setSelectedOpponentUserId("");
+                      setOpponentSearchFocused(true);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                  >
+                    Clear
+                  </button>
+                )}
+
+                {opponentSearchFocused &&
+                  opponentSearch.trim() &&
+                  !selectedOpponent && (
+                    <div className="absolute z-30 mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+                      {filteredAvailableTeams.length === 0 ? (
+                        <div className="px-4 py-4 text-sm text-slate-500">
+                          No teams match “{opponentSearch.trim()}”.
+                        </div>
+                      ) : (
+                        filteredAvailableTeams.slice(0, 12).map((team) => (
+                          <button
+                            key={team.user_id}
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => selectOpponent(team)}
+                            className="flex w-full items-center justify-between gap-4 rounded-lg px-3 py-3 text-left transition hover:bg-teal-50"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate font-bold text-slate-900">
+                                {getTeamLabel(team)}
+                              </p>
+
+                              {team.team_name?.trim() &&
+                                team.display_name?.trim() &&
+                                team.team_name.trim() !==
+                                  team.display_name.trim() && (
+                                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                                    {team.team_name}
+                                  </p>
+                                )}
+                            </div>
+
+                            <div className="shrink-0 text-right">
+                              {team.round_rank ? (
+                                <p className="text-xs font-bold text-teal-700">
+                                  Rank #{team.round_rank}
+                                </p>
+                              ) : null}
+
+                              {team.round_score != null ? (
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                  {team.round_score} pts
+                                </p>
+                              ) : null}
+                            </div>
+                          </button>
+                        ))
+                      )}
+
+                      {filteredAvailableTeams.length > 12 && (
+                        <div className="border-t border-slate-100 px-3 py-2 text-center text-xs text-slate-500">
+                          Type more to narrow {filteredAvailableTeams.length} matches.
+                        </div>
+                      )}
+                    </div>
+                  )}
+              </div>
+
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                  or select
+                </span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
 
               <select
                 id="comparison-opponent"
                 value={selectedOpponentUserId}
-                onChange={(event) =>
-                  setSelectedOpponentUserId(event.target.value)
-                }
+                onChange={(event) => {
+                  const nextUserId = event.target.value;
+                  setSelectedOpponentUserId(nextUserId);
+
+                  const nextTeam = availableTeams.find(
+                    (team) => team.user_id === nextUserId
+                  );
+
+                  setOpponentSearch(
+                    nextTeam ? getTeamLabel(nextTeam) : ""
+                  );
+                }}
                 disabled={
                   loadingComparison ||
                   !comparisonData?.locked ||
                   availableTeams.length === 0
                 }
-                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
               >
                 <option value="">
                   {loadingComparison
                     ? "Loading teams..."
                     : availableTeams.length === 0
                       ? "No teams available"
-                      : filteredAvailableTeams.length === 0
-                        ? "No matching teams"
-                        : opponentSearch.trim()
-                          ? `${filteredAvailableTeams.length} matching team${
-                              filteredAvailableTeams.length === 1 ? "" : "s"
-                            }`
-                          : "Select a team"}
+                      : "Choose from all teams"}
                 </option>
 
-                {filteredAvailableTeams.map((team) => (
+                {availableTeams.map((team) => (
                   <option
                     key={team.user_id}
                     value={team.user_id}
@@ -716,13 +844,33 @@ export default function CompareTeamsPage() {
                 ))}
               </select>
 
-              {opponentSearch.trim() &&
-                filteredAvailableTeams.length > 0 && (
-                  <p className="mt-1.5 text-xs text-slate-500">
-                    Showing {filteredAvailableTeams.length} of{" "}
-                    {availableTeams.length} teams.
-                  </p>
-                )}
+              {selectedOpponent && (
+                <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black uppercase tracking-wide text-teal-700">
+                        Selected opponent
+                      </p>
+                      <p className="mt-1 truncate font-bold text-slate-900">
+                        {getTeamLabel(selectedOpponent)}
+                      </p>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      {selectedOpponent.round_rank ? (
+                        <p className="font-bold text-teal-800">
+                          #{selectedOpponent.round_rank}
+                        </p>
+                      ) : null}
+                      {selectedOpponent.round_score != null ? (
+                        <p className="text-xs text-slate-600">
+                          {selectedOpponent.round_score} pts
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
