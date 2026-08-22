@@ -80,6 +80,14 @@ type Match = {
   is_draw: boolean;
   participant_1_seed: number | null;
   participant_2_seed: number | null;
+  live_score?: boolean;
+};
+
+type LiveFixtureScore = {
+  match_id: string;
+  participant_1_score: number;
+  participant_2_score: number;
+  is_live: boolean;
 };
 
 type PageData = {
@@ -125,6 +133,52 @@ type PlayerProfileData = {
   round_history: RoundHistoryRow[];
 };
 
+type FixtureCompareSelection = {
+  race_entry_id: string;
+  horse_id: string;
+  horse_name: string;
+  is_captain: boolean;
+  selected_price: number;
+  fantasy_points: number;
+  display_points: number;
+  race_id: string;
+  race_number: number;
+  race_name: string;
+  race_grade: string;
+  racecourse_name: string | null;
+};
+
+type FixtureCompareTeam = {
+  id: string;
+  user_id: string;
+  team_name: string | null;
+  display_name?: string | null;
+  status: string;
+  salary_used: number;
+  salary_cap: number | null;
+  score?: {
+    total_points: number | null;
+    captain_points: number | null;
+    round_rank: number | null;
+  } | null;
+  selections?: FixtureCompareSelection[];
+};
+
+type FixtureCompareData = {
+  success: boolean;
+  locked: boolean;
+  round: {
+    id: string;
+    round_number: number;
+    name: string | null;
+    status: string;
+    lockout_at: string | null;
+  } | null;
+  my_team: FixtureCompareTeam | null;
+  opponent_team: FixtureCompareTeam | null;
+  message?: string;
+};
+
 export default function CupDetailPage() {
   const params = useParams<{ id: string }>();
   const cupId = params.id;
@@ -133,15 +187,69 @@ export default function CupDetailPage() {
   const [data, setData] = useState<PageData | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [liveFixtureScores, setLiveFixtureScores] =
+    useState<Record<string, LiveFixtureScore>>({});
+
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [profileData, setProfileData] =
     useState<PlayerProfileData | null>(null);
 
+  const [fixtureCompareOpen, setFixtureCompareOpen] =
+    useState(false);
+  const [fixtureCompareLoading, setFixtureCompareLoading] =
+    useState(false);
+  const [fixtureCompareError, setFixtureCompareError] =
+    useState("");
+  const [fixtureCompareData, setFixtureCompareData] =
+    useState<FixtureCompareData | null>(null);
+
   useEffect(() => {
     if (cupId) void loadCup();
   }, [cupId]);
+
+  async function loadLiveFixtureScores() {
+    if (!cupId) {
+      return;
+    }
+
+    const { data: scoreRaw, error: scoreError } =
+      await supabase.rpc(
+        "get_cup_live_fixture_scores",
+        {
+          p_cup_id: cupId,
+        }
+      );
+
+    if (scoreError) {
+      console.error(
+        "Cup live fixture score error:",
+        scoreError
+      );
+      return;
+    }
+
+    const rows =
+      ((scoreRaw as any)?.scores ?? []) as LiveFixtureScore[];
+
+    const nextScores: Record<string, LiveFixtureScore> = {};
+
+    for (const row of rows) {
+      nextScores[row.match_id] = {
+        match_id: row.match_id,
+        participant_1_score: Number(
+          row.participant_1_score ?? 0
+        ),
+        participant_2_score: Number(
+          row.participant_2_score ?? 0
+        ),
+        is_live: row.is_live === true,
+      };
+    }
+
+    setLiveFixtureScores(nextScores);
+  }
 
   async function loadCup() {
     setLoading(true);
@@ -156,6 +264,7 @@ export default function CupDetailPage() {
       if (error) throw error;
 
       setData(response as unknown as PageData);
+      void loadLiveFixtureScores();
     } catch (error) {
       console.error("Cup detail load error:", error);
       setErrorMessage(
@@ -181,6 +290,73 @@ export default function CupDetailPage() {
 
   function participantName(id: string) {
     return participantById.get(id)?.display_name ?? "TBC";
+  }
+
+  function participantUserId(id: string) {
+    return participantById.get(id)?.user_id ?? null;
+  }
+
+  async function openFixtureCompare(
+    roundId: string,
+    participant1Id: string,
+    participant2Id: string
+  ) {
+    const userId1 = participantUserId(participant1Id);
+    const userId2 = participantUserId(participant2Id);
+
+    if (!userId1 || !userId2) {
+      setFixtureCompareOpen(true);
+      setFixtureCompareError(
+        "Unable to identify both teams in this fixture."
+      );
+      setFixtureCompareData(null);
+      return;
+    }
+
+    setFixtureCompareOpen(true);
+    setFixtureCompareLoading(true);
+    setFixtureCompareError("");
+    setFixtureCompareData(null);
+
+    const { data: compareRaw, error: compareError } =
+      await supabase.rpc(
+        "get_fixture_team_comparison_data",
+        {
+          p_round_id: roundId,
+          p_user_id_1: userId1,
+          p_user_id_2: userId2,
+        }
+      );
+
+    if (compareError) {
+      console.error(
+        "Cup fixture comparison error:",
+        compareError
+      );
+
+      setFixtureCompareError(
+        compareError.message ||
+          "Unable to compare these two teams."
+      );
+      setFixtureCompareLoading(false);
+      return;
+    }
+
+    const comparison =
+      compareRaw as unknown as FixtureCompareData;
+
+    if (!comparison.locked) {
+      setFixtureCompareError(
+        comparison.message ||
+          "Team comparison becomes available after round lockout."
+      );
+      setFixtureCompareData(comparison);
+      setFixtureCompareLoading(false);
+      return;
+    }
+
+    setFixtureCompareData(comparison);
+    setFixtureCompareLoading(false);
   }
 
   async function openPlayerProfile(
@@ -285,6 +461,142 @@ export default function CupDetailPage() {
   const knockoutStages = data.stages.filter(
     (stage) => stage.stage_type === "knockout"
   );
+
+  const displayMatches = data.matches.map((match) => {
+    const live = liveFixtureScores[match.id];
+
+    const matchIsFinal =
+      match.match_status === "complete" ||
+      match.match_status === "completed" ||
+      match.match_status === "final" ||
+      match.match_status === "scored";
+
+    if (matchIsFinal || !live?.is_live) {
+      return {
+        ...match,
+        live_score: false,
+      };
+    }
+
+    return {
+      ...match,
+      participant_1_score: live.participant_1_score,
+      participant_2_score: live.participant_2_score,
+      live_score: true,
+    };
+  });
+
+  const liveGroupMatches = displayMatches.filter(
+    (match) =>
+      match.group_id !== null &&
+      match.live_score === true
+  );
+
+  const groupStandingsAreLive =
+    liveGroupMatches.length > 0;
+
+  function getDisplayGroupMembers(groupId: string) {
+    const baseMembers = data.group_members
+      .filter((member) => member.group_id === groupId)
+      .map((member) => ({
+        ...member,
+        live_position: 0,
+      }));
+
+    const memberByParticipantId = new Map(
+      baseMembers.map((member) => [
+        member.participant_id,
+        member,
+      ])
+    );
+
+    /*
+     * Apply only currently-live, not-yet-final Cup matches.
+     *
+     * Stored group_members already contains completed matchdays,
+     * so only live_score matches are added here. This prevents
+     * completed fixtures being counted twice.
+     */
+    for (const match of liveGroupMatches) {
+      if (match.group_id !== groupId) {
+        continue;
+      }
+
+      const participant1 =
+        memberByParticipantId.get(
+          match.participant_1_id
+        );
+
+      const participant2 =
+        memberByParticipantId.get(
+          match.participant_2_id
+        );
+
+      if (!participant1 || !participant2) {
+        continue;
+      }
+
+      const score1 = Number(
+        match.participant_1_score ?? 0
+      );
+
+      const score2 = Number(
+        match.participant_2_score ?? 0
+      );
+
+      participant1.fantasy_points_for += score1;
+      participant2.fantasy_points_for += score2;
+
+      participant1.played += 1;
+      participant2.played += 1;
+
+      if (score1 > score2) {
+        participant1.wins += 1;
+        participant1.group_points += 3;
+        participant2.losses += 1;
+      } else if (score2 > score1) {
+        participant2.wins += 1;
+        participant2.group_points += 3;
+        participant1.losses += 1;
+      } else {
+        participant1.draws += 1;
+        participant2.draws += 1;
+        participant1.group_points += 1;
+        participant2.group_points += 1;
+      }
+    }
+
+    const sorted = [...baseMembers].sort((a, b) => {
+      if (b.group_points !== a.group_points) {
+        return b.group_points - a.group_points;
+      }
+
+      if (
+        b.fantasy_points_for !==
+        a.fantasy_points_for
+      ) {
+        return (
+          b.fantasy_points_for -
+          a.fantasy_points_for
+        );
+      }
+
+      if (b.wins !== a.wins) {
+        return b.wins - a.wins;
+      }
+
+      return participantName(
+        a.participant_id
+      ).localeCompare(
+        participantName(b.participant_id)
+      );
+    });
+
+    return sorted.map((member, index) => ({
+      ...member,
+      live_position: index + 1,
+    }));
+  }
 
   const additionalQualifierPosition = data.cup.additional_qualifier_position;
   const additionalQualifierCount = data.cup.additional_qualifier_count;
@@ -431,6 +743,12 @@ export default function CupDetailPage() {
                 <h2 className="text-2xl font-black text-slate-950">
                   Standings
                 </h2>
+
+                {groupStandingsAreLive && (
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-700">
+                    Live
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -452,24 +770,8 @@ export default function CupDetailPage() {
           ) : (
             <div className="grid gap-5 xl:grid-cols-2">
               {data.groups.map((group) => {
-                const members = data.group_members
-                  .filter((member) => member.group_id === group.id)
-                  .sort((a, b) => {
-                    if (
-                      a.group_position !== null &&
-                      b.group_position !== null
-                    ) {
-                      return a.group_position - b.group_position;
-                    }
-
-                    if (b.group_points !== a.group_points) {
-                      return b.group_points - a.group_points;
-                    }
-
-                    return (
-                      b.fantasy_points_for - a.fantasy_points_for
-                    );
-                  });
+                const members =
+                  getDisplayGroupMembers(group.id);
 
                 return (
                   <div
@@ -503,16 +805,16 @@ export default function CupDetailPage() {
                               className={`${
                                 isMe(member.participant_id)
                                   ? "bg-amber-200"
-                                  : (member.group_position ?? index + 1) <= 2
+                                  : member.live_position <= 2
                                     ? "bg-emerald-100"
-                                    : (member.group_position ?? index + 1) <=
+                                    : member.live_position <=
                                         data.cup.automatic_qualifiers_per_group
                                       ? "bg-blue-100"
                                       : ""
                               }`}
                             >
                               <td className="px-4 py-3 font-bold">
-                                {member.group_position ?? index + 1}
+                                {member.live_position}
                               </td>
                               <td className="px-4 py-3 font-semibold text-slate-900">
                                 <button
@@ -655,7 +957,7 @@ export default function CupDetailPage() {
 
           <div className="space-y-3">
             {groupStages.map((stage) => {
-              const stageMatches = data.matches.filter(
+              const stageMatches = displayMatches.filter(
                 (match) => match.stage_id === stage.id
               );
 
@@ -665,7 +967,9 @@ export default function CupDetailPage() {
                   stage={stage}
                   matches={stageMatches}
                   participantName={participantName}
+                  participantUserId={participantUserId}
                   openPlayerProfile={openPlayerProfile}
+                  openFixtureCompare={openFixtureCompare}
                   isMe={isMe}
                 />
               );
@@ -697,13 +1001,152 @@ export default function CupDetailPage() {
           ) : (
             <KnockoutBracket
               stages={knockoutStages}
-              matches={data.matches}
+              matches={displayMatches}
               participantName={participantName}
+              participantUserId={participantUserId}
               openPlayerProfile={openPlayerProfile}
+              openFixtureCompare={openFixtureCompare}
               isMe={isMe}
             />
           )}
         </section>
+        {fixtureCompareOpen && (
+          <div
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setFixtureCompareOpen(false);
+              }
+            }}
+          >
+            <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+                    Cup Fixture
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
+                    Compare Teams
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setFixtureCompareOpen(false)}
+                  className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+                  aria-label="Close fixture comparison"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="max-h-[calc(92vh-76px)] overflow-y-auto p-4 sm:p-6">
+                {fixtureCompareLoading ? (
+                  <div className="py-14 text-center font-semibold text-slate-500">
+                    Loading team comparison...
+                  </div>
+                ) : fixtureCompareError ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">
+                    {fixtureCompareError}
+                  </div>
+                ) : fixtureCompareData?.my_team &&
+                  fixtureCompareData.opponent_team ? (
+                  <>
+                    <div className="mb-5 overflow-hidden rounded-2xl bg-slate-950 text-white">
+                      <div className="border-b border-slate-800 px-4 py-3 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-300">
+                          Official Head-to-Head
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-slate-300">
+                          Round {fixtureCompareData.round?.round_number}
+                          {fixtureCompareData.round?.name
+                            ? ` · ${fixtureCompareData.round.name}`
+                            : ""}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+                        <div className="min-w-0 p-4 text-right sm:p-5">
+                          <p className="truncate text-base font-black sm:text-xl">
+                            {fixtureCompareData.my_team.display_name?.trim() ||
+                              fixtureCompareData.my_team.team_name?.trim() ||
+                              "Team 1"}
+                          </p>
+                        </div>
+
+                        <div className="border-x border-slate-800 bg-slate-900 px-4 py-5 text-center">
+                          <div className="flex items-center gap-3">
+                            <span className="text-3xl font-black tabular-nums">
+                              {fixtureCompareData.my_team.score?.total_points ?? 0}
+                            </span>
+                            <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                              vs
+                            </span>
+                            <span className="text-3xl font-black tabular-nums">
+                              {fixtureCompareData.opponent_team.score?.total_points ?? 0}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="min-w-0 p-4 sm:p-5">
+                          <p className="truncate text-base font-black sm:text-xl">
+                            {fixtureCompareData.opponent_team.display_name?.trim() ||
+                              fixtureCompareData.opponent_team.team_name?.trim() ||
+                              "Team 2"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <FixtureCompareTeam
+                        title={
+                          fixtureCompareData.my_team.display_name?.trim() ||
+                          fixtureCompareData.my_team.team_name?.trim() ||
+                          "Team 1"
+                        }
+                        selections={
+                          fixtureCompareData.my_team.selections ?? []
+                        }
+                        otherSelections={
+                          fixtureCompareData.opponent_team.selections ?? []
+                        }
+                      />
+
+                      <FixtureCompareTeam
+                        title={
+                          fixtureCompareData.opponent_team.display_name?.trim() ||
+                          fixtureCompareData.opponent_team.team_name?.trim() ||
+                          "Team 2"
+                        }
+                        selections={
+                          fixtureCompareData.opponent_team.selections ?? []
+                        }
+                        otherSelections={
+                          fixtureCompareData.my_team.selections ?? []
+                        }
+                      />
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
+                        Grey = shared horse
+                      </span>
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-800">
+                        C = captain
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-12 text-center text-slate-500">
+                    Comparison unavailable.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {profileOpen && (
           <div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4"
@@ -894,13 +1337,21 @@ function KnockoutBracket({
   stages,
   matches,
   participantName,
+  participantUserId,
   openPlayerProfile,
+  openFixtureCompare,
   isMe,
 }: {
   stages: Stage[];
   matches: Match[];
   participantName: (id: string) => string;
+  participantUserId: (id: string) => string | null;
   openPlayerProfile: (id: string) => Promise<void>;
+  openFixtureCompare: (
+    roundId: string,
+    participant1Id: string,
+    participant2Id: string
+  ) => Promise<void>;
   isMe: (id: string) => boolean;
 }) {
   const orderedStages = [...stages].sort(
@@ -927,9 +1378,17 @@ function KnockoutBracket({
             >
               <div className="mb-3 border-b-2 border-slate-900 pb-2">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-black text-slate-950">
-                    {stage.stage_name}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-slate-950">
+                      {stage.stage_name}
+                    </h3>
+
+                    {stageMatches.some((match) => match.live_score) && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-700">
+                        Live
+                      </span>
+                    )}
+                  </div>
 
                   {stage.is_complete && (
                     <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-800">
@@ -960,9 +1419,12 @@ function KnockoutBracket({
                       className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                     >
                       <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          Match {match.match_number}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            Match {match.match_number}
+                          </span>
+
+                        </div>
 
                         {match.is_draw && (
                           <span className="text-[10px] font-bold uppercase text-slate-500">
@@ -996,6 +1458,26 @@ function KnockoutBracket({
                         mine={isMe(match.participant_2_id)}
                         onOpenProfile={openPlayerProfile}
                       />
+
+                      {stage.round_id &&
+                        participantUserId(match.participant_1_id) &&
+                        participantUserId(match.participant_2_id) && (
+                          <div className="border-t border-slate-100 p-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void openFixtureCompare(
+                                  stage.round_id!,
+                                  match.participant_1_id,
+                                  match.participant_2_id
+                                )
+                              }
+                              className="block w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-xs font-black uppercase tracking-wide text-white transition hover:bg-teal-700"
+                            >
+                              Compare Teams
+                            </button>
+                          </div>
+                        )}
                     </div>
                   ))}
                 </div>
@@ -1062,6 +1544,78 @@ function BracketTeam({
   );
 }
 
+function FixtureCompareTeam({
+  title,
+  selections,
+  otherSelections,
+}: {
+  title: string;
+  selections: FixtureCompareSelection[];
+  otherSelections: FixtureCompareSelection[];
+}) {
+  const otherHorseIds = new Set(
+    otherSelections.map((selection) => selection.horse_id)
+  );
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200">
+      <div className="bg-slate-100 px-4 py-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+          Team Sheet
+        </p>
+        <h3 className="mt-0.5 truncate font-black text-slate-950">
+          {title}
+        </h3>
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        {selections.map((selection) => {
+          const shared = otherHorseIds.has(selection.horse_id);
+
+          return (
+            <div
+              key={selection.race_entry_id}
+              className={`grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 ${
+                shared ? "bg-slate-50" : "bg-white"
+              }`}
+            >
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="truncate font-bold text-slate-900">
+                    {selection.horse_name}
+                  </p>
+
+                  {selection.is_captain && (
+                    <span className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900">
+                      C
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-0.5 truncate text-xs text-slate-500">
+                  {selection.racecourse_name ?? "Racecourse"} · R
+                  {selection.race_number}
+                  {shared ? " · Shared" : ""}
+                </p>
+              </div>
+
+              <span className="text-lg font-black text-teal-700">
+                {selection.display_points ?? 0}
+              </span>
+            </div>
+          );
+        })}
+
+        {selections.length === 0 && (
+          <div className="px-4 py-8 text-center text-sm text-slate-500">
+            No team selections found.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function ProfileStat({
   label,
   value,
@@ -1086,13 +1640,21 @@ function StageCard({
   stage,
   matches,
   participantName,
+  participantUserId,
   openPlayerProfile,
+  openFixtureCompare,
   isMe,
 }: {
   stage: Stage;
   matches: Match[];
   participantName: (id: string) => string;
+  participantUserId: (id: string) => string | null;
   openPlayerProfile: (id: string) => Promise<void>;
+  openFixtureCompare: (
+    roundId: string,
+    participant1Id: string,
+    participant2Id: string
+  ) => Promise<void>;
   isMe: (id: string) => boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -1110,6 +1672,12 @@ function StageCard({
             <h3 className="font-bold text-slate-950">
               {stage.stage_name}
             </h3>
+
+            {matches.some((match) => match.live_score) && (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-700">
+                Live
+              </span>
+            )}
 
             <span className="text-xs text-slate-500">
               {matches.length} {matches.length === 1 ? "match" : "matches"}
@@ -1148,9 +1716,12 @@ function StageCard({
                   className="min-w-0 rounded-lg border border-slate-200 bg-white p-3"
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                      Match {match.match_number}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Match {match.match_number}
+                      </span>
+
+                    </div>
 
                     {match.is_draw && (
                       <span className="text-xs font-bold text-slate-500">
@@ -1182,6 +1753,24 @@ function StageCard({
                       mine={isMe(match.participant_2_id)}
                     />
                   </div>
+
+                  {stage.round_id &&
+                    participantUserId(match.participant_1_id) &&
+                    participantUserId(match.participant_2_id) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void openFixtureCompare(
+                            stage.round_id!,
+                            match.participant_1_id,
+                            match.participant_2_id
+                          )
+                        }
+                        className="mt-3 block w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-xs font-black uppercase tracking-wide text-white transition hover:bg-teal-700"
+                      >
+                        Compare Teams
+                      </button>
+                    )}
                 </div>
               ))}
             </div>
