@@ -9,6 +9,7 @@ import {
   Gauge,
   Network,
   Trophy,
+  X,
 } from "lucide-react";
 
 import { supabase } from "../../lib/supabase";
@@ -107,6 +108,27 @@ type DashboardCupMatchup = {
   my_score: number | null;
   opponent_score: number | null;
   score_status?: "scheduled" | "live" | "final";
+};
+
+
+type CupCompareSelection = {
+  horse_id: string;
+  horse_name: string;
+  is_captain: boolean;
+  live_points: number;
+  race_status: string | null;
+};
+
+type CupCompareData = {
+  success: boolean;
+  cup_name: string;
+  stage_name: string;
+  my_name: string;
+  opponent_name: string;
+  my_score: number;
+  opponent_score: number;
+  my_team: CupCompareSelection[];
+  opponent_team: CupCompareSelection[];
 };
 
 function formatCurrency(value: number) {
@@ -331,6 +353,18 @@ export default function Dashboard() {
 
   const [cupMatchup, setCupMatchup] =
     useState<DashboardCupMatchup | null>(null);
+
+  const [cupCompareOpen, setCupCompareOpen] =
+    useState(false);
+
+  const [cupCompareLoading, setCupCompareLoading] =
+    useState(false);
+
+  const [cupCompareError, setCupCompareError] =
+    useState("");
+
+  const [cupCompareData, setCupCompareData] =
+    useState<CupCompareData | null>(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -1007,6 +1041,45 @@ export default function Dashboard() {
     };
   }, [router]);
 
+  async function openCupTeamCompare() {
+    if (!cupMatchup || !round) {
+      return;
+    }
+
+    setCupCompareOpen(true);
+    setCupCompareLoading(true);
+    setCupCompareError("");
+    setCupCompareData(null);
+
+    const { data: compareRaw, error: compareError } =
+      await supabase.rpc(
+        "get_dashboard_cup_team_compare",
+        {
+          p_cup_id: cupMatchup.cup_id,
+          p_round_id: round.id,
+        }
+      );
+
+    if (compareError) {
+      console.error(
+        "Dashboard Cup team compare error:",
+        compareError
+      );
+
+      setCupCompareError(
+        compareError.message ||
+          "Unable to compare the two Cup teams."
+      );
+      setCupCompareLoading(false);
+      return;
+    }
+
+    setCupCompareData(
+      compareRaw as unknown as CupCompareData
+    );
+    setCupCompareLoading(false);
+  }
+
   const salaryUsed =
     team?.salary_used ?? 0;
 
@@ -1369,12 +1442,24 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <Link
-                  href={`/cups/${cupMatchup.cup_id}`}
-                  className="shrink-0 rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-                >
-                  View Cup →
-                </Link>
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                  {cupMatchup.status === "matchup" && (
+                    <button
+                      type="button"
+                      onClick={() => void openCupTeamCompare()}
+                      className="rounded-lg bg-slate-900 px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-slate-800"
+                    >
+                      Compare Teams
+                    </button>
+                  )}
+
+                  <Link
+                    href={`/cups/${cupMatchup.cup_id}`}
+                    className="rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    View Cup →
+                  </Link>
+                </div>
               </div>
             </div>
           </section>
@@ -1728,6 +1813,191 @@ export default function Dashboard() {
           </div>
         </section>
       </div>
+
+      {cupCompareOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setCupCompareOpen(false);
+            }
+          }}
+        >
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+                  Cup Matchup
+                </p>
+                <h2 className="mt-1 text-xl font-bold text-slate-950 sm:text-2xl">
+                  Compare Teams
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCupCompareOpen(false)}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+                aria-label="Close team comparison"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(90vh-76px)] overflow-y-auto p-4 sm:p-6">
+              {cupCompareLoading ? (
+                <div className="py-12 text-center font-semibold text-slate-500">
+                  Loading teams...
+                </div>
+              ) : cupCompareError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                  {cupCompareError}
+                </div>
+              ) : cupCompareData ? (
+                <>
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-950 px-4 py-3 text-white">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-teal-300">
+                        {cupCompareData.cup_name}
+                      </p>
+                      <p className="mt-0.5 text-sm font-semibold text-slate-300">
+                        {cupCompareData.stage_name}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-lg font-black">
+                      <span>{cupCompareData.my_score}</span>
+                      <span className="text-xs uppercase tracking-wide text-slate-400">
+                        vs
+                      </span>
+                      <span>{cupCompareData.opponent_score}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <CupCompareTeam
+                      title={cupCompareData.my_name}
+                      subtitle="Your team"
+                      selections={cupCompareData.my_team}
+                      otherSelections={cupCompareData.opponent_team}
+                      highlightMine
+                    />
+
+                    <CupCompareTeam
+                      title={cupCompareData.opponent_name}
+                      subtitle="Opponent"
+                      selections={cupCompareData.opponent_team}
+                      otherSelections={cupCompareData.my_team}
+                    />
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
+                      Grey = shared horse
+                    </span>
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-800">
+                      C = captain
+                    </span>
+                    <span className="rounded-full bg-teal-100 px-2.5 py-1 text-teal-800">
+                      Points = live actual score
+                    </span>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
+  );
+}
+
+function CupCompareTeam({
+  title,
+  subtitle,
+  selections,
+  otherSelections,
+  highlightMine = false,
+}: {
+  title: string;
+  subtitle: string;
+  selections: CupCompareSelection[];
+  otherSelections: CupCompareSelection[];
+  highlightMine?: boolean;
+}) {
+  const otherHorseIds = new Set(
+    otherSelections.map((selection) => selection.horse_id)
+  );
+
+  return (
+    <section
+      className={`overflow-hidden rounded-xl border ${
+        highlightMine
+          ? "border-amber-300"
+          : "border-slate-200"
+      }`}
+    >
+      <div
+        className={`px-4 py-3 ${
+          highlightMine
+            ? "bg-amber-100"
+            : "bg-slate-100"
+        }`}
+      >
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+          {subtitle}
+        </p>
+        <h3 className="mt-0.5 font-black text-slate-950">
+          {title}
+        </h3>
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        {selections.map((selection) => {
+          const shared = otherHorseIds.has(
+            selection.horse_id
+          );
+
+          return (
+            <div
+              key={selection.horse_id}
+              className={`grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 ${
+                shared ? "bg-slate-50" : "bg-white"
+              }`}
+            >
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="truncate font-bold text-slate-900">
+                    {selection.horse_name}
+                  </p>
+
+                  {selection.is_captain && (
+                    <span className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900">
+                      C
+                    </span>
+                  )}
+                </div>
+
+                <p className="mt-0.5 text-xs capitalize text-slate-500">
+                  {shared
+                    ? "Shared selection"
+                    : selection.race_status ?? "Scheduled"}
+                </p>
+              </div>
+
+              <span className="text-lg font-black text-teal-700">
+                {selection.live_points}
+              </span>
+            </div>
+          );
+        })}
+
+        {selections.length === 0 && (
+          <div className="px-4 py-8 text-center text-sm text-slate-500">
+            No team selections found.
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
