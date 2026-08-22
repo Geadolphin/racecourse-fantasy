@@ -137,7 +137,6 @@ type FixtureCompareSelection = {
   race_entry_id: string;
   horse_id: string;
   horse_name: string;
-  silks_url: string | null;
   is_captain: boolean;
   selected_price: number;
   fantasy_points: number;
@@ -1579,25 +1578,10 @@ function FixtureCompareTeam({
           return (
             <div
               key={selection.race_entry_id}
-              className={`grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 ${
+              className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 ${
                 shared ? "bg-slate-50" : "bg-white"
               }`}
             >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center">
-                {selection.silks_url ? (
-                  <img
-                    src={selection.silks_url}
-                    alt={`${selection.horse_name} silks`}
-                    className="max-h-12 max-w-12 object-contain"
-                    loading="lazy"
-                  />
-                ) : (
-                  <span className="text-center text-[8px] font-black uppercase leading-tight tracking-wide text-slate-400">
-                    No Silk
-                  </span>
-                )}
-              </div>
-
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="truncate font-bold text-slate-900">
