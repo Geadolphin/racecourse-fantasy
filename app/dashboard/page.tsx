@@ -782,85 +782,102 @@ export default function Dashboard() {
       }
 
       async function loadCupMatchup() {
+        /*
+         * Cup matchups are intentionally loaded regardless of whether
+         * the fantasy round is open or locked. As soon as a Cup stage
+         * is assigned to the current round, the fixture can appear.
+         */
         setCupMatchup(null);
 
-        const { data: participantRows, error: participantError } =
-          await supabase
-            .from("cup_participants")
-            .select(
-              `
-                id,
-                cup_id,
-                cup:cup_competitions!inner (
-                  id,
-                  name,
-                  season_id
-                )
-              `
-            )
-            .eq("user_id", resolvedUser.id)
-            .eq("cup.season_id", resolvedDashboardData.season!.id);
+        const { data: cupsRaw, error: cupsError } =
+          await supabase.rpc("get_player_cups_page_data");
 
         if (!active) return;
 
-        if (participantError) {
-          console.error("Dashboard Cup participant error:", participantError);
+        if (cupsError) {
+          console.error("Dashboard Cup list error:", cupsError);
           return;
         }
 
-        for (const participantRow of participantRows ?? []) {
-          const rawCup = (participantRow as any).cup;
-          const cup = Array.isArray(rawCup) ? rawCup[0] ?? null : rawCup;
+        const cups =
+          ((cupsRaw as any)?.cups ?? []).filter(
+            (cup: any) =>
+              cup?.season_id ===
+                resolvedDashboardData.season!.id &&
+              cup?.is_participant === true &&
+              cup?.status !== "cancelled"
+          );
 
-          if (!cup?.id) continue;
-
-          const { data: stage, error: stageError } = await supabase
-            .from("cup_stages")
-            .select("id, stage_name, stage_type, sequence_number")
-            .eq("cup_id", cup.id)
-            .eq("round_id", resolvedDashboardData.round!.id)
-            .order("sequence_number", { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-          if (!active) return;
-
-          if (stageError) {
-            console.error("Dashboard Cup stage error:", stageError);
-            continue;
-          }
-
-          if (!stage?.id) continue;
-
-          const participantId = String((participantRow as any).id);
-
-          const { data: matches, error: matchError } = await supabase
-            .from("cup_matches")
-            .select(
-              "id, participant_1_id, participant_2_id, participant_1_score, participant_2_score"
-            )
-            .eq("stage_id", stage.id)
-            .or(
-              `participant_1_id.eq.${participantId},participant_2_id.eq.${participantId}`
-            )
-            .limit(1);
+        for (const cup of cups) {
+          const { data: detailRaw, error: detailError } =
+            await supabase.rpc("get_player_cup_detail", {
+              p_cup_id: cup.id,
+            });
 
           if (!active) return;
 
-          if (matchError) {
-            console.error("Dashboard Cup matchup error:", matchError);
+          if (detailError) {
+            console.error(
+              "Dashboard Cup detail error:",
+              detailError
+            );
             continue;
           }
 
-          const match = matches?.[0] ?? null;
+          const detail = detailRaw as any;
+
+          const stage = (detail?.stages ?? [])
+            .filter(
+              (candidate: any) =>
+                candidate?.round_id ===
+                resolvedDashboardData.round!.id
+            )
+            .sort(
+              (a: any, b: any) =>
+                Number(a?.sequence_number ?? 0) -
+                Number(b?.sequence_number ?? 0)
+            )[0];
+
+          if (!stage?.id) {
+            continue;
+          }
+
+          const participantId =
+            detail?.my_participant_id ?? null;
+
+          if (!participantId) {
+            continue;
+          }
+
+          const match = (detail?.matches ?? []).find(
+            (candidate: any) =>
+              candidate?.stage_id === stage.id &&
+              (
+                candidate?.participant_1_id ===
+                  participantId ||
+                candidate?.participant_2_id ===
+                  participantId
+              )
+          );
 
           if (!match) {
             setCupMatchup({
               cup_id: cup.id,
-              cup_name: cup.name,
-              stage_name: stage.stage_name,
-              stage_type: stage.stage_type as "group" | "knockout",
-              status: stage.stage_type === "knockout" ? "eliminated" : "tbc",
+              cup_name:
+                detail?.cup?.name ??
+                cup.name ??
+                "Cup",
+              stage_name:
+                stage.stage_name ??
+                "Cup Stage",
+              stage_type:
+                stage.stage_type as
+                  | "group"
+                  | "knockout",
+              status:
+                stage.stage_type === "knockout"
+                  ? "eliminated"
+                  : "tbc",
               opponent_name: null,
               my_score: null,
               opponent_score: null,
@@ -869,45 +886,49 @@ export default function Dashboard() {
           }
 
           const iAmParticipantOne =
-            match.participant_1_id === participantId;
-          const opponentId = iAmParticipantOne
-            ? match.participant_2_id
-            : match.participant_1_id;
+            match.participant_1_id ===
+            participantId;
 
-          let opponentName = "Opponent";
+          const opponentId =
+            iAmParticipantOne
+              ? match.participant_2_id
+              : match.participant_1_id;
 
-          if (opponentId) {
-            const { data: opponent, error: opponentError } = await supabase
-              .from("cup_participants")
-              .select("display_name")
-              .eq("id", opponentId)
-              .maybeSingle();
-
-            if (!active) return;
-
-            if (opponentError) {
-              console.error("Dashboard Cup opponent error:", opponentError);
-            } else if (opponent?.display_name?.trim()) {
-              opponentName = opponent.display_name.trim();
-            }
-          }
+          const opponent =
+            (detail?.participants ?? []).find(
+              (participant: any) =>
+                participant?.id === opponentId
+            );
 
           setCupMatchup({
             cup_id: cup.id,
-            cup_name: cup.name,
-            stage_name: stage.stage_name,
-            stage_type: stage.stage_type as "group" | "knockout",
+            cup_name:
+              detail?.cup?.name ??
+              cup.name ??
+              "Cup",
+            stage_name:
+              stage.stage_name ??
+              "Cup Stage",
+            stage_type:
+              stage.stage_type as
+                | "group"
+                | "knockout",
             status: "matchup",
-            opponent_name: opponentName,
+            opponent_name:
+              opponent?.display_name ??
+              "Opponent",
             my_score:
               (iAmParticipantOne
                 ? match.participant_1_score
-                : match.participant_2_score) ?? null,
+                : match.participant_2_score) ??
+              null,
             opponent_score:
               (iAmParticipantOne
                 ? match.participant_2_score
-                : match.participant_1_score) ?? null,
+                : match.participant_1_score) ??
+              null,
           });
+
           return;
         }
       }
