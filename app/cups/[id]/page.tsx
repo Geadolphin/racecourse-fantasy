@@ -458,12 +458,11 @@ export default function CupDetailPage() {
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[560px] text-sm">
+                      <table className="w-full min-w-[500px] text-sm">
                         <thead>
                           <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
                             <th className="px-4 py-3">Pos</th>
                             <th className="px-4 py-3">Team</th>
-                            <th className="px-3 py-3 text-center">P</th>
                             <th className="px-3 py-3 text-center">W</th>
                             <th className="px-3 py-3 text-center">D</th>
                             <th className="px-3 py-3 text-center">L</th>
@@ -507,7 +506,6 @@ export default function CupDetailPage() {
                                   )}
                                 </button>
                               </td>
-                              <td className="px-3 py-3 text-center">{member.played}</td>
                               <td className="px-3 py-3 text-center">{member.wins}</td>
                               <td className="px-3 py-3 text-center">{member.draws}</td>
                               <td className="px-3 py-3 text-center">{member.losses}</td>
@@ -549,13 +547,12 @@ export default function CupDetailPage() {
               ) : (
                 <div className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[720px] text-sm">
+                    <table className="w-full min-w-[660px] text-sm">
                       <thead className="bg-slate-950 text-white">
                         <tr className="text-left text-xs uppercase tracking-wide">
                           <th className="px-4 py-3">Rank</th>
                           <th className="px-4 py-3">Team</th>
                           <th className="px-4 py-3">Group</th>
-                          <th className="px-3 py-3 text-center">P</th>
                           <th className="px-3 py-3 text-center">W</th>
                           <th className="px-3 py-3 text-center">D</th>
                           <th className="px-3 py-3 text-center">L</th>
@@ -570,7 +567,7 @@ export default function CupDetailPage() {
                             <Fragment key={member.participant_id}>
                               {index === additionalQualifierCount && (
                                 <tr>
-                                  <td colSpan={9} className="border-y-2 border-emerald-500 bg-emerald-50 px-4 py-2 text-center">
+                                  <td colSpan={8} className="border-y-2 border-emerald-500 bg-emerald-50 px-4 py-2 text-center">
                                     <span className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-700">
                                       Qualify
                                     </span>
@@ -598,7 +595,6 @@ export default function CupDetailPage() {
                                   </button>
                                 </td>
                                 <td className="px-4 py-3 font-semibold text-slate-600">{member.group_name}</td>
-                                <td className="px-3 py-3 text-center">{member.played}</td>
                                 <td className="px-3 py-3 text-center">{member.wins}</td>
                                 <td className="px-3 py-3 text-center">{member.draws}</td>
                                 <td className="px-3 py-3 text-center">{member.losses}</td>
