@@ -910,69 +910,21 @@ export default function Dashboard() {
           async function getLiveCupScore(userId: string | null) {
             if (!userId) return null;
 
-            const { data: opponentTeam, error: opponentTeamError } =
-              await supabase
-                .from("teams")
-                .select("id")
-                .eq("user_id", userId)
-                .eq("round_id", resolvedDashboardData.round!.id)
-                .maybeSingle();
-
-            if (opponentTeamError || !opponentTeam?.id) {
-              if (opponentTeamError) {
-                console.error("Dashboard Cup team error:", opponentTeamError);
-              }
-              return null;
-            }
-
-            const { data: scoreSelections, error: scoreError } =
-              await supabase
-                .from("team_selections")
-                .select(`
-                  is_captain,
-                  fantasy_points,
-                  race_entry:race_entries!inner (
-                    projected_points,
-                    race:races!inner (
-                      status
-                    )
-                  )
-                `)
-                .eq("team_id", opponentTeam.id);
+            const { data: score, error: scoreError } =
+              await supabase.rpc("get_live_round_team_score", {
+                p_user_id: userId,
+                p_round_id: resolvedDashboardData.round!.id,
+              });
 
             if (scoreError) {
-              console.error("Dashboard Cup live score error:", scoreError);
+              console.error(
+                "Dashboard Cup live score RPC error:",
+                scoreError
+              );
               return null;
             }
 
-            return (scoreSelections ?? []).reduce(
-              (total: number, selection: any) => {
-                const rawEntry = selection.race_entry;
-                const entry = Array.isArray(rawEntry)
-                  ? rawEntry[0] ?? null
-                  : rawEntry;
-
-                const rawRace = entry?.race;
-                const race = Array.isArray(rawRace)
-                  ? rawRace[0] ?? null
-                  : rawRace;
-
-                const raceIsOfficial =
-                  race?.status === "official";
-
-                const basePoints = raceIsOfficial
-                  ? Number(selection.fantasy_points ?? 0)
-                  : Number(entry?.projected_points ?? 0);
-
-                return (
-                  total +
-                  (selection.is_captain
-                    ? basePoints * 2
-                    : basePoints)
-                );
-              },
-              0
-            );
+            return score == null ? null : Number(score);
           }
 
           const matchIsFinal =
