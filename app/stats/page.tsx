@@ -119,7 +119,6 @@ type SeasonRecordStat = {
 type SeasonRecordsStats = {
   highest_round_score?: SeasonRecordStat | null;
   most_round_wins?: SeasonRecordStat | null;
-  best_captain?: SeasonRecordStat | null;
   biggest_rank_rise?: SeasonRecordStat | null;
 };
 
@@ -1473,11 +1472,11 @@ export default function StatsPage() {
             <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
               <h2 className="text-xl font-black text-slate-950">Season Records</h2>
               <p className="mt-1 text-sm text-slate-600">
-                Highest Round Score, Most Round Wins, Best Captain and Biggest Rank Rise.
+                Highest Round Score, Most Round Wins and Biggest Rank Rise.
               </p>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               <MetricCard
                 title="Highest Round Score"
                 value={highestRoundRecord?.value == null ? "—" : `${highestRoundRecord.value} pts`}
@@ -1488,19 +1487,6 @@ export default function StatsPage() {
                 title="Most Round Wins"
                 value={mostRoundWinsRecord?.value == null ? "—" : `${mostRoundWinsRecord.value}`}
                 subtitle={mostRoundWinsRecord?.display_name ?? "No record yet"}
-              />
-              <MetricCard
-                title="Best Captain"
-                value={
-                  data.season_records?.best_captain?.value == null
-                    ? "—"
-                    : `${Number(data.season_records.best_captain.value).toFixed(1)} pts`
-                }
-                subtitle={
-                  data.season_records?.best_captain?.display_name
-                    ? `${data.season_records.best_captain.display_name} · average captain score`
-                    : "Highest average captain score"
-                }
               />
               <MetricCard
                 title="Biggest Rank Rise"
