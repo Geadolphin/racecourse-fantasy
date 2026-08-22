@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 type Horse = {
   id: string;
   name: string;
+  silks_url: string | null;
   current_price: number;
   starting_price: number;
   total_fantasy_points: number;
@@ -59,6 +60,7 @@ type RaceResultRow = {
   result_id: string;
   horse_id: string;
   horse_name: string;
+  silks_url?: string | null;
   saddlecloth_number: number | null;
   finishing_position: number | null;
   result_status: string;
@@ -187,12 +189,22 @@ export default function HorseProfilePage() {
       setLoading(true);
       setErrorMessage("");
 
-      const { data: profileData, error } = await supabase.rpc(
-        "get_horse_profile",
-        {
-          p_horse_id: horseId,
-        }
-      );
+      const [
+        { data: profileData, error },
+        { data: horseSilksData, error: horseSilksError },
+      ] = await Promise.all([
+        supabase.rpc(
+          "get_horse_profile",
+          {
+            p_horse_id: horseId,
+          }
+        ),
+        supabase
+          .from("horses")
+          .select("id, silks_url")
+          .eq("id", horseId)
+          .maybeSingle(),
+      ]);
 
       if (!active) {
         return;
@@ -208,7 +220,27 @@ export default function HorseProfilePage() {
         return;
       }
 
-      setData(profileData as HorseProfileData);
+      if (horseSilksError) {
+        console.error(
+          "Horse profile silks load error:",
+          horseSilksError
+        );
+      }
+
+      const loadedProfile =
+        profileData as HorseProfileData;
+
+      setData({
+        ...loadedProfile,
+        horse: loadedProfile.horse
+          ? {
+              ...loadedProfile.horse,
+              silks_url:
+                horseSilksData?.silks_url ?? null,
+            }
+          : null,
+      });
+
       setLoading(false);
     }
 
@@ -255,7 +287,61 @@ export default function HorseProfilePage() {
         return;
       }
 
-      setRaceResultsData(resultData as unknown as RaceResultsData);
+      const loadedResults =
+        resultData as unknown as RaceResultsData;
+
+      const horseIds = Array.from(
+        new Set(
+          (loadedResults.results ?? [])
+            .map((result) => result.horse_id)
+            .filter(Boolean)
+        )
+      );
+
+      let silksByHorseId: Record<
+        string,
+        string | null
+      > = {};
+
+      if (horseIds.length > 0) {
+        const {
+          data: resultHorseData,
+          error: resultHorseError,
+        } = await supabase
+          .from("horses")
+          .select("id, silks_url")
+          .in("id", horseIds);
+
+        if (!active) {
+          return;
+        }
+
+        if (resultHorseError) {
+          console.error(
+            "Race result silks load error:",
+            resultHorseError
+          );
+        } else {
+          silksByHorseId = Object.fromEntries(
+            (resultHorseData ?? []).map((horse) => [
+              horse.id,
+              horse.silks_url ?? null,
+            ])
+          );
+        }
+      }
+
+      setRaceResultsData({
+        ...loadedResults,
+        results: (loadedResults.results ?? []).map(
+          (result) => ({
+            ...result,
+            silks_url:
+              silksByHorseId[result.horse_id] ?? null,
+          })
+        ),
+      });
+
       setRaceResultsLoading(false);
     }
 
@@ -343,26 +429,38 @@ export default function HorseProfilePage() {
           </Link>
 
           <div className="mt-5 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-3xl font-bold md:text-4xl">
-                  {horse.name}
-                </h1>
-
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${
-                    horse.is_active
-                      ? "bg-teal-500/20 text-teal-200"
-                      : "bg-slate-700 text-slate-300"
-                  }`}
-                >
-                  {horse.is_active ? "Active" : "Inactive"}
-                </span>
+            <div className="flex items-center gap-4">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center md:h-24 md:w-24">
+                {horse.silks_url ? (
+                  <img
+                    src={horse.silks_url}
+                    alt={`${horse.name} silks`}
+                    className="max-h-20 max-w-20 object-contain md:max-h-24 md:max-w-24"
+                  />
+                ) : null}
               </div>
 
-              <p className="mt-2 text-slate-300">
-                Fantasy performance and price history
-              </p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="truncate text-3xl font-bold md:text-4xl">
+                    {horse.name}
+                  </h1>
+
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold ${
+                      horse.is_active
+                        ? "bg-teal-500/20 text-teal-200"
+                        : "bg-slate-700 text-slate-300"
+                    }`}
+                  >
+                    {horse.is_active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-slate-300">
+                  Fantasy performance and price history
+                </p>
+              </div>
             </div>
 
             <div className="md:text-right">
@@ -750,8 +848,23 @@ export default function HorseProfilePage() {
                                   {result.is_dead_heat ? " (DH)" : ""}
                                 </td>
 
-                                <td className="px-4 py-4 font-bold text-slate-950">
-                                  {result.horse_name}
+                                <td className="px-4 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center">
+                                      {result.silks_url ? (
+                                        <img
+                                          src={result.silks_url}
+                                          alt={`${result.horse_name} silks`}
+                                          className="max-h-10 max-w-10 object-contain"
+                                          loading="lazy"
+                                        />
+                                      ) : null}
+                                    </div>
+
+                                    <span className="font-bold text-slate-950">
+                                      {result.horse_name}
+                                    </span>
+                                  </div>
                                 </td>
 
                                 <td className="px-4 py-4 text-right font-bold text-teal-700">
