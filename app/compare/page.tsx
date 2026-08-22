@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
 import { supabase } from "@/lib/supabase";
 
@@ -52,7 +51,6 @@ type ComparisonTeam = {
   id: string;
   user_id: string;
   team_name: string | null;
-  display_name?: string | null;
   status: string;
   salary_used: number;
   salary_cap: number | null;
@@ -158,17 +156,6 @@ function getTeamLabel(team: AvailableTeam) {
 }
 
 export default function CompareTeamsPage() {
-  const searchParams = useSearchParams();
-
-  const fixtureRoundId = searchParams.get("round") ?? "";
-  const fixtureTeam1UserId = searchParams.get("team1") ?? "";
-  const fixtureTeam2UserId = searchParams.get("team2") ?? "";
-
-  const fixtureMode =
-    Boolean(fixtureRoundId) &&
-    Boolean(fixtureTeam1UserId) &&
-    Boolean(fixtureTeam2UserId);
-
   const [rounds, setRounds] = useState<RoundOption[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState("");
   const [selectedOpponentUserId, setSelectedOpponentUserId] =
@@ -261,15 +248,7 @@ export default function CompareTeamsPage() {
       setRounds(comparableRounds);
 
       if (comparableRounds.length > 0) {
-        const requestedRound = fixtureMode
-          ? comparableRounds.find(
-              (round) => round.id === fixtureRoundId
-            )
-          : null;
-
-        setSelectedRoundId(
-          requestedRound?.id ?? comparableRounds[0].id
-        );
+        setSelectedRoundId(comparableRounds[0].id);
       }
 
       setLoadingRounds(false);
@@ -280,7 +259,7 @@ export default function CompareTeamsPage() {
     return () => {
       active = false;
     };
-  }, [fixtureMode, fixtureRoundId]);
+  }, []);
 
   useEffect(() => {
     if (!selectedRoundId) {
@@ -297,22 +276,13 @@ export default function CompareTeamsPage() {
       setSelectedOpponentUserId("");
       setOpponentSearch("");
 
-      const { data, error } = fixtureMode
-        ? await supabase.rpc(
-            "get_fixture_team_comparison_data",
-            {
-              p_round_id: selectedRoundId,
-              p_user_id_1: fixtureTeam1UserId,
-              p_user_id_2: fixtureTeam2UserId,
-            }
-          )
-        : await supabase.rpc(
-            "get_team_comparison_data",
-            {
-              p_round_id: selectedRoundId,
-              p_opponent_user_id: null,
-            }
-          );
+      const { data, error } = await supabase.rpc(
+        "get_team_comparison_data",
+        {
+          p_round_id: selectedRoundId,
+          p_opponent_user_id: null,
+        }
+      );
 
       if (!active) {
         return;
@@ -340,19 +310,10 @@ export default function CompareTeamsPage() {
     return () => {
       active = false;
     };
-  }, [
-    selectedRoundId,
-    fixtureMode,
-    fixtureTeam1UserId,
-    fixtureTeam2UserId,
-  ]);
+  }, [selectedRoundId]);
 
   useEffect(() => {
-    if (
-      fixtureMode ||
-      !selectedRoundId ||
-      !selectedOpponentUserId
-    ) {
+    if (!selectedRoundId || !selectedOpponentUserId) {
       return;
     }
 
@@ -395,11 +356,7 @@ export default function CompareTeamsPage() {
     return () => {
       active = false;
     };
-  }, [
-    fixtureMode,
-    selectedOpponentUserId,
-    selectedRoundId,
-  ]);
+  }, [selectedOpponentUserId, selectedRoundId]);
 
   useEffect(() => {
     const entryIds = [
@@ -677,16 +634,6 @@ export default function CompareTeamsPage() {
         )}
 
         <section className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
-          {fixtureMode ? (
-            <div className="rounded-xl border border-teal-200 bg-teal-50 px-4 py-3">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
-                Cup Fixture Comparison
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-700">
-                Showing the two teams from the selected Cup fixture.
-              </p>
-            </div>
-          ) : (
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label
@@ -926,7 +873,6 @@ export default function CompareTeamsPage() {
               )}
             </div>
           </div>
-          )}
 
           {comparisonData?.round && (
             <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-600">
@@ -1040,13 +986,11 @@ export default function CompareTeamsPage() {
               <div className="grid lg:grid-cols-[1fr_auto_1fr]">
                 <div className="p-5 sm:p-6 lg:text-right">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-                    {fixtureMode ? "Team 1" : "Your Team"}
+                    Your Team
                   </p>
 
                   <h3 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
-                    {myTeam.display_name?.trim() ||
-                      myTeam.team_name?.trim() ||
-                      (fixtureMode ? "Team 1" : "My Team")}
+                    {myTeam.team_name?.trim() || "My Team"}
                   </h3>
 
                   <div className="mt-4 flex flex-wrap gap-2 lg:justify-end">
@@ -1087,14 +1031,13 @@ export default function CompareTeamsPage() {
 
                 <div className="p-5 sm:p-6">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-                    {fixtureMode ? "Team 2" : "Opponent"}
+                    Opponent
                   </p>
 
                   <h3 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
-                    {opponentTeam.display_name?.trim() ||
-                      selectedOpponent?.display_name?.trim() ||
+                    {selectedOpponent?.display_name?.trim() ||
                       opponentTeam.team_name?.trim() ||
-                      (fixtureMode ? "Team 2" : "Opponent")}
+                      "Opponent"}
                   </h3>
 
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -1232,7 +1175,7 @@ export default function CompareTeamsPage() {
                       <div className="border-b border-slate-200 p-5 lg:border-b-0 lg:border-r">
                         <div className="mb-3 flex items-center justify-between gap-3">
                           <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">
-                            {fixtureMode ? "Team 1 Sheet" : "Your Team Sheet"}
+                            Your Team Sheet
                           </p>
                           <span className="text-xs font-bold text-slate-400">
                             {group.mySelections.length} selected
@@ -1317,7 +1260,7 @@ export default function CompareTeamsPage() {
                       <div className="p-5">
                         <div className="mb-3 flex items-center justify-between gap-3">
                           <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">
-                            {fixtureMode ? "Team 2 Sheet" : "Opponent Team Sheet"}
+                            Opponent Team Sheet
                           </p>
                           <span className="text-xs font-bold text-slate-400">
                             {group.opponentSelections.length} selected
@@ -1408,8 +1351,7 @@ export default function CompareTeamsPage() {
           </>
         )}
 
-        {!fixtureMode &&
-          !loadingComparison &&
+        {!loadingComparison &&
           comparisonData?.locked &&
           myTeam &&
           !opponentTeam &&
