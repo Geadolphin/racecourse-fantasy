@@ -433,10 +433,13 @@ export default function CupDetailPage() {
           </div>
 
           <div className="mb-4 flex flex-wrap gap-2 text-xs font-bold">
-            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-800">
-              Automatic qualifier
+            <span className="rounded-full bg-emerald-200 px-2.5 py-1 text-emerald-900">
+              Top 2 — Round of 32 bye
             </span>
-            <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-800">
+            <span className="rounded-full bg-blue-200 px-2.5 py-1 text-blue-900">
+              3rd–6th — Preliminary Round
+            </span>
+            <span className="rounded-full bg-amber-200 px-2.5 py-1 text-amber-900">
               Your team
             </span>
           </div>
@@ -494,14 +497,15 @@ export default function CupDetailPage() {
                           {members.map((member, index) => (
                             <tr
                               key={member.participant_id}
-                              className={`border-t border-slate-100 ${
+                              className={`${
                                 isMe(member.participant_id)
-                                  ? "bg-blue-100"
-                                  : member.group_position !== null &&
-                                      member.group_position <=
+                                  ? "bg-amber-200"
+                                  : (member.group_position ?? index + 1) <= 2
+                                    ? "bg-emerald-100"
+                                    : (member.group_position ?? index + 1) <=
                                         data.cup.automatic_qualifiers_per_group
-                                    ? "bg-emerald-50/60"
-                                    : ""
+                                      ? "bg-blue-100"
+                                      : ""
                               }`}
                             >
                               <td className="px-4 py-3 font-bold">
@@ -519,7 +523,7 @@ export default function CupDetailPage() {
                                 >
                                   {participantName(member.participant_id)}
                                   {isMe(member.participant_id) && (
-                                    <span className="ml-2 text-xs font-black text-blue-700">
+                                    <span className="ml-2 text-xs font-black text-amber-700">
                                       YOU
                                     </span>
                                   )}
