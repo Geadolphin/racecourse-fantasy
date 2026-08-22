@@ -877,7 +877,7 @@ export default function StatsPage() {
               </p>
             </div>
             <p className="mt-3 text-3xl font-black text-slate-950">
-              {participatingPlayerLeaders.length}
+              {summary.players}
             </p>
           </div>
 
