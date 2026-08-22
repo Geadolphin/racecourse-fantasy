@@ -117,7 +117,6 @@ type CupCompareSelection = {
   is_captain: boolean;
   live_points: number;
   race_status: string | null;
-  silks_url?: string | null;
 };
 
 type CupCompareData = {
@@ -1078,65 +1077,7 @@ export default function Dashboard() {
     const comparison =
       compareRaw as unknown as CupCompareData;
 
-    const horseIds = Array.from(
-      new Set(
-        [
-          ...(comparison?.my_team ?? []),
-          ...(comparison?.opponent_team ?? []),
-        ]
-          .map((selection) => selection.horse_id)
-          .filter(Boolean)
-      )
-    );
-
-    let silksByHorseId: Record<
-      string,
-      string | null
-    > = {};
-
-    if (horseIds.length > 0) {
-      const {
-        data: horseData,
-        error: horseError,
-      } = await supabase
-        .from("horses")
-        .select("id, silks_url")
-        .in("id", horseIds);
-
-      if (horseError) {
-        console.error(
-          "Dashboard Cup silks load error:",
-          horseError
-        );
-      } else {
-        silksByHorseId = Object.fromEntries(
-          (horseData ?? []).map((horse: any) => [
-            horse.id,
-            horse.silks_url ?? null,
-          ])
-        );
-      }
-    }
-
-    const enrichSelections = (
-      selections: CupCompareSelection[]
-    ) =>
-      selections.map((selection) => ({
-        ...selection,
-        silks_url:
-          silksByHorseId[selection.horse_id] ??
-          null,
-      }));
-
-    setCupCompareData({
-      ...comparison,
-      my_team: enrichSelections(
-        comparison?.my_team ?? []
-      ),
-      opponent_team: enrichSelections(
-        comparison?.opponent_team ?? []
-      ),
-    });
+    setCupCompareData(comparison);
 
     setCupCompareLoading(false);
   }
@@ -2022,24 +1963,10 @@ function CupCompareTeam({
           return (
             <div
               key={selection.horse_id}
-              className={`grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 ${
+              className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 ${
                 shared ? "bg-slate-50" : "bg-white"
               }`}
             >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center">
-                {selection.silks_url ? (
-                  <img
-                    src={selection.silks_url}
-                    alt={`${selection.horse_name} silks`}
-                    className="max-h-11 max-w-11 object-contain"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-[8px] font-black uppercase tracking-wide text-slate-400">
-                    No Silks
-                  </div>
-                )}
-              </div>
-
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="truncate font-bold text-slate-900">
