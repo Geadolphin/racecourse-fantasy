@@ -1919,46 +1919,37 @@ function CupCompareTeam({
   subtitle,
   selections,
   otherSelections,
-  highlightMine = false,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   selections: CupCompareSelection[];
   otherSelections: CupCompareSelection[];
-  highlightMine?: boolean;
 }) {
   const otherHorseIds = new Set(
     otherSelections.map((selection) => selection.horse_id)
   );
 
   return (
-    <section
-      className={`overflow-hidden rounded-xl border ${
-        highlightMine
-          ? "border-amber-300"
-          : "border-slate-200"
-      }`}
-    >
-      <div
-        className={`px-4 py-3 ${
-          highlightMine
-            ? "bg-amber-100"
-            : "bg-slate-100"
-        }`}
-      >
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-          {subtitle}
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-100 px-4 py-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+          Team Sheet
         </p>
-        <h3 className="mt-0.5 font-black text-slate-950">
+
+        <h3 className="mt-0.5 truncate font-black text-slate-950">
           {title}
         </h3>
+
+        {subtitle && (
+          <p className="mt-1 truncate text-xs font-semibold text-slate-500">
+            {subtitle}
+          </p>
+        )}
       </div>
 
       <div className="divide-y divide-slate-100">
         {selections.map((selection) => {
-          const shared = otherHorseIds.has(
-            selection.horse_id
-          );
+          const shared = otherHorseIds.has(selection.horse_id);
 
           return (
             <div
@@ -1974,7 +1965,10 @@ function CupCompareTeam({
                   </p>
 
                   {selection.is_captain && (
-                    <span className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900">
+                    <span
+                      className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900"
+                      title="Captain"
+                    >
                       C
                     </span>
                   )}
@@ -1987,9 +1981,15 @@ function CupCompareTeam({
                 </p>
               </div>
 
-              <span className="text-lg font-black text-teal-700">
-                {selection.live_points}
-              </span>
+              <div className="shrink-0 text-right">
+                <p className="text-lg font-black tabular-nums text-teal-700">
+                  {selection.live_points ?? 0}
+                </p>
+
+                <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+                  pts
+                </p>
+              </div>
             </div>
           );
         })}
