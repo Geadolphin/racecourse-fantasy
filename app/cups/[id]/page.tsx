@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Trophy,
@@ -286,6 +286,54 @@ export default function CupDetailPage() {
     (stage) => stage.stage_type === "knockout"
   );
 
+  const additionalQualifierPosition = data.cup.additional_qualifier_position;
+  const additionalQualifierCount = data.cup.additional_qualifier_count;
+
+  const additionalQualifiers = data.groups
+    .map((group) => {
+      const member = data.group_members.find(
+        (candidate) =>
+          candidate.group_id === group.id &&
+          candidate.group_position === additionalQualifierPosition
+      );
+
+      return member ? { ...member, group_name: group.group_name } : null;
+    })
+    .filter(
+      (member): member is GroupMember & { group_name: string } =>
+        member !== null
+    )
+    .sort((a, b) => {
+      if (b.group_points !== a.group_points) {
+        return b.group_points - a.group_points;
+      }
+      if (b.fantasy_points_for !== a.fantasy_points_for) {
+        return b.fantasy_points_for - a.fantasy_points_for;
+      }
+      if (b.wins !== a.wins) {
+        return b.wins - a.wins;
+      }
+      return participantName(a.participant_id).localeCompare(
+        participantName(b.participant_id)
+      );
+    });
+
+  function ordinal(value: number) {
+    const mod100 = value % 100;
+    if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
+
+    switch (value % 10) {
+      case 1:
+        return `${value}st`;
+      case 2:
+        return `${value}nd`;
+      case 3:
+        return `${value}rd`;
+      default:
+        return `${value}th`;
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-7xl">
@@ -476,6 +524,97 @@ export default function CupDetailPage() {
             </div>
           )}
         </section>
+
+        {additionalQualifierPosition !== null &&
+          additionalQualifierCount > 0 && (
+            <section className="mt-8">
+              <div className="mb-4 border-b border-slate-300 pb-3">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
+                  Knockout Qualification
+                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-slate-700" />
+                  <h2 className="text-2xl font-black text-slate-950">
+                    Additional Qualifiers
+                  </h2>
+                </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  Top {additionalQualifierCount} {ordinal(additionalQualifierPosition)}-placed{" "}
+                  {additionalQualifierCount === 1 ? "team" : "teams"} advance to the knockout stage.
+                </p>
+              </div>
+
+              {additionalQualifiers.length === 0 ? (
+                <Empty text="Additional qualifier standings are not available yet." />
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[720px] text-sm">
+                      <thead className="bg-slate-950 text-white">
+                        <tr className="text-left text-xs uppercase tracking-wide">
+                          <th className="px-4 py-3">Rank</th>
+                          <th className="px-4 py-3">Team</th>
+                          <th className="px-4 py-3">Group</th>
+                          <th className="px-3 py-3 text-center">P</th>
+                          <th className="px-3 py-3 text-center">W</th>
+                          <th className="px-3 py-3 text-center">D</th>
+                          <th className="px-3 py-3 text-center">L</th>
+                          <th className="px-3 py-3 text-center">FP</th>
+                          <th className="px-3 py-3 text-center">Pts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {additionalQualifiers.map((member, index) => {
+                          const qualifying = index < additionalQualifierCount;
+                          return (
+                            <Fragment key={member.participant_id}>
+                              {index === additionalQualifierCount && (
+                                <tr>
+                                  <td colSpan={9} className="border-y-2 border-emerald-500 bg-emerald-50 px-4 py-2 text-center">
+                                    <span className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-700">
+                                      Qualify
+                                    </span>
+                                  </td>
+                                </tr>
+                              )}
+                              <tr className={`border-t border-slate-100 ${
+                                isMe(member.participant_id)
+                                  ? "bg-teal-50"
+                                  : qualifying
+                                    ? "bg-emerald-50/60"
+                                    : ""
+                              }`}>
+                                <td className="px-4 py-3 font-black">{index + 1}</td>
+                                <td className="px-4 py-3 font-semibold text-slate-900">
+                                  <button
+                                    type="button"
+                                    onClick={() => void openPlayerProfile(member.participant_id)}
+                                    className="text-left transition hover:text-teal-700 hover:underline"
+                                  >
+                                    {participantName(member.participant_id)}
+                                    {isMe(member.participant_id) && (
+                                      <span className="ml-2 text-xs font-bold text-teal-700">YOU</span>
+                                    )}
+                                  </button>
+                                </td>
+                                <td className="px-4 py-3 font-semibold text-slate-600">{member.group_name}</td>
+                                <td className="px-3 py-3 text-center">{member.played}</td>
+                                <td className="px-3 py-3 text-center">{member.wins}</td>
+                                <td className="px-3 py-3 text-center">{member.draws}</td>
+                                <td className="px-3 py-3 text-center">{member.losses}</td>
+                                <td className="px-3 py-3 text-center">{member.fantasy_points_for}</td>
+                                <td className="px-3 py-3 text-center font-black">{member.group_points}</td>
+                              </tr>
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
         <section className="mt-8">
           <div className="mb-4 flex items-end justify-between gap-4 border-b border-slate-300 pb-3">
