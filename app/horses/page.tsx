@@ -8,7 +8,6 @@ import { supabase } from "@/lib/supabase";
 type HorseRow = {
   id: string;
   name: string;
-  silks_url: string | null;
   current_price: number;
   total_fantasy_points: number;
   eligible_starts: number;
@@ -60,28 +59,20 @@ export default function HorsesPage() {
       setLoading(true);
       setErrorMessage("");
 
-      const [
-        { data, error },
-        { data: silksData, error: silksError },
-      ] = await Promise.all([
-        supabase
-          .from("horse_statistics")
-          .select(
-            `
-              id,
-              name,
-              current_price,
-              total_fantasy_points,
-              eligible_starts,
-              average_fantasy_points,
-              is_active
-            `
-          )
-          .order("name", { ascending: true }),
-        supabase
-          .from("horses")
-          .select("id, silks_url"),
-      ]);
+      const { data, error } = await supabase
+        .from("horse_statistics")
+        .select(
+          `
+            id,
+            name,
+            current_price,
+            total_fantasy_points,
+            eligible_starts,
+            average_fantasy_points,
+            is_active
+          `
+        )
+        .order("name", { ascending: true });
 
       if (!active) {
         return;
@@ -97,20 +88,8 @@ export default function HorsesPage() {
         return;
       }
 
-      if (silksError) {
-        console.error("Horse silks load error:", silksError);
-      }
-
-      const silksByHorseId = new Map(
-        (silksData ?? []).map((horse) => [
-          horse.id,
-          horse.silks_url ?? null,
-        ])
-      );
-
       setHorses(
         (data ?? []).map((horse) => ({
-          silks_url: silksByHorseId.get(horse.id) ?? null,
           ...horse,
           current_price: Number(horse.current_price ?? 0),
           total_fantasy_points: Number(
@@ -302,33 +281,20 @@ export default function HorsesPage() {
                   className="block rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition active:bg-slate-50"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center">
-                        {horse.silks_url ? (
-                          <img
-                            src={horse.silks_url}
-                            alt={`${horse.name} silks`}
-                            className="max-h-12 max-w-12 object-contain"
-                            loading="lazy"
-                          />
-                        ) : null}
-                      </div>
+                    <div className="min-w-0">
+                      <h2 className="truncate text-lg font-bold text-slate-900">
+                        {horse.name}
+                      </h2>
 
-                      <div className="min-w-0">
-                        <h2 className="truncate text-lg font-bold text-slate-900">
-                          {horse.name}
-                        </h2>
-
-                        <span
-                          className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      <span
+                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
                           horse.is_active
                             ? "bg-teal-50 text-teal-700"
                             : "bg-slate-100 text-slate-600"
                         }`}
                       >
-                          {horse.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </div>
+                        {horse.is_active ? "Active" : "Inactive"}
+                      </span>
                     </div>
 
                     <div className="shrink-0 text-right">
@@ -445,22 +411,9 @@ export default function HorsesPage() {
                         <td className="px-5 py-3.5">
                           <Link
                             href={`/horses/${horse.id}`}
-                            className="flex items-center gap-3 font-bold text-slate-900 transition hover:text-teal-700"
+                            className="font-bold text-slate-900 transition hover:text-teal-700"
                           >
-                            <span className="flex h-11 w-11 shrink-0 items-center justify-center">
-                              {horse.silks_url ? (
-                                <img
-                                  src={horse.silks_url}
-                                  alt={`${horse.name} silks`}
-                                  className="max-h-11 max-w-11 object-contain"
-                                  loading="lazy"
-                                />
-                              ) : null}
-                            </span>
-
-                            <span className="truncate">
-                              {horse.name}
-                            </span>
+                            {horse.name}
                           </Link>
                         </td>
 
