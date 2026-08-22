@@ -29,7 +29,6 @@ type Horse = {
   id: string;
   name: string;
   current_price: number;
-  silks_url: string | null;
 };
 
 type Racecourse = {
@@ -1045,21 +1044,7 @@ export default function MyTeamPage() {
                         }`}
                         aria-label={horse ? `View statistics for ${horse.name}` : "Horse statistics unavailable"}
                       >
-                        <div className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-4">
-                          <div className="flex h-14 w-14 shrink-0 items-center justify-center">
-                            {horse?.silks_url ? (
-                              <img
-                                src={horse.silks_url}
-                                alt={`${horse.name} silks`}
-                                className="max-h-14 max-w-14 object-contain"
-                              />
-                            ) : (
-                              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-100 text-[9px] font-black uppercase tracking-wide text-slate-400">
-                                No Silks
-                              </div>
-                            )}
-                          </div>
-
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                           <div className="min-w-0">
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                               <h3 className="truncate text-base font-bold text-slate-950 md:text-xl">
@@ -1550,17 +1535,7 @@ export default function MyTeamPage() {
                                   : "border-slate-200 bg-white"
                             }`}
                           >
-                            <div className="grid grid-cols-[42px_minmax(0,1fr)] items-center gap-2">
-                              <div className="flex h-10 w-10 items-center justify-center">
-                                {horse?.silks_url ? (
-                                  <img
-                                    src={horse.silks_url}
-                                    alt=""
-                                    className="max-h-10 max-w-10 object-contain"
-                                  />
-                                ) : null}
-                              </div>
-
+                            <div className="min-w-0">
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <p className="truncate text-[17px] font-black leading-tight text-slate-950">
