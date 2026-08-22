@@ -454,15 +454,17 @@ export default function CupDetailPage() {
     );
   }
 
-  const groupStages = data.stages.filter(
+  const cupData = data;
+
+  const groupStages = cupData.stages.filter(
     (stage) => stage.stage_type === "group"
   );
 
-  const knockoutStages = data.stages.filter(
+  const knockoutStages = cupData.stages.filter(
     (stage) => stage.stage_type === "knockout"
   );
 
-  const displayMatches = data.matches.map((match) => {
+  const displayMatches = cupData.matches.map((match) => {
     const live = liveFixtureScores[match.id];
 
     const matchIsFinal =
@@ -496,7 +498,7 @@ export default function CupDetailPage() {
     liveGroupMatches.length > 0;
 
   function getDisplayGroupMembers(groupId: string) {
-    const baseMembers = data.group_members
+    const baseMembers = cupData.group_members
       .filter((member) => member.group_id === groupId)
       .map((member) => ({
         ...member,
@@ -598,12 +600,12 @@ export default function CupDetailPage() {
     }));
   }
 
-  const additionalQualifierPosition = data.cup.additional_qualifier_position;
-  const additionalQualifierCount = data.cup.additional_qualifier_count;
+  const additionalQualifierPosition = cupData.cup.additional_qualifier_position;
+  const additionalQualifierCount = cupData.cup.additional_qualifier_count;
 
-  const additionalQualifiers = data.groups
+  const additionalQualifiers = cupData.groups
     .map((group) => {
-      const member = data.group_members.find(
+      const member = cupData.group_members.find(
         (candidate) =>
           candidate.group_id === group.id &&
           candidate.group_position === additionalQualifierPosition
@@ -668,7 +670,7 @@ export default function CupDetailPage() {
               </div>
 
               <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-black capitalize text-slate-200">
-                {data.cup.status.replaceAll("_", " ")}
+                {cupData.cup.status.replaceAll("_", " ")}
               </span>
             </div>
           </div>
@@ -676,11 +678,11 @@ export default function CupDetailPage() {
           <div className="grid lg:grid-cols-[1fr_320px]">
             <div className="p-6 md:p-8">
               <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
-                {data.cup.season_name} {data.cup.season_year}
+                {cupData.cup.season_name} {cupData.cup.season_year}
               </p>
 
               <h1 className="mt-2 text-3xl font-black tracking-tight md:text-5xl">
-                {data.cup.name}
+                {cupData.cup.name}
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 md:text-base">
@@ -688,20 +690,20 @@ export default function CupDetailPage() {
               </p>
 
               <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-                The top {data.cup.automatic_qualifiers_per_group}{" "}
-                {data.cup.automatic_qualifiers_per_group === 1
+                The top {cupData.cup.automatic_qualifiers_per_group}{" "}
+                {cupData.cup.automatic_qualifiers_per_group === 1
                   ? "team"
                   : "teams"}{" "}
                 from each group qualify for the knockout stage. Teams finishing
                 1st or 2nd earn a bye through the Preliminary Round and advance
                 directly to the Round of 32, while teams finishing 3rd–6th
                 qualify for the Preliminary Round
-                {data.cup.additional_qualifier_count > 0 &&
-                data.cup.additional_qualifier_position !== null
-                  ? `, with the best ${data.cup.additional_qualifier_count} ${ordinal(
-                      data.cup.additional_qualifier_position
+                {cupData.cup.additional_qualifier_count > 0 &&
+                cupData.cup.additional_qualifier_position !== null
+                  ? `, with the best ${cupData.cup.additional_qualifier_count} ${ordinal(
+                      cupData.cup.additional_qualifier_position
                     )}-placed ${
-                      data.cup.additional_qualifier_count === 1
+                      cupData.cup.additional_qualifier_count === 1
                         ? "team"
                         : "teams"
                     } across all groups also advancing`
@@ -709,7 +711,7 @@ export default function CupDetailPage() {
                 .
               </p>
 
-              {data.my_participant_id && (
+              {cupData.my_participant_id && (
                 <div className="mt-5 inline-flex items-center rounded-full border border-teal-400/30 bg-teal-400/10 px-3 py-1.5 text-sm font-black text-teal-200">
                   You are competing in this Cup
                 </div>
@@ -717,15 +719,15 @@ export default function CupDetailPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-px border-t border-slate-800 bg-slate-800 lg:border-l lg:border-t-0">
-              <OfficialStat label="Teams" value={data.cup.competing_teams} />
-              <OfficialStat label="Groups" value={data.cup.group_count} />
-              <OfficialStat label="Per Group" value={data.cup.teams_per_group} />
+              <OfficialStat label="Teams" value={cupData.cup.competing_teams} />
+              <OfficialStat label="Groups" value={cupData.cup.group_count} />
+              <OfficialStat label="Per Group" value={cupData.cup.teams_per_group} />
               <OfficialStat
                 label="Knockout"
                 value={
-                  data.cup.group_count *
-                    data.cup.automatic_qualifiers_per_group +
-                  data.cup.additional_qualifier_count
+                  cupData.cup.group_count *
+                    cupData.cup.automatic_qualifiers_per_group +
+                  cupData.cup.additional_qualifier_count
                 }
               />
             </div>
@@ -765,11 +767,11 @@ export default function CupDetailPage() {
             </span>
           </div>
 
-          {data.groups.length === 0 ? (
+          {cupData.groups.length === 0 ? (
             <Empty text="Groups have not been generated yet." />
           ) : (
             <div className="grid gap-5 xl:grid-cols-2">
-              {data.groups.map((group) => {
+              {cupData.groups.map((group) => {
                 const members =
                   getDisplayGroupMembers(group.id);
 
@@ -808,7 +810,7 @@ export default function CupDetailPage() {
                                   : member.live_position <= 2
                                     ? "bg-emerald-100"
                                     : member.live_position <=
-                                        data.cup.automatic_qualifiers_per_group
+                                        cupData.cup.automatic_qualifiers_per_group
                                       ? "bg-blue-100"
                                       : ""
                               }`}
