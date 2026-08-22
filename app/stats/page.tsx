@@ -7,6 +7,8 @@ import {
   ArrowUp,
   ArrowUpDown,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
   Crown,
   Flag,
   Trophy,
@@ -385,6 +387,7 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(true);
   const [seasonLoading, setSeasonLoading] = useState(false);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
+  const [mostSelectedPage, setMostSelectedPage] = useState(0);
 
   const [horseSortKey, setHorseSortKey] =
     useState<HorseSortKey>("season_points");
@@ -463,6 +466,7 @@ export default function StatsPage() {
 
   async function changeSeason(seasonId: string) {
     setSelectedSeasonId(seasonId);
+    setMostSelectedPage(0);
     setSeasonLoading(true);
     setErrorMessage("");
 
@@ -493,6 +497,7 @@ export default function StatsPage() {
 
   async function changeOwnershipRound(roundId: string) {
     setSelectedRoundId(roundId);
+    setMostSelectedPage(0);
     setOwnershipLoading(true);
     setErrorMessage("");
 
@@ -718,6 +723,25 @@ export default function StatsPage() {
 
   const summary = data.season_summary;
 
+  const MOST_SELECTED_PAGE_SIZE = 10;
+  const mostSelectedRows = data.most_selected ?? [];
+  const mostSelectedPageCount = Math.max(
+    1,
+    Math.ceil(
+      mostSelectedRows.length / MOST_SELECTED_PAGE_SIZE
+    )
+  );
+  const safeMostSelectedPage = Math.min(
+    mostSelectedPage,
+    mostSelectedPageCount - 1
+  );
+  const mostSelectedStart =
+    safeMostSelectedPage * MOST_SELECTED_PAGE_SIZE;
+  const visibleMostSelected = mostSelectedRows.slice(
+    mostSelectedStart,
+    mostSelectedStart + MOST_SELECTED_PAGE_SIZE
+  );
+
   const derivedHighestRoundPlayer = [...participatingPlayerLeaders].sort(
     (a, b) => b.highest_round_score - a.highest_round_score
   )[0];
@@ -939,26 +963,97 @@ export default function StatsPage() {
                       Percentage of teams that selected each horse.
                     </p>
                     <div className="mt-5 space-y-4">
-                      {(data.most_selected ?? []).map((horse, index) => {
-                        const percentage = Number(horse.ownership_percentage ?? 0);
+                      {visibleMostSelected.map((horse, index) => {
+                        const percentage = Number(
+                          horse.ownership_percentage ?? 0
+                        );
+                        const overallIndex =
+                          mostSelectedStart + index;
+
                         return (
                           <div key={horse.horse_id}>
                             <div className="flex items-center justify-between gap-4 text-sm">
-                              <Link href={`/horses/${horse.horse_id}`} className="font-bold text-slate-950 hover:text-teal-700">
-                                {index + 1}. {horse.horse_name}
+                              <Link
+                                href={`/horses/${horse.horse_id}`}
+                                className="font-bold text-slate-950 hover:text-teal-700"
+                              >
+                                {overallIndex + 1}. {horse.horse_name}
                               </Link>
+
                               <div className="text-right">
-                                <span className="font-black">{percentage.toFixed(1)}%</span>
-                                <span className="ml-2 text-xs text-slate-500">({horse.selection_count ?? 0})</span>
+                                <span className="font-black">
+                                  {percentage.toFixed(1)}%
+                                </span>
+                                <span className="ml-2 text-xs text-slate-500">
+                                  ({horse.selection_count ?? 0})
+                                </span>
                               </div>
                             </div>
+
                             <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200">
-                              <div className="h-full rounded-full bg-teal-600" style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }} />
+                              <div
+                                className="h-full rounded-full bg-teal-600"
+                                style={{
+                                  width: `${Math.min(
+                                    100,
+                                    Math.max(0, percentage)
+                                  )}%`,
+                                }}
+                              />
                             </div>
                           </div>
                         );
                       })}
                     </div>
+
+                    {mostSelectedRows.length >
+                      MOST_SELECTED_PAGE_SIZE && (
+                      <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMostSelectedPage((current) =>
+                              Math.max(0, current - 1)
+                            )
+                          }
+                          disabled={safeMostSelectedPage === 0}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Previous
+                        </button>
+
+                        <span className="text-xs font-bold text-slate-500">
+                          {mostSelectedStart + 1}–
+                          {Math.min(
+                            mostSelectedStart +
+                              MOST_SELECTED_PAGE_SIZE,
+                            mostSelectedRows.length
+                          )}{" "}
+                          of {mostSelectedRows.length}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMostSelectedPage((current) =>
+                              Math.min(
+                                mostSelectedPageCount - 1,
+                                current + 1
+                              )
+                            )
+                          }
+                          disabled={
+                            safeMostSelectedPage >=
+                            mostSelectedPageCount - 1
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </section>
 
                   <section className="rounded-2xl border bg-white p-5 shadow-sm">
