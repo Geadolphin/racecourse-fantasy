@@ -683,7 +683,10 @@ export default function StatsPage() {
       if (!active) return;
 
       if (teamsError) {
-        console.error("Round stats teams load error:", teamsError);
+        console.error(
+          "Round stats teams load error:",
+          teamsError
+        );
         setRoundStatsFallback(null);
         return;
       }
@@ -706,38 +709,51 @@ export default function StatsPage() {
       if (!active) return;
 
       if (scoresError) {
-        console.error("Round stats scores load error:", scoresError);
+        console.error(
+          "Round stats scores load error:",
+          scoresError
+        );
         setRoundStatsFallback(null);
         return;
       }
 
-      const scores = (scoresData ?? []).map((score) => ({
-        team_id: score.team_id,
-        total_points: Number(score.total_points ?? 0),
-      }));
-
       const scoreByTeamId = new Map(
-        scores.map((score) => [score.team_id, score.total_points])
+        (scoresData ?? []).map((score) => [
+          score.team_id,
+          Number(score.total_points ?? 0),
+        ])
       );
 
       const scoredTeams = teams.map((team) => ({
         ...team,
-        total_points: scoreByTeamId.get(team.id) ?? 0,
+        total_points:
+          scoreByTeamId.get(team.id) ?? 0,
       }));
 
       const averageScore =
-        scoredTeams.reduce(
-          (sum, team) => sum + team.total_points,
-          0
-        ) / scoredTeams.length;
+        scoredTeams.length > 0
+          ? scoredTeams.reduce(
+              (sum, team) =>
+                sum + team.total_points,
+              0
+            ) / scoredTeams.length
+          : null;
 
-      const highestTeam = [...scoredTeams].sort(
-        (a, b) => b.total_points - a.total_points
-      )[0];
+      const highestTeam =
+        scoredTeams.length > 0
+          ? [...scoredTeams].sort(
+              (a, b) =>
+                b.total_points - a.total_points
+            )[0]
+          : null;
 
       const salaryValues = teams
-        .map((team) => Number(team.salary_used ?? 0))
-        .filter((salary) => Number.isFinite(salary));
+        .map((team) =>
+          Number(team.salary_used ?? 0)
+        )
+        .filter((salary) =>
+          Number.isFinite(salary)
+        );
 
       const averageSalaryUsed =
         salaryValues.length > 0
@@ -747,10 +763,15 @@ export default function StatsPage() {
             ) / salaryValues.length
           : null;
 
-      let highestScorePlayerName: string | null = null;
+      let highestScorePlayerName:
+        | string
+        | null = null;
 
       if (highestTeam?.user_id) {
-        const { data: profileData } = await supabase
+        const {
+          data: profileData,
+          error: profileError,
+        } = await supabase
           .from("profiles")
           .select("display_name")
           .eq("id", highestTeam.user_id)
@@ -758,22 +779,31 @@ export default function StatsPage() {
 
         if (!active) return;
 
-        highestScorePlayerName =
-          profileData?.display_name ?? null;
+        if (profileError) {
+          console.error(
+            "Round stats profile load error:",
+            profileError
+          );
+        } else {
+          highestScorePlayerName =
+            profileData?.display_name ?? null;
+        }
       }
 
       setRoundStatsFallback({
         average_score: averageScore,
-        highest_score: highestTeam?.total_points ?? null,
+        highest_score:
+          highestTeam?.total_points ?? null,
         highest_score_player_id:
           highestTeam?.user_id ?? null,
         highest_score_player_name:
           highestScorePlayerName,
-        average_salary_used: averageSalaryUsed,
+        average_salary_used:
+          averageSalaryUsed,
       });
     }
 
-    loadRoundStatsFallback();
+    void loadRoundStatsFallback();
 
     return () => {
       active = false;
@@ -922,35 +952,47 @@ export default function StatsPage() {
         }
       : null);
 
-  const derivedMostPointsHorse = useMemo(() => {
-    const leader = [...(data.horse_leaders ?? [])]
-      .sort(
-        (a, b) =>
-          Number(b.season_points ?? 0) -
-            Number(a.season_points ?? 0) ||
-          a.horse_name.localeCompare(b.horse_name)
-      )[0];
+  const derivedMostPointsLeader =
+    [...(data.horse_leaders ?? [])].sort(
+      (a, b) =>
+        Number(b.season_points ?? 0) -
+          Number(a.season_points ?? 0) ||
+        a.horse_name.localeCompare(
+          b.horse_name
+        )
+    )[0] ?? null;
 
-    if (!leader) {
-      return null;
-    }
+  const mostPointsHorse:
+    | RoundSpecialHorse
+    | null =
+    data.horse_performance?.most_points ??
+    (derivedMostPointsLeader
+      ? {
+          horse_id:
+            derivedMostPointsLeader.horse_id,
+          horse_name:
+            derivedMostPointsLeader.horse_name,
+          price: Number(
+            derivedMostPointsLeader.current_price ??
+              0
+          ),
+          selection_count: 0,
+          ownership_percentage: 0,
+          round_points: Number(
+            derivedMostPointsLeader.season_points ??
+              0
+          ),
+        }
+      : null);
 
-    return {
-      horse_id: leader.horse_id,
-      horse_name: leader.horse_name,
-      price: Number(leader.current_price ?? 0),
-      selection_count: 0,
-      ownership_percentage: 0,
-      round_points: Number(leader.season_points ?? 0),
-    } satisfies RoundSpecialHorse;
-  }, [data.horse_leaders]);
-
-  const derivedBestValueHorse = useMemo(() => {
-    const eligible = (data.horse_leaders ?? [])
+  const derivedBestValueLeader =
+    (data.horse_leaders ?? [])
       .filter(
         (horse) =>
-          Number(horse.season_points ?? 0) > 0 &&
-          Number(horse.current_price ?? 0) > 0
+          Number(horse.season_points ?? 0) >
+            0 &&
+          Number(horse.current_price ?? 0) >
+            0
       )
       .map((horse) => ({
         horse,
@@ -961,39 +1003,45 @@ export default function StatsPage() {
       .sort(
         (a, b) =>
           b.valueScore - a.valueScore ||
-          Number(b.horse.season_points ?? 0) -
-            Number(a.horse.season_points ?? 0) ||
+          Number(
+            b.horse.season_points ?? 0
+          ) -
+            Number(
+              a.horse.season_points ?? 0
+            ) ||
           a.horse.horse_name.localeCompare(
             b.horse.horse_name
           )
-      )[0];
+      )[0] ?? null;
 
-    if (!eligible) {
-      return null;
-    }
-
-    return {
-      horse_id: eligible.horse.horse_id,
-      horse_name: eligible.horse.horse_name,
-      price: Number(eligible.horse.current_price ?? 0),
-      selection_count: 0,
-      ownership_percentage: 0,
-      round_points: Number(
-        eligible.horse.season_points ?? 0
-      ),
-      value_score: eligible.valueScore,
-    } satisfies RoundSpecialHorse & {
-      value_score: number;
-    };
-  }, [data.horse_leaders]);
-
-  const mostPointsHorse =
-    data.horse_performance?.most_points ??
-    derivedMostPointsHorse;
-
-  const bestValueHorse =
+  const bestValueHorse:
+    | (RoundSpecialHorse & {
+        value_score?: number;
+      })
+    | null =
     data.horse_performance?.best_value ??
-    derivedBestValueHorse;
+    (derivedBestValueLeader
+      ? {
+          horse_id:
+            derivedBestValueLeader.horse
+              .horse_id,
+          horse_name:
+            derivedBestValueLeader.horse
+              .horse_name,
+          price: Number(
+            derivedBestValueLeader.horse
+              .current_price ?? 0
+          ),
+          selection_count: 0,
+          ownership_percentage: 0,
+          round_points: Number(
+            derivedBestValueLeader.horse
+              .season_points ?? 0
+          ),
+          value_score:
+            derivedBestValueLeader.valueScore,
+        }
+      : null);
 
   const resolvedRoundStats: RoundSummaryStats = {
     average_score:
@@ -1005,16 +1053,21 @@ export default function StatsPage() {
       roundStatsFallback?.highest_score ??
       null,
     highest_score_player_id:
-      data.round_stats?.highest_score_player_id ??
-      roundStatsFallback?.highest_score_player_id ??
+      data.round_stats
+        ?.highest_score_player_id ??
+      roundStatsFallback
+        ?.highest_score_player_id ??
       null,
     highest_score_player_name:
-      data.round_stats?.highest_score_player_name ??
-      roundStatsFallback?.highest_score_player_name ??
+      data.round_stats
+        ?.highest_score_player_name ??
+      roundStatsFallback
+        ?.highest_score_player_name ??
       null,
     average_salary_used:
       data.round_stats?.average_salary_used ??
-      roundStatsFallback?.average_salary_used ??
+      roundStatsFallback
+        ?.average_salary_used ??
       null,
   };
 
