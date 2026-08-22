@@ -161,6 +161,9 @@ export default function CompareTeamsPage() {
   const [selectedOpponentUserId, setSelectedOpponentUserId] =
     useState("");
 
+  const [opponentSearch, setOpponentSearch] =
+    useState("");
+
   const [comparisonData, setComparisonData] =
     useState<ComparisonData | null>(null);
 
@@ -268,6 +271,7 @@ export default function CompareTeamsPage() {
       setLoadingComparison(true);
       setErrorMessage("");
       setSelectedOpponentUserId("");
+      setOpponentSearch("");
 
       const { data, error } = await supabase.rpc(
         "get_team_comparison_data",
@@ -422,6 +426,26 @@ export default function CompareTeamsPage() {
   const availableTeams = comparisonData?.available_teams ?? [];
   const myTeam = comparisonData?.my_team ?? null;
   const opponentTeam = comparisonData?.opponent_team ?? null;
+
+  const filteredAvailableTeams = useMemo(() => {
+    const query = opponentSearch.trim().toLowerCase();
+
+    if (!query) {
+      return availableTeams;
+    }
+
+    return availableTeams.filter((team) => {
+      const displayName =
+        team.display_name?.trim().toLowerCase() ?? "";
+      const teamName =
+        team.team_name?.trim().toLowerCase() ?? "";
+
+      return (
+        displayName.includes(query) ||
+        teamName.includes(query)
+      );
+    });
+  }, [availableTeams, opponentSearch]);
 
   const selectedOpponent = useMemo(() => {
     return availableTeams.find(
@@ -630,11 +654,27 @@ export default function CompareTeamsPage() {
 
             <div>
               <label
-                htmlFor="comparison-opponent"
+                htmlFor="comparison-opponent-search"
                 className="block text-sm font-bold text-slate-800"
               >
                 Compare with
               </label>
+
+              <input
+                id="comparison-opponent-search"
+                type="search"
+                value={opponentSearch}
+                onChange={(event) =>
+                  setOpponentSearch(event.target.value)
+                }
+                placeholder="Search player or team..."
+                disabled={
+                  loadingComparison ||
+                  !comparisonData?.locked ||
+                  availableTeams.length === 0
+                }
+                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+              />
 
               <select
                 id="comparison-opponent"
@@ -654,10 +694,16 @@ export default function CompareTeamsPage() {
                     ? "Loading teams..."
                     : availableTeams.length === 0
                       ? "No teams available"
-                      : "Select a team"}
+                      : filteredAvailableTeams.length === 0
+                        ? "No matching teams"
+                        : opponentSearch.trim()
+                          ? `${filteredAvailableTeams.length} matching team${
+                              filteredAvailableTeams.length === 1 ? "" : "s"
+                            }`
+                          : "Select a team"}
                 </option>
 
-                {availableTeams.map((team) => (
+                {filteredAvailableTeams.map((team) => (
                   <option
                     key={team.user_id}
                     value={team.user_id}
@@ -669,6 +715,14 @@ export default function CompareTeamsPage() {
                   </option>
                 ))}
               </select>
+
+              {opponentSearch.trim() &&
+                filteredAvailableTeams.length > 0 && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Showing {filteredAvailableTeams.length} of{" "}
+                    {availableTeams.length} teams.
+                  </p>
+                )}
             </div>
           </div>
 
