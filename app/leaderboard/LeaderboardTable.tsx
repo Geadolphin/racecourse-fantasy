@@ -1,9 +1,14 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   Minus,
 } from "lucide-react";
+
+import { supabase } from "@/lib/supabase";
 
 import {
   RoundLeaderboardRow,
@@ -66,6 +71,38 @@ export default function LeaderboardTable({
   type,
   rows,
 }: Props) {
+  const [currentUserId, setCurrentUserId] =
+    useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCurrentUser() {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (!active) return;
+
+      if (error) {
+        console.error(
+          "Leaderboard current user error:",
+          error
+        );
+        return;
+      }
+
+      setCurrentUserId(user?.id ?? null);
+    }
+
+    void loadCurrentUser();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border bg-white p-10 text-center">
@@ -125,10 +162,18 @@ export default function LeaderboardTable({
                 ? (row as RoundLeaderboardRow).round_rank
                 : (row as SeasonLeaderboardRow).overall_rank;
 
+            const isCurrentUser =
+              currentUserId !== null &&
+              row.user_id === currentUserId;
+
             return (
               <tr
                 key={`${row.user_id}-${index}`}
-                className="border-t hover:bg-slate-50"
+                className={`border-t transition ${
+                  isCurrentUser
+                    ? "bg-amber-200 hover:bg-amber-200"
+                    : "hover:bg-slate-50"
+                }`}
               >
                 <td className="px-4 py-4 font-bold">
                   {rank}
@@ -141,6 +186,12 @@ export default function LeaderboardTable({
                   >
                     {row.display_name}
                   </Link>
+
+                  {isCurrentUser && (
+                    <span className="ml-2 text-xs font-black uppercase tracking-wide text-amber-900">
+                      YOU
+                    </span>
+                  )}
                 </td>
 
                 <td className="px-4 py-4 text-right font-bold">
