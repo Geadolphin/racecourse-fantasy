@@ -69,6 +69,7 @@ type RoundSpecialHorse = {
   selection_count: number;
   ownership_percentage: number;
   round_points: number;
+  is_captain?: boolean;
 };
 
 type RoundSpecialTeam = {
@@ -76,6 +77,14 @@ type RoundSpecialTeam = {
   total_price: number;
   combined_ownership_percentage: number;
   total_points: number;
+  base_points?: number;
+  captain_points?: number;
+  captain?: {
+    horse_id: string;
+    horse_name: string;
+    round_points: number;
+    doubled_points: number;
+  } | null;
 };
 
 type RoundSpecialStats = {
@@ -351,20 +360,43 @@ function TeamPanel({
                   {index + 1}
                 </span>
                 <div className="min-w-0">
-                  <Link
-                    href={`/horses/${horse.horse_id}`}
-                    className="truncate font-bold text-slate-950 hover:text-teal-700 hover:underline"
-                  >
-                    {horse.horse_name}
-                  </Link>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Link
+                      href={`/horses/${horse.horse_id}`}
+                      className="truncate font-bold text-slate-950 hover:text-teal-700 hover:underline"
+                    >
+                      {horse.horse_name}
+                    </Link>
+
+                    {horse.is_captain && (
+                      <span
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-800"
+                        title="Captain — scores double points"
+                      >
+                        <Crown className="h-3 w-3" />
+                        C
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-0.5 text-xs text-slate-500">
                     {Number(horse.ownership_percentage).toFixed(1)}% owned ·{" "}
                     {formatCurrency(horse.price)}
                   </p>
                 </div>
-                <span className="font-black text-teal-700">
-                  {horse.round_points} pts
-                </span>
+                <div className="text-right">
+                  <span className="font-black text-teal-700">
+                    {horse.is_captain
+                      ? horse.round_points * 2
+                      : horse.round_points}{" "}
+                    pts
+                  </span>
+
+                  {horse.is_captain && (
+                    <p className="mt-0.5 text-[10px] font-bold text-amber-700">
+                      {horse.round_points} × 2
+                    </p>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -1163,7 +1195,7 @@ export default function StatsPage() {
             <div className="mt-5">
               <TeamPanel
                 title="Perfect Team"
-                description="Highest-scoring valid 10-horse combination under the $2.5m salary cap."
+                description="Highest-scoring valid 10-horse combination under the $2.5m salary cap, including an optimised captain who scores double points."
                 team={data.special_stats?.perfect_team ?? null}
               />
             </div>
