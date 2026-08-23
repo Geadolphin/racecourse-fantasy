@@ -1272,12 +1272,6 @@ export default function CompareTeamsPage() {
                   <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-800">
                     Shared
                   </span>
-                  <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-800">
-                    Your unique
-                  </span>
-                  <span className="rounded-full bg-orange-100 px-2.5 py-1 text-orange-800">
-                    Opponent unique
-                  </span>
                   <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-900">
                     Captain
                   </span>
@@ -1339,7 +1333,7 @@ export default function CompareTeamsPage() {
                                   className={`rounded-lg border px-3 py-2 ${
                                     shared
                                       ? "border-emerald-200 bg-emerald-50"
-                                      : "border-blue-200 bg-blue-50"
+                                      : "border-slate-200 bg-white"
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-4">
@@ -1438,7 +1432,7 @@ export default function CompareTeamsPage() {
                                     className={`rounded-lg border px-3 py-2 ${
                                       shared
                                         ? "border-emerald-200 bg-emerald-50"
-                                        : "border-orange-200 bg-orange-50"
+                                        : "border-slate-200 bg-white"
                                     }`}
                                   >
                                     <div className="flex items-center justify-between gap-4">
