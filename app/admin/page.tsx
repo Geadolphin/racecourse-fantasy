@@ -129,6 +129,107 @@ export default function AdminDashboardPage() {
   const [message, setMessage] = useState("");
   const [automationMessage, setAutomationMessage] = useState("");
 
+  const [showHorseSilks, setShowHorseSilks] = useState(true);
+  const [silksSettingLoading, setSilksSettingLoading] =
+    useState(true);
+  const [silksSettingSaving, setSilksSettingSaving] =
+    useState(false);
+  const [silksSettingMessage, setSilksSettingMessage] =
+    useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHorseSilksSetting() {
+      setSilksSettingLoading(true);
+
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) {
+        return;
+      }
+
+      if (error) {
+        console.error(
+          "Horse silks setting load error:",
+          error
+        );
+        setSilksSettingMessage(
+          `Could not load the horse silks setting: ${error.message}`
+        );
+      } else {
+        const settings =
+          data && typeof data === "object"
+            ? (data as {
+                show_horse_silks?: boolean;
+              })
+            : null;
+
+        setShowHorseSilks(
+          settings?.show_horse_silks !== false
+        );
+      }
+
+      setSilksSettingLoading(false);
+    }
+
+    void loadHorseSilksSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function toggleHorseSilks() {
+    if (silksSettingSaving) {
+      return;
+    }
+
+    const nextValue = !showHorseSilks;
+
+    setSilksSettingSaving(true);
+    setSilksSettingMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "admin_set_horse_silks_enabled",
+      {
+        p_enabled: nextValue,
+      }
+    );
+
+    if (error) {
+      console.error(
+        "Horse silks setting update error:",
+        error
+      );
+      setSilksSettingMessage(
+        `Could not update horse silks: ${error.message}`
+      );
+      setSilksSettingSaving(false);
+      return;
+    }
+
+    const result =
+      data && typeof data === "object"
+        ? (data as {
+            show_horse_silks?: boolean;
+          })
+        : null;
+
+    const savedValue =
+      result?.show_horse_silks ?? nextValue;
+
+    setShowHorseSilks(savedValue);
+    setSilksSettingMessage(
+      savedValue
+        ? "Horse silks are now ON across the website."
+        : "Horse silks are now OFF across the website."
+    );
+    setSilksSettingSaving(false);
+  }
+
   useEffect(() => {
     async function loadDashboard() {
       setLoading(true);
@@ -1022,6 +1123,83 @@ export default function AdminDashboardPage() {
                     </div>
                   ))}
               </div>
+            </div>
+          )}
+        </section>
+
+        <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 p-6">
+            <p className="text-sm font-semibold text-teal-600">
+              Site display
+            </p>
+
+            <h2 className="mt-1 text-2xl font-bold text-slate-950">
+              Horse silks
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Control whether jockey silks are shown across
+              Racecourse Fantasy. Turning this off does not
+              delete any uploaded silk images.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-bold text-slate-950">
+                Show horse silks
+              </p>
+
+              <p className="mt-1 text-sm text-slate-500">
+                {silksSettingLoading
+                  ? "Loading current setting..."
+                  : showHorseSilks
+                    ? "Silks are currently visible across the website."
+                    : "Silks are currently hidden across the website."}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showHorseSilks}
+              disabled={
+                silksSettingLoading ||
+                silksSettingSaving
+              }
+              onClick={() => void toggleHorseSilks()}
+              className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition ${
+                showHorseSilks
+                  ? "bg-teal-600"
+                  : "bg-slate-300"
+              } ${
+                silksSettingLoading ||
+                silksSettingSaving
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer"
+              }`}
+            >
+              <span
+                className={`inline-block h-6 w-6 rounded-full bg-white shadow-sm transition ${
+                  showHorseSilks
+                    ? "translate-x-7"
+                    : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          {silksSettingMessage && (
+            <div
+              className={`border-t px-6 py-3 text-sm font-semibold ${
+                silksSettingMessage.startsWith(
+                  "Could not"
+                )
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-teal-200 bg-teal-50 text-teal-700"
+              }`}
+            >
+              {silksSettingMessage}
             </div>
           )}
         </section>

@@ -137,6 +137,7 @@ type FixtureCompareSelection = {
   race_entry_id: string;
   horse_id: string;
   horse_name: string;
+  silks_url?: string | null;
   is_captain: boolean;
   selected_price: number;
   fantasy_points: number;
@@ -403,6 +404,61 @@ export default function CupDetailPage() {
 
           comparison.opponent_team.autofilled_horse_count = count;
           comparison.opponent_team.autofill_penalty = count * 3;
+        }
+      }
+    }
+
+    const comparisonSelections = [
+      ...(comparison.my_team?.selections ?? []),
+      ...(comparison.opponent_team?.selections ?? []),
+    ];
+
+    const comparisonHorseIds = Array.from(
+      new Set(
+        comparisonSelections
+          .map((selection) => selection.horse_id)
+          .filter(Boolean)
+      )
+    );
+
+    if (comparisonHorseIds.length > 0) {
+      const {
+        data: horseSilksRows,
+        error: horseSilksError,
+      } = await supabase
+        .from("horses")
+        .select("id, silks_url")
+        .in("id", comparisonHorseIds);
+
+      if (horseSilksError) {
+        console.error(
+          "Cup fixture horse silks load error:",
+          horseSilksError
+        );
+      } else {
+        const silksByHorseId = new Map(
+          (horseSilksRows ?? []).map((horse: any) => [
+            String(horse.id),
+            horse.silks_url ?? null,
+          ])
+        );
+
+        if (comparison.my_team?.selections) {
+          comparison.my_team.selections =
+            comparison.my_team.selections.map((selection) => ({
+              ...selection,
+              silks_url:
+                silksByHorseId.get(selection.horse_id) ?? null,
+            }));
+        }
+
+        if (comparison.opponent_team?.selections) {
+          comparison.opponent_team.selections =
+            comparison.opponent_team.selections.map((selection) => ({
+              ...selection,
+              silks_url:
+                silksByHorseId.get(selection.horse_id) ?? null,
+            }));
         }
       }
     }
@@ -1108,20 +1164,20 @@ export default function CupDetailPage() {
         </section>
         {fixtureCompareOpen && (
           <div
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4"
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-2 sm:p-3"
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) {
                 setFixtureCompareOpen(false);
               }
             }}
           >
-            <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-              <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
+            <div className="max-h-[96vh] w-full max-w-5xl overflow-hidden rounded-xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5 sm:px-5">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
                     Cup Fixture
                   </p>
-                  <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
+                  <h2 className="mt-0.5 text-lg font-black text-slate-950 sm:text-xl">
                     Compare Teams
                   </h2>
                 </div>
@@ -1136,7 +1192,7 @@ export default function CupDetailPage() {
                 </button>
               </div>
 
-              <div className="max-h-[calc(92vh-76px)] overflow-y-auto p-4 sm:p-6">
+              <div className="max-h-[calc(96vh-58px)] overflow-y-auto p-3 sm:p-4">
                 {fixtureCompareLoading ? (
                   <div className="py-14 text-center font-semibold text-slate-500">
                     Loading team comparison...
@@ -1148,12 +1204,12 @@ export default function CupDetailPage() {
                 ) : fixtureCompareData?.my_team &&
                   fixtureCompareData.opponent_team ? (
                   <>
-                    <div className="mb-5 overflow-hidden rounded-2xl bg-slate-950 text-white">
-                      <div className="border-b border-slate-800 px-4 py-3 text-center">
+                    <div className="mb-3 overflow-hidden rounded-xl bg-slate-950 text-white">
+                      <div className="border-b border-slate-800 px-4 py-2 text-center">
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-300">
                           Official Head-to-Head
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-slate-300">
+                        <p className="mt-0.5 text-xs font-semibold text-slate-300">
                           Round {fixtureCompareData.round?.round_number}
                           {fixtureCompareData.round?.name
                             ? ` · ${fixtureCompareData.round.name}`
@@ -1162,9 +1218,9 @@ export default function CupDetailPage() {
                       </div>
 
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center">
-                        <div className="min-w-0 p-4 text-right sm:p-5">
+                        <div className="min-w-0 p-3 text-right sm:p-4">
                           <div className="flex min-w-0 items-center justify-end gap-2">
-                            <p className="truncate text-base font-black sm:text-xl">
+                            <p className="truncate text-sm font-black sm:text-lg">
                               {fixtureCompareData.my_team.display_name?.trim() ||
                                 fixtureCompareData.my_team.team_name?.trim() ||
                                 "Team 1"}
@@ -1178,10 +1234,10 @@ export default function CupDetailPage() {
                           </div>
                         </div>
 
-                        <div className="border-x border-slate-800 bg-slate-900 px-4 py-5 text-center">
+                        <div className="border-x border-slate-800 bg-slate-900 px-3 py-3 text-center">
                           <div className="flex items-center gap-3">
                             <div className="text-center">
-                              <span className="text-3xl font-black tabular-nums">
+                              <span className="text-2xl font-black tabular-nums">
                                 {fixtureCompareData.my_team.score?.total_points ?? 0}
                               </span>
                             </div>
@@ -1191,16 +1247,16 @@ export default function CupDetailPage() {
                             </span>
 
                             <div className="text-center">
-                              <span className="text-3xl font-black tabular-nums">
+                              <span className="text-2xl font-black tabular-nums">
                                 {fixtureCompareData.opponent_team.score?.total_points ?? 0}
                               </span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="min-w-0 p-4 sm:p-5">
+                        <div className="min-w-0 p-3 sm:p-4">
                           <div className="flex min-w-0 items-center gap-2">
-                            <p className="truncate text-base font-black sm:text-xl">
+                            <p className="truncate text-sm font-black sm:text-lg">
                               {fixtureCompareData.opponent_team.display_name?.trim() ||
                                 fixtureCompareData.opponent_team.team_name?.trim() ||
                                 "Team 2"}
@@ -1216,7 +1272,7 @@ export default function CupDetailPage() {
                       </div>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-2">
                       <FixtureCompareTeam
                         title={
                           fixtureCompareData.my_team.display_name?.trim() ||
@@ -1258,7 +1314,7 @@ export default function CupDetailPage() {
                       />
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                    <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-bold">
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
                         Grey = shared horse
                       </span>
@@ -1692,8 +1748,8 @@ function FixtureCompareTeam({
   );
 
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 bg-slate-100 px-4 py-3">
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-100 px-3 py-2">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
           Team Sheet
         </p>
@@ -1727,13 +1783,27 @@ function FixtureCompareTeam({
             >
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <p className="truncate font-bold text-slate-900">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden">
+                    {selection.silks_url ? (
+                      <img
+                        src={selection.silks_url}
+                        alt={`${selection.horse_name} silks`}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-[8px] font-bold uppercase text-slate-300">
+                        —
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="truncate text-sm font-bold text-slate-900">
                     {selection.horse_name}
                   </p>
 
                   {selection.is_captain && (
                     <span
-                      className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900"
+                      className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[8px] font-black text-amber-900"
                       title="Captain"
                     >
                       C
@@ -1748,7 +1818,7 @@ function FixtureCompareTeam({
                 </p>
               </div>
 
-              <div className="shrink-0 text-right">
+              <div className="shrink-0 text-right leading-tight">
                 <p className="text-lg font-black tabular-nums text-teal-700">
                   {selection.display_points ?? 0}
                 </p>
