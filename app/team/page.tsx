@@ -124,6 +124,8 @@ type Team = {
   team_name: string | null;
   status: TeamStatus;
   salary_used: number;
+  auto_filled?: boolean;
+  autofilled_horse_count?: number;
 };
 
 type TeamSelection = {
@@ -670,7 +672,14 @@ export default function MyTeamPage() {
   }, [selections]);
 
 
-  const totalPoints = useMemo(() => {
+  const autofilledHorseCount = Math.max(
+    0,
+    Number(team?.autofilled_horse_count ?? 0)
+  );
+
+  const autofillPenalty = autofilledHorseCount * 3;
+
+  const rawTotalPoints = useMemo(() => {
     return selections.reduce((total, selection) => {
       const basePoints = selection.fantasy_points ?? 0;
 
@@ -678,7 +687,9 @@ export default function MyTeamPage() {
     }, 0);
   }, [selections]);
 
-  const liveProjectedScore = useMemo(() => {
+  const totalPoints = rawTotalPoints - autofillPenalty;
+
+  const rawLiveProjectedScore = useMemo(() => {
     return selections.reduce((total, selection) => {
       const projectedPoints =
         selection.race_entry?.projected_points ??
@@ -692,6 +703,8 @@ export default function MyTeamPage() {
       return total + (selection.is_captain ? baseValue * 2 : baseValue);
     }, 0);
   }, [selections, projectedPointsByEntryId]);
+
+  const liveProjectedScore = rawLiveProjectedScore - autofillPenalty;
 
   const salaryRemaining = season
     ? season.salary_cap - salaryUsed
@@ -962,6 +975,22 @@ export default function MyTeamPage() {
             </div>
           </div>
         </header>
+
+        {autofillPenalty > 0 && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-sm">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-red-700">
+                Autofill Penalty
+              </p>
+              <p className="mt-0.5 text-sm font-semibold text-red-800">
+                {autofilledHorseCount} autofilled {autofilledHorseCount === 1 ? "horse" : "horses"} × 3 pts
+              </p>
+            </div>
+            <p className="text-xl font-black text-red-700">
+              −{autofillPenalty} pts
+            </p>
+          </div>
+        )}
 
         {errorMessage && (
           <div className="mt-5 rounded-xl border border-red-300 bg-red-50 p-4 font-medium text-red-800">
@@ -1486,6 +1515,22 @@ export default function MyTeamPage() {
                       </p>
                     </div>
                   </div>
+
+                  {autofillPenalty > 0 && (
+                    <div className="flex items-center justify-between border-t border-red-200 bg-red-50 px-5 py-2.5">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-red-700">
+                          Autofill Penalty
+                        </p>
+                        <p className="mt-0.5 text-[10px] font-bold text-red-700">
+                          {autofilledHorseCount} × 3 pts
+                        </p>
+                      </div>
+                      <p className="text-[16px] font-black text-red-700">
+                        −{autofillPenalty} pts
+                      </p>
+                    </div>
+                  )}
 
                   <div className="px-5 py-4">
                     <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">

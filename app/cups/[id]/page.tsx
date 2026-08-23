@@ -156,6 +156,8 @@ type FixtureCompareTeam = {
   status: string;
   salary_used: number;
   salary_cap: number | null;
+  autofilled_horse_count?: number;
+  autofill_penalty?: number;
   score?: {
     total_points: number | null;
     captain_points: number | null;
@@ -353,6 +355,56 @@ export default function CupDetailPage() {
       setFixtureCompareData(comparison);
       setFixtureCompareLoading(false);
       return;
+    }
+
+    const compareTeamIds = [
+      comparison.my_team?.id,
+      comparison.opponent_team?.id,
+    ].filter(Boolean) as string[];
+
+    if (compareTeamIds.length > 0) {
+      const {
+        data: autofillRows,
+        error: autofillError,
+      } = await supabase
+        .from("teams")
+        .select("id, autofilled_horse_count")
+        .in("id", compareTeamIds);
+
+      if (autofillError) {
+        console.error(
+          "Cup fixture autofill penalty load error:",
+          autofillError
+        );
+      } else {
+        const autofillByTeamId = new Map(
+          (autofillRows ?? []).map((row: any) => [
+            row.id,
+            Math.max(
+              0,
+              Number(row.autofilled_horse_count ?? 0)
+            ),
+          ])
+        );
+
+        if (comparison.my_team) {
+          const count =
+            autofillByTeamId.get(comparison.my_team.id) ?? 0;
+
+          comparison.my_team.autofilled_horse_count = count;
+          comparison.my_team.autofill_penalty = count * 3;
+        }
+
+        if (comparison.opponent_team) {
+          const count =
+            autofillByTeamId.get(
+              comparison.opponent_team.id
+            ) ?? 0;
+
+          comparison.opponent_team.autofilled_horse_count = count;
+          comparison.opponent_team.autofill_penalty = count * 3;
+        }
+      }
     }
 
     setFixtureCompareData(comparison);
@@ -1069,33 +1121,55 @@ export default function CupDetailPage() {
 
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center">
                         <div className="min-w-0 p-4 text-right sm:p-5">
-                          <p className="truncate text-base font-black sm:text-xl">
-                            {fixtureCompareData.my_team.display_name?.trim() ||
-                              fixtureCompareData.my_team.team_name?.trim() ||
-                              "Team 1"}
-                          </p>
+                          <div className="flex min-w-0 items-center justify-end gap-2">
+                            <p className="truncate text-base font-black sm:text-xl">
+                              {fixtureCompareData.my_team.display_name?.trim() ||
+                                fixtureCompareData.my_team.team_name?.trim() ||
+                                "Team 1"}
+                            </p>
+
+                            {(fixtureCompareData.my_team.autofill_penalty ?? 0) > 0 && (
+                              <span className="shrink-0 rounded-full border border-red-400/30 bg-red-400/10 px-2 py-1 text-[9px] font-normal uppercase tracking-wide text-red-300">
+                                Autofill penalty −{fixtureCompareData.my_team.autofill_penalty} pts
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="border-x border-slate-800 bg-slate-900 px-4 py-5 text-center">
                           <div className="flex items-center gap-3">
-                            <span className="text-3xl font-black tabular-nums">
-                              {fixtureCompareData.my_team.score?.total_points ?? 0}
-                            </span>
+                            <div className="text-center">
+                              <span className="text-3xl font-black tabular-nums">
+                                {fixtureCompareData.my_team.score?.total_points ?? 0}
+                              </span>
+                            </div>
+
                             <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">
                               vs
                             </span>
-                            <span className="text-3xl font-black tabular-nums">
-                              {fixtureCompareData.opponent_team.score?.total_points ?? 0}
-                            </span>
+
+                            <div className="text-center">
+                              <span className="text-3xl font-black tabular-nums">
+                                {fixtureCompareData.opponent_team.score?.total_points ?? 0}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
                         <div className="min-w-0 p-4 sm:p-5">
-                          <p className="truncate text-base font-black sm:text-xl">
-                            {fixtureCompareData.opponent_team.display_name?.trim() ||
-                              fixtureCompareData.opponent_team.team_name?.trim() ||
-                              "Team 2"}
-                          </p>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <p className="truncate text-base font-black sm:text-xl">
+                              {fixtureCompareData.opponent_team.display_name?.trim() ||
+                                fixtureCompareData.opponent_team.team_name?.trim() ||
+                                "Team 2"}
+                            </p>
+
+                            {(fixtureCompareData.opponent_team.autofill_penalty ?? 0) > 0 && (
+                              <span className="shrink-0 rounded-full border border-red-400/30 bg-red-400/10 px-2 py-1 text-[9px] font-normal uppercase tracking-wide text-red-300">
+                                Autofill penalty −{fixtureCompareData.opponent_team.autofill_penalty} pts
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1113,6 +1187,12 @@ export default function CupDetailPage() {
                         otherSelections={
                           fixtureCompareData.opponent_team.selections ?? []
                         }
+                        autofilledHorseCount={
+                          fixtureCompareData.my_team.autofilled_horse_count ?? 0
+                        }
+                        autofillPenalty={
+                          fixtureCompareData.my_team.autofill_penalty ?? 0
+                        }
                       />
 
                       <FixtureCompareTeam
@@ -1126,6 +1206,12 @@ export default function CupDetailPage() {
                         }
                         otherSelections={
                           fixtureCompareData.my_team.selections ?? []
+                        }
+                        autofilledHorseCount={
+                          fixtureCompareData.opponent_team.autofilled_horse_count ?? 0
+                        }
+                        autofillPenalty={
+                          fixtureCompareData.opponent_team.autofill_penalty ?? 0
                         }
                       />
                     </div>
@@ -1550,10 +1636,14 @@ function FixtureCompareTeam({
   title,
   selections,
   otherSelections,
+  autofilledHorseCount = 0,
+  autofillPenalty = 0,
 }: {
   title: string;
   selections: FixtureCompareSelection[];
   otherSelections: FixtureCompareSelection[];
+  autofilledHorseCount?: number;
+  autofillPenalty?: number;
 }) {
   const otherHorseIds = new Set(
     otherSelections.map((selection) => selection.horse_id)
@@ -1566,9 +1656,20 @@ function FixtureCompareTeam({
           Team Sheet
         </p>
 
-        <h3 className="mt-0.5 truncate font-black text-slate-950">
-          {title}
-        </h3>
+        <div className="mt-0.5 flex min-w-0 items-center gap-2">
+          <h3 className="truncate font-black text-slate-950">
+            {title}
+          </h3>
+
+          {autofillPenalty > 0 && (
+            <span
+              className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-normal uppercase tracking-wide text-red-700"
+              title={`${autofilledHorseCount} autofilled horse${autofilledHorseCount === 1 ? "" : "s"} × 3 points`}
+            >
+              Autofill penalty −{autofillPenalty} pts
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="divide-y divide-slate-100">

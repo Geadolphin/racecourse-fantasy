@@ -39,6 +39,7 @@ type Team = {
   salary_cap: number;
   submitted_at: string | null;
   locked_at: string | null;
+  autofilled_horse_count?: number | null;
 };
 
 type UpcomingRace = {
@@ -107,6 +108,8 @@ type DashboardCupMatchup = {
   opponent_name: string | null;
   my_score: number | null;
   opponent_score: number | null;
+  my_autofill_penalty?: number;
+  opponent_autofill_penalty?: number;
   score_status?: "scheduled" | "live" | "final";
 };
 
@@ -127,6 +130,10 @@ type CupCompareData = {
   opponent_name: string;
   my_score: number;
   opponent_score: number;
+  my_autofilled_horse_count?: number;
+  opponent_autofilled_horse_count?: number;
+  my_autofill_penalty?: number;
+  opponent_autofill_penalty?: number;
   my_team: CupCompareSelection[];
   opponent_team: CupCompareSelection[];
 };
@@ -319,6 +326,9 @@ export default function Dashboard() {
   const [roundScore, setRoundScore] =
     useState<ScoreRecord | null>(null);
 
+  const [liveRoundScore, setLiveRoundScore] =
+    useState<number | null>(null);
+
   const [seasonScore, setSeasonScore] =
     useState<ScoreRecord | null>(null);
 
@@ -332,6 +342,9 @@ export default function Dashboard() {
     useState(0);
 
   const [selectedHorseCount, setSelectedHorseCount] =
+    useState(0);
+
+  const [autofilledHorseCount, setAutofilledHorseCount] =
     useState(0);
 
   const [previousOverallRank, setPreviousOverallRank] =
@@ -441,11 +454,13 @@ export default function Dashboard() {
         setSeason(null);
         setTeam(null);
         setRoundScore(null);
+        setLiveRoundScore(null);
         setSeasonScore(null);
         setProjectedRoundScore(0);
         setHorsesRanCount(0);
         setScratchedHorseCount(0);
         setSelectedHorseCount(0);
+        setAutofilledHorseCount(0);
         setPreviousOverallRank(null);
         setUpcomingRace(null);
         setMiniLeaderboard([]);
@@ -476,6 +491,9 @@ export default function Dashboard() {
       setRound(dashboardData.round);
       setSeason(dashboardData.season);
       setTeam(dashboardData.team);
+      setAutofilledHorseCount(
+        Number(dashboardData.team?.autofilled_horse_count ?? 0)
+      );
       setRoundScore(
         dashboardData.round_score
       );
@@ -488,6 +506,38 @@ export default function Dashboard() {
 
       const resolvedDashboardData = dashboardData;
       const resolvedUser = user;
+
+      async function loadLiveRoundScore() {
+        if (!resolvedDashboardData.round?.id) {
+          setLiveRoundScore(null);
+          return;
+        }
+
+        const { data: liveScoreRaw, error: liveScoreError } =
+          await supabase.rpc("get_live_round_team_score", {
+            p_user_id: resolvedUser.id,
+            p_round_id: resolvedDashboardData.round.id,
+          });
+
+        if (!active) {
+          return;
+        }
+
+        if (liveScoreError) {
+          console.error(
+            "Dashboard live round score error:",
+            liveScoreError
+          );
+          setLiveRoundScore(null);
+          return;
+        }
+
+        setLiveRoundScore(
+          liveScoreRaw == null
+            ? null
+            : Number(liveScoreRaw)
+        );
+      }
 
       /*
        * Render the main dashboard immediately after the primary RPC.
@@ -985,6 +1035,18 @@ export default function Dashboard() {
                 getLiveCupScore(opponentUserId),
               ]);
 
+          const { data: matchupCompareRaw } = await supabase.rpc(
+            "get_dashboard_cup_team_compare",
+            {
+              p_cup_id: cup.id,
+              p_round_id: resolvedDashboardData.round!.id,
+            }
+          );
+
+          const matchupCompare = matchupCompareRaw as
+            | Partial<CupCompareData>
+            | null;
+
           if (!active) return;
 
           setCupMatchup({
@@ -1014,6 +1076,12 @@ export default function Dashboard() {
                   ? match.participant_2_score
                   : match.participant_1_score) ?? null
               : liveOpponentScore,
+            my_autofill_penalty: Number(
+              matchupCompare?.my_autofill_penalty ?? 0
+            ),
+            opponent_autofill_penalty: Number(
+              matchupCompare?.opponent_autofill_penalty ?? 0
+            ),
             score_status: matchIsFinal
               ? "final"
               : lockoutHasPassed
@@ -1026,6 +1094,7 @@ export default function Dashboard() {
       }
 
       void Promise.allSettled([
+        loadLiveRoundScore(),
         loadPreviousOverallRank(),
         loadProjectedScore(),
         loadDashboardExtras(),
@@ -1110,7 +1179,7 @@ export default function Dashboard() {
       );
     }, [salaryUsed, salaryCap]);
 
-  const currentRoundScore =
+  const storedRoundScore =
     getNumber(roundScore, [
       "total_points",
       "round_score",
@@ -1119,6 +1188,23 @@ export default function Dashboard() {
       "score",
       "points",
     ]);
+
+  const lockoutHasPassed =
+    round?.lockout_at !== null &&
+    round?.lockout_at !== undefined &&
+    new Date(
+      round.lockout_at
+    ).getTime() <= currentTime;
+
+  const currentRoundScore =
+    lockoutHasPassed && liveRoundScore !== null
+      ? liveRoundScore
+      : storedRoundScore;
+
+  const autofillPenalty = autofilledHorseCount * 3;
+
+  const projectedRoundScoreAfterPenalty =
+    projectedRoundScore - autofillPenalty;
 
   const currentRoundRank =
     getNumber(roundScore, [
@@ -1165,13 +1251,6 @@ export default function Dashboard() {
       : overallRankMovement < 0
         ? "text-red-700"
         : "text-slate-500";
-
-  const lockoutHasPassed =
-    round?.lockout_at !== null &&
-    round?.lockout_at !== undefined &&
-    new Date(
-      round.lockout_at
-    ).getTime() <= currentTime;
 
   const visibleLeagues =
     dashboardExtras.leagues.slice(0, 5);
@@ -1265,6 +1344,12 @@ export default function Dashboard() {
                 <p className="mt-1 text-xs text-teal-100">
                   points
                 </p>
+
+                {autofillPenalty > 0 && (
+                  <p className="mt-2 inline-flex rounded-full bg-red-950/35 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-red-100 ring-1 ring-inset ring-red-300/30">
+                    Autofill penalty · −{autofillPenalty} pts
+                  </p>
+                )}
               </div>
 
               <div className="border-t border-teal-500 bg-teal-600 p-3.5 text-white shadow-sm sm:p-4 xl:rounded-xl xl:border-t-0">
@@ -1337,12 +1422,18 @@ export default function Dashboard() {
                 </p>
 
                 <p className="mt-1 text-2xl font-bold text-white sm:text-3xl">
-                  {projectedRoundScore}
+                  {projectedRoundScoreAfterPenalty}
                 </p>
 
                 <p className="mt-1 text-xs text-slate-400">
                   points
                 </p>
+
+                {autofillPenalty > 0 && (
+                  <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-red-400">
+                    Autofill penalty · −{autofillPenalty} pts
+                  </p>
+                )}
               </div>
 
               <div className="pl-4">
@@ -1400,7 +1491,7 @@ export default function Dashboard() {
 
                     {cupMatchup.status === "matchup" &&
                       cupMatchup.score_status === "live" && (
-                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-700">
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-700">
                           Live
                         </span>
                       )}
@@ -1417,16 +1508,26 @@ export default function Dashboard() {
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
                       <span>{displayName}</span>
                       {cupMatchup.my_score !== null && (
-                        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-base">
-                          {cupMatchup.my_score}
+                        <span className="inline-flex flex-col items-center rounded-lg bg-slate-100 px-2.5 py-1 text-base leading-tight">
+                          <span>{cupMatchup.my_score}</span>
+                          {(cupMatchup.my_autofill_penalty ?? 0) > 0 && (
+                            <span className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-red-600">
+                              −{cupMatchup.my_autofill_penalty} penalty
+                            </span>
+                          )}
                         </span>
                       )}
                       <span className="text-sm font-black uppercase tracking-wide text-slate-400">
                         vs
                       </span>
                       {cupMatchup.opponent_score !== null && (
-                        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-base">
-                          {cupMatchup.opponent_score}
+                        <span className="inline-flex flex-col items-center rounded-lg bg-slate-100 px-2.5 py-1 text-base leading-tight">
+                          <span>{cupMatchup.opponent_score}</span>
+                          {(cupMatchup.opponent_autofill_penalty ?? 0) > 0 && (
+                            <span className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-red-600">
+                              −{cupMatchup.opponent_autofill_penalty} penalty
+                            </span>
+                          )}
                         </span>
                       )}
                       <span>{cupMatchup.opponent_name}</span>
@@ -1867,12 +1968,28 @@ export default function Dashboard() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3 text-lg font-black">
-                      <span>{cupCompareData.my_score}</span>
-                      <span className="text-xs uppercase tracking-wide text-slate-400">
+                    <div className="flex items-start gap-3 text-lg font-black">
+                      <div className="text-center">
+                        <div>{cupCompareData.my_score}</div>
+                        {(cupCompareData.my_autofill_penalty ?? 0) > 0 && (
+                          <div className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-red-300">
+                            −{cupCompareData.my_autofill_penalty} penalty
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="pt-1 text-xs uppercase tracking-wide text-slate-400">
                         vs
                       </span>
-                      <span>{cupCompareData.opponent_score}</span>
+
+                      <div className="text-center">
+                        <div>{cupCompareData.opponent_score}</div>
+                        {(cupCompareData.opponent_autofill_penalty ?? 0) > 0 && (
+                          <div className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-red-300">
+                            −{cupCompareData.opponent_autofill_penalty} penalty
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1882,6 +1999,8 @@ export default function Dashboard() {
                       subtitle="Your team"
                       selections={cupCompareData.my_team}
                       otherSelections={cupCompareData.opponent_team}
+                      autofilledHorseCount={cupCompareData.my_autofilled_horse_count ?? 0}
+                      autofillPenalty={cupCompareData.my_autofill_penalty ?? 0}
                       highlightMine
                     />
 
@@ -1890,6 +2009,8 @@ export default function Dashboard() {
                       subtitle="Opponent"
                       selections={cupCompareData.opponent_team}
                       otherSelections={cupCompareData.my_team}
+                      autofilledHorseCount={cupCompareData.opponent_autofilled_horse_count ?? 0}
+                      autofillPenalty={cupCompareData.opponent_autofill_penalty ?? 0}
                     />
                   </div>
 
@@ -1919,12 +2040,16 @@ function CupCompareTeam({
   subtitle,
   selections,
   otherSelections,
+  autofilledHorseCount = 0,
+  autofillPenalty = 0,
   highlightMine = false,
 }: {
   title: string;
   subtitle?: string;
   selections: CupCompareSelection[];
   otherSelections: CupCompareSelection[];
+  autofilledHorseCount?: number;
+  autofillPenalty?: number;
   highlightMine?: boolean;
 }) {
   const otherHorseIds = new Set(
@@ -1952,6 +2077,17 @@ function CupCompareTeam({
           <p className="mt-1 truncate text-xs font-semibold text-slate-500">
             {subtitle}
           </p>
+        )}
+
+        {autofillPenalty > 0 && (
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-red-700">
+              Autofill penalty · {autofilledHorseCount} × 3 pts
+            </span>
+            <span className="shrink-0 text-xs font-medium text-red-700">
+              −{autofillPenalty} pts
+            </span>
+          </div>
         )}
       </div>
 

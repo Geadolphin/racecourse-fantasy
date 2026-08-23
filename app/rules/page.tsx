@@ -493,13 +493,30 @@ export default function RulesPage() {
                                         Automatic team fill
                                     </h3>
 
-                                    <p className="mt-2 text-sm text-slate-700">
-                                        If a player does not complete their team before
-                                        lockout, the remaining positions will be
-                                        automatically filled using projected scores and
-                                        the team&apos;s available salary cap. Existing
-                                        valid selections are retained where possible.
-                                    </p>
+                                    <div className="mt-2 space-y-2 text-sm text-slate-700">
+                                        <p>
+                                            If a player does not complete their team before
+                                            lockout, the remaining positions will be
+                                            automatically filled using projected scores and
+                                            the team&apos;s available salary cap. Existing
+                                            valid selections are retained where possible.
+                                        </p>
+
+                                        <p>
+                                            A 3-point penalty is deducted
+                                            from the team&apos;s round score for each horse
+                                            added by the automatic team fill after lockout.
+                                            For example, if 4 horses are automatically added,
+                                            the team receives a 12-point penalty.
+                                        </p>
+
+                                        <p>
+                                            The penalty applies to the team&apos;s overall
+                                            round score only. It does not reduce the
+                                            individual fantasy points scored by the
+                                            automatically filled horses.
+                                        </p>
+                                    </div>
                                 </div>
 
                                 <div className="rounded-xl border bg-slate-50 p-4">
