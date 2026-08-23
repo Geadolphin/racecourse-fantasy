@@ -558,6 +558,36 @@ export default function CupDetailPage() {
       match.live_score === true
   );
 
+  /*
+   * Use non-final fixture scores in the group table even after the linked
+   * fantasy round has completed. The live_score flag only controls the
+   * LIVE badge; it should not make the calculated fixture result disappear
+   * from the provisional standings.
+   *
+   * Once a Cup match is formally finalised, its result is already stored in
+   * group_members and must not be added again here.
+   */
+  const provisionalGroupMatches = displayMatches.filter((match) => {
+    if (match.group_id === null) {
+      return false;
+    }
+
+    const matchIsFinal =
+      match.match_status === "complete" ||
+      match.match_status === "completed" ||
+      match.match_status === "final" ||
+      match.match_status === "scored";
+
+    if (matchIsFinal) {
+      return false;
+    }
+
+    return (
+      match.participant_1_score !== null &&
+      match.participant_2_score !== null
+    );
+  });
+
   const groupStandingsAreLive =
     liveGroupMatches.length > 0;
 
@@ -577,13 +607,13 @@ export default function CupDetailPage() {
     );
 
     /*
-     * Apply only currently-live, not-yet-final Cup matches.
+     * Apply every scored Cup match that has not yet been formally finalised.
      *
-     * Stored group_members already contains completed matchdays,
-     * so only live_score matches are added here. This prevents
-     * completed fixtures being counted twice.
+     * This keeps the table updated after the fantasy round is completed,
+     * while still preventing formally completed Cup fixtures from being
+     * counted twice because those are already stored in group_members.
      */
-    for (const match of liveGroupMatches) {
+    for (const match of provisionalGroupMatches) {
       if (match.group_id !== groupId) {
         continue;
       }
