@@ -13,6 +13,7 @@ type HorseRow = {
   eligible_starts: number;
   average_fantasy_points: number | null;
   is_active: boolean;
+  silks_url?: string | null;
 };
 
 type SortField =
@@ -51,6 +52,43 @@ export default function HorsesPage() {
 
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showHorseSilks, setShowHorseSilks] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHorseSilksSetting() {
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) return;
+
+      if (error) {
+        console.error(
+          "Horse silks setting load error:",
+          error
+        );
+        setShowHorseSilks(true);
+        return;
+      }
+
+      const settings =
+        data && typeof data === "object"
+          ? (data as { show_horse_silks?: boolean })
+          : null;
+
+      setShowHorseSilks(
+        settings?.show_horse_silks !== false
+      );
+    }
+
+    void loadHorseSilksSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -69,7 +107,8 @@ export default function HorsesPage() {
             total_fantasy_points,
             eligible_starts,
             average_fantasy_points,
-            is_active
+            is_active,
+            silks_url
           `
         )
         .order("name", { ascending: true });
@@ -281,20 +320,32 @@ export default function HorsesPage() {
                   className="block rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition active:bg-slate-50"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="truncate text-lg font-bold text-slate-900">
-                        {horse.name}
-                      </h2>
+                    <div className="flex min-w-0 items-stretch gap-3">
+                      {showHorseSilks && horse.silks_url && (
+                        <div className="flex w-10 shrink-0 items-center justify-center self-stretch">
+                          <img
+                            src={horse.silks_url}
+                            alt={`${horse.name} silks`}
+                            className="h-full max-h-12 w-full object-contain"
+                          />
+                        </div>
+                      )}
 
-                      <span
-                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          horse.is_active
-                            ? "bg-teal-50 text-teal-700"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {horse.is_active ? "Active" : "Inactive"}
-                      </span>
+                      <div className="min-w-0">
+                        <h2 className="truncate text-lg font-bold text-slate-900">
+                          {horse.name}
+                        </h2>
+
+                        <span
+                          className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            horse.is_active
+                              ? "bg-teal-50 text-teal-700"
+                              : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {horse.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="shrink-0 text-right">
@@ -409,12 +460,24 @@ export default function HorsesPage() {
                         className="transition hover:bg-slate-50"
                       >
                         <td className="px-5 py-3.5">
-                          <Link
-                            href={`/horses/${horse.id}`}
-                            className="font-bold text-slate-900 transition hover:text-teal-700"
-                          >
-                            {horse.name}
-                          </Link>
+                          <div className="flex items-center gap-3">
+                            {showHorseSilks && horse.silks_url && (
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                                <img
+                                  src={horse.silks_url}
+                                  alt={`${horse.name} silks`}
+                                  className="h-full w-full object-contain"
+                                />
+                              </div>
+                            )}
+
+                            <Link
+                              href={`/horses/${horse.id}`}
+                              className="font-bold text-slate-900 transition hover:text-teal-700"
+                            >
+                              {horse.name}
+                            </Link>
+                          </div>
                         </td>
 
                         <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
