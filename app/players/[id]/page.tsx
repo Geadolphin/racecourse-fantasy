@@ -66,6 +66,7 @@ type PlayerRoundSelection = {
   race_entry_id: string;
   horse_id: string;
   horse_name: string;
+  silks_url?: string | null;
   is_captain: boolean;
   selected_price: number;
   fantasy_points: number;
@@ -175,6 +176,39 @@ export default function PlayerProfilePage() {
     useState(false);
   const [roundTeamError, setRoundTeamError] =
     useState("");
+
+  const [showHorseSilks, setShowHorseSilks] =
+    useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHorseSilksSetting() {
+      const { data: settingsData, error } =
+        await supabase.rpc("get_public_site_settings");
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Horse silks setting load error:", error);
+        setShowHorseSilks(true);
+        return;
+      }
+
+      const settings =
+        settingsData && typeof settingsData === "object"
+          ? (settingsData as { show_horse_silks?: boolean })
+          : null;
+
+      setShowHorseSilks(settings?.show_horse_silks !== false);
+    }
+
+    void loadHorseSilksSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!playerId) return;
@@ -300,9 +334,52 @@ export default function PlayerProfilePage() {
       return;
     }
 
-    setRoundTeamData(
-      teamDataRaw as unknown as PlayerRoundTeamData
-    );
+    const loadedTeamData =
+      teamDataRaw as unknown as PlayerRoundTeamData;
+
+    if (
+      showHorseSilks &&
+      loadedTeamData?.selections?.length
+    ) {
+      const horseIds = Array.from(
+        new Set(
+          loadedTeamData.selections
+            .map((selection) => selection.horse_id)
+            .filter(Boolean)
+        )
+      );
+
+      if (horseIds.length > 0) {
+        const { data: horseRows, error: horseSilksError } =
+          await supabase
+            .from("horses")
+            .select("id, silks_url")
+            .in("id", horseIds);
+
+        if (horseSilksError) {
+          console.error(
+            "Player round horse silks load error:",
+            horseSilksError
+          );
+        } else {
+          const silksByHorseId = new Map(
+            (horseRows ?? []).map((horse: any) => [
+              String(horse.id),
+              horse.silks_url ?? null,
+            ])
+          );
+
+          loadedTeamData.selections =
+            loadedTeamData.selections.map((selection) => ({
+              ...selection,
+              silks_url:
+                silksByHorseId.get(selection.horse_id) ?? null,
+            }));
+        }
+      }
+    }
+
+    setRoundTeamData(loadedTeamData);
     setRoundTeamLoading(false);
   }
 
@@ -740,29 +817,42 @@ export default function PlayerProfilePage() {
                                   : "bg-white"
                               }`}
                             >
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className="truncate font-black text-slate-950">
-                                    {selection.horse_name}
+                              <div className="flex min-w-0 items-stretch gap-2">
+                                {showHorseSilks &&
+                                  selection.silks_url && (
+                                    <div className="flex w-9 shrink-0 items-center justify-center self-stretch">
+                                      <img
+                                        src={selection.silks_url}
+                                        alt={`${selection.horse_name} silks`}
+                                        className="h-full max-h-14 w-full object-contain"
+                                      />
+                                    </div>
+                                  )}
+
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="truncate font-black text-slate-950">
+                                      {selection.horse_name}
+                                    </p>
+
+                                    {selection.is_captain && (
+                                      <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                                        Captain
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <p className="truncate text-[11px] text-slate-600">
+                                    R{selection.race_number} ·{" "}
+                                    {selection.race_name}
                                   </p>
 
-                                  {selection.is_captain && (
-                                    <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
-                                      Captain
-                                    </span>
-                                  )}
+                                  <p className="text-[10px] text-slate-500">
+                                    {formatCurrency(
+                                      selection.selected_price
+                                    )}
+                                  </p>
                                 </div>
-
-                                <p className="truncate text-[11px] text-slate-600">
-                                  R{selection.race_number} ·{" "}
-                                  {selection.race_name}
-                                </p>
-
-                                <p className="text-[10px] text-slate-500">
-                                  {formatCurrency(
-                                    selection.selected_price
-                                  )}
-                                </p>
                               </div>
 
                               <div>
