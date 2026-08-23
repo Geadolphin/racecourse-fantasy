@@ -52,6 +52,8 @@ type RoundHistory = {
   round_score: number;
   captain_points: number;
   round_rank: number | null;
+  autofilled_horse_count?: number;
+  autofill_penalty?: number;
 
   price_movement: number;
   next_round_salary_cap: number;
@@ -331,18 +333,67 @@ export default function HistoryPage() {
         }
       }
 
+      let roundsWithAutofillPenalty =
+        roundsWithRaceCounts;
+
+      const teamIds = roundsWithRaceCounts
+        .map((round) => round.team_id)
+        .filter(Boolean);
+
+      if (teamIds.length > 0) {
+        const {
+          data: teamPenaltyData,
+          error: teamPenaltyError,
+        } = await supabase
+          .from("teams")
+          .select("id, autofilled_horse_count")
+          .in("id", teamIds);
+
+        if (!active) {
+          return;
+        }
+
+        if (teamPenaltyError) {
+          console.error(
+            "Season history autofill penalty error:",
+            teamPenaltyError
+          );
+        } else {
+          const autofillByTeamId = new Map(
+            (teamPenaltyData ?? []).map((team: any) => [
+              String(team.id),
+              Number(team.autofilled_horse_count ?? 0),
+            ])
+          );
+
+          roundsWithAutofillPenalty =
+            roundsWithRaceCounts.map((round) => {
+              const autofilledHorseCount =
+                autofillByTeamId.get(round.team_id) ?? 0;
+
+              return {
+                ...round,
+                autofilled_horse_count:
+                  autofilledHorseCount,
+                autofill_penalty:
+                  autofilledHorseCount * 3,
+              };
+            });
+        }
+      }
+
       const hydratedData = loadedData
         ? {
             ...loadedData,
-            rounds: roundsWithRaceCounts,
+            rounds: roundsWithAutofillPenalty,
           }
         : null;
 
       setHistoryData(hydratedData);
 
-      if (roundsWithRaceCounts.length > 0) {
+      if (roundsWithAutofillPenalty.length > 0) {
         const latestRound = [
-          ...roundsWithRaceCounts,
+          ...roundsWithAutofillPenalty,
         ].sort(
           (a, b) =>
             b.round_number - a.round_number
@@ -446,18 +497,63 @@ export default function HistoryPage() {
       }
     }
 
+    let roundsWithAutofillPenalty =
+      roundsWithRaceCounts;
+
+    const teamIds = roundsWithRaceCounts
+      .map((round) => round.team_id)
+      .filter(Boolean);
+
+    if (teamIds.length > 0) {
+      const {
+        data: teamPenaltyData,
+        error: teamPenaltyError,
+      } = await supabase
+        .from("teams")
+        .select("id, autofilled_horse_count")
+        .in("id", teamIds);
+
+      if (teamPenaltyError) {
+        console.error(
+          "Season history autofill penalty error:",
+          teamPenaltyError
+        );
+      } else {
+        const autofillByTeamId = new Map(
+          (teamPenaltyData ?? []).map((team: any) => [
+            String(team.id),
+            Number(team.autofilled_horse_count ?? 0),
+          ])
+        );
+
+        roundsWithAutofillPenalty =
+          roundsWithRaceCounts.map((round) => {
+            const autofilledHorseCount =
+              autofillByTeamId.get(round.team_id) ?? 0;
+
+            return {
+              ...round,
+              autofilled_horse_count:
+                autofilledHorseCount,
+              autofill_penalty:
+                autofilledHorseCount * 3,
+            };
+          });
+      }
+    }
+
     setHistoryData(
       loadedData
         ? {
             ...loadedData,
-            rounds: roundsWithRaceCounts,
+            rounds: roundsWithAutofillPenalty,
           }
         : null
     );
 
-    if (roundsWithRaceCounts.length > 0) {
+    if (roundsWithAutofillPenalty.length > 0) {
       const latestRound = [
-        ...roundsWithRaceCounts,
+        ...roundsWithAutofillPenalty,
       ].sort(
         (a, b) =>
           b.round_number - a.round_number
@@ -845,6 +941,12 @@ export default function HistoryPage() {
                       <p className="mt-1 text-lg font-bold text-slate-900">
                         {round.round_score}
                       </p>
+
+                      {(round.autofill_penalty ?? 0) > 0 && (
+                        <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-red-600">
+                          Autofill penalty · −{round.autofill_penalty} pts
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -889,7 +991,7 @@ export default function HistoryPage() {
 
                 {expanded && (
                   <div className="border-t border-slate-200">
-                    <section className="grid gap-4 bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-4">
+                    <section className="grid gap-4 bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-5">
                       <div className="rounded-xl border bg-white p-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                           Salary cap
@@ -928,6 +1030,31 @@ export default function HistoryPage() {
                         <p className="mt-1 text-lg font-bold text-slate-900">
                           {round.captain_points}
                         </p>
+                      </div>
+
+                      <div className="rounded-xl border bg-white p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Autofill penalty
+                        </p>
+
+                        <p className={`mt-1 text-lg font-bold ${
+                          (round.autofill_penalty ?? 0) > 0
+                            ? "text-red-700"
+                            : "text-slate-900"
+                        }`}>
+                          {(round.autofill_penalty ?? 0) > 0
+                            ? `−${round.autofill_penalty} pts`
+                            : "0 pts"}
+                        </p>
+
+                        {(round.autofilled_horse_count ?? 0) > 0 && (
+                          <p className="mt-1 text-xs text-slate-500">
+                            {round.autofilled_horse_count} autofilled{" "}
+                            {round.autofilled_horse_count === 1
+                              ? "horse"
+                              : "horses"}
+                          </p>
+                        )}
                       </div>
                     </section>
 
