@@ -1084,9 +1084,12 @@ export default function Dashboard() {
             ),
             score_status: matchIsFinal
               ? "final"
-              : lockoutHasPassed
-                ? "live"
-                : "scheduled",
+              : resolvedDashboardData.round?.status === "complete" ||
+                  resolvedDashboardData.round?.status === "completed"
+                ? "final"
+                : lockoutHasPassed
+                  ? "live"
+                  : "scheduled",
           });
 
           return;
@@ -1195,6 +1198,10 @@ export default function Dashboard() {
     new Date(
       round.lockout_at
     ).getTime() <= currentTime;
+
+  const roundIsComplete =
+    round?.status === "complete" ||
+    round?.status === "completed";
 
   const currentRoundScore =
     lockoutHasPassed && liveRoundScore !== null
@@ -1499,7 +1506,7 @@ export default function Dashboard() {
                     {cupMatchup.status === "matchup" &&
                       cupMatchup.score_status === "final" && (
                         <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
-                          Final
+                          Complete
                         </span>
                       )}
                   </div>
@@ -1590,14 +1597,18 @@ export default function Dashboard() {
 
               <span
                 className={`rounded-full px-3 py-1 text-xs font-bold ${
-                  lockoutHasPassed
-                    ? "bg-red-100 text-red-800"
-                    : "bg-teal-100 text-teal-800"
+                  roundIsComplete
+                    ? "bg-slate-900 text-white"
+                    : lockoutHasPassed
+                      ? "bg-red-100 text-red-800"
+                      : "bg-teal-100 text-teal-800"
                 }`}
               >
-                {lockoutHasPassed
-                  ? "Locked"
-                  : "Open"}
+                {roundIsComplete
+                  ? "Complete"
+                  : lockoutHasPassed
+                    ? "Locked"
+                    : "Open"}
               </span>
             </div>
 
@@ -1615,20 +1626,24 @@ export default function Dashboard() {
 
                 <p
                   className={`mt-2 text-sm font-bold ${
-                    lockoutHasPassed
-                      ? "text-red-700"
-                      : "text-amber-700"
+                    roundIsComplete
+                      ? "text-slate-700"
+                      : lockoutHasPassed
+                        ? "text-red-700"
+                        : "text-amber-700"
                   }`}
                 >
-                  {lockoutHasPassed
-                    ? "Locked"
-                    : round.lockout_at
-                    ? formatTimeUntil(
-                        round.lockout_at,
-                        currentTime,
-                        "lockout"
-                      )
-                    : "Not set"}
+                  {roundIsComplete
+                    ? "Complete"
+                    : lockoutHasPassed
+                      ? "Locked"
+                      : round.lockout_at
+                        ? formatTimeUntil(
+                            round.lockout_at,
+                            currentTime,
+                            "lockout"
+                          )
+                        : "Not set"}
                 </p>
               </div>
 
