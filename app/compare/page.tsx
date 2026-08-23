@@ -770,12 +770,12 @@ export default function CompareTeamsPage() {
           </div>
         )}
 
-        <section className="mt-4 rounded-xl border bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-2">
+        <section className="mt-3 rounded-xl border bg-white p-3 shadow-sm">
+          <div className="grid gap-2 md:grid-cols-[220px_1fr]">
             <div>
               <label
                 htmlFor="comparison-round"
-                className="block text-sm font-bold text-slate-800"
+                className="block text-[11px] font-black uppercase tracking-wide text-slate-500"
               >
                 Round
               </label>
@@ -787,7 +787,7 @@ export default function CompareTeamsPage() {
                   setSelectedRoundId(event.target.value)
                 }
                 disabled={rounds.length === 0}
-                className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
               >
                 {rounds.length === 0 ? (
                   <option value="">
@@ -805,10 +805,10 @@ export default function CompareTeamsPage() {
             </div>
 
             <div>
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-2">
                 <label
                   htmlFor="comparison-opponent-search"
-                  className="block text-sm font-bold text-slate-800"
+                  className="block text-[11px] font-black uppercase tracking-wide text-slate-500"
                 >
                   Compare with
                 </label>
@@ -854,7 +854,7 @@ export default function CompareTeamsPage() {
                     availableTeams.length === 0
                   }
                   autoComplete="off"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-20 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 pr-16 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
 
                 {opponentSearch.trim() && (
@@ -930,7 +930,7 @@ export default function CompareTeamsPage() {
                   )}
               </div>
 
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-1.5 flex items-center gap-2">
                 <div className="h-px flex-1 bg-slate-200" />
                 <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
                   or select
@@ -958,7 +958,7 @@ export default function CompareTeamsPage() {
                   !comparisonData?.locked ||
                   availableTeams.length === 0
                 }
-                className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
               >
                 <option value="">
                   {loadingComparison
@@ -982,13 +982,13 @@ export default function CompareTeamsPage() {
               </select>
 
               {selectedOpponent && (
-                <div className="mt-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2">
+                <div className="mt-1.5 rounded-lg border border-teal-200 bg-teal-50 px-3 py-1.5">
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-[11px] font-black uppercase tracking-wide text-teal-700">
                         Selected opponent
                       </p>
-                      <p className="mt-1 truncate font-bold text-slate-900">
+                      <p className="mt-0.5 truncate text-sm font-bold text-slate-900">
                         {getTeamLabel(selectedOpponent)}
                       </p>
                     </div>
@@ -1012,7 +1012,7 @@ export default function CompareTeamsPage() {
           </div>
 
           {comparisonData?.round && (
-            <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
               <span>
                 Round {comparisonData.round.round_number}
               </span>
@@ -1271,6 +1271,9 @@ export default function CompareTeamsPage() {
                 <div className="flex flex-wrap gap-2 text-xs font-bold">
                   <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-800">
                     Shared
+                  </span>
+                  <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-800">
+                    Your unique
                   </span>
                   <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-900">
                     Captain
