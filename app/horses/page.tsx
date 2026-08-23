@@ -107,8 +107,7 @@ export default function HorsesPage() {
             total_fantasy_points,
             eligible_starts,
             average_fantasy_points,
-            is_active,
-            silks_url
+            is_active
           `
         )
         .order("name", { ascending: true });
@@ -127,20 +126,60 @@ export default function HorsesPage() {
         return;
       }
 
-      setHorses(
-        (data ?? []).map((horse) => ({
-          ...horse,
-          current_price: Number(horse.current_price ?? 0),
-          total_fantasy_points: Number(
-            horse.total_fantasy_points ?? 0
-          ),
-          eligible_starts: Number(horse.eligible_starts ?? 0),
-          average_fantasy_points:
-            horse.average_fantasy_points === null
-              ? null
-              : Number(horse.average_fantasy_points),
-        })) as HorseRow[]
-      );
+      const statsRows = (data ?? []).map((horse) => ({
+        ...horse,
+        current_price: Number(horse.current_price ?? 0),
+        total_fantasy_points: Number(
+          horse.total_fantasy_points ?? 0
+        ),
+        eligible_starts: Number(horse.eligible_starts ?? 0),
+        average_fantasy_points:
+          horse.average_fantasy_points === null
+            ? null
+            : Number(horse.average_fantasy_points),
+      })) as HorseRow[];
+
+      if (showHorseSilks && statsRows.length > 0) {
+        const horseIds = statsRows.map((horse) => horse.id);
+
+        const {
+          data: silkRows,
+          error: silkError,
+        } = await supabase
+          .from("horses")
+          .select("id, silks_url")
+          .in("id", horseIds);
+
+        if (!active) {
+          return;
+        }
+
+        if (silkError) {
+          console.error(
+            "Horse centre silks load error:",
+            silkError
+          );
+
+          setHorses(statsRows);
+        } else {
+          const silksByHorseId = new Map(
+            (silkRows ?? []).map((horse: any) => [
+              String(horse.id),
+              horse.silks_url ?? null,
+            ])
+          );
+
+          setHorses(
+            statsRows.map((horse) => ({
+              ...horse,
+              silks_url:
+                silksByHorseId.get(horse.id) ?? null,
+            }))
+          );
+        }
+      } else {
+        setHorses(statsRows);
+      }
 
       setLoading(false);
     }
@@ -150,7 +189,7 @@ export default function HorsesPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [showHorseSilks]);
 
   const filteredHorses = useMemo(() => {
     const normalisedSearch = searchTerm.trim().toLowerCase();
