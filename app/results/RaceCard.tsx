@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import RunnerRow from "./RunnerRow";
 import type {
   Race,
@@ -5,6 +8,7 @@ import type {
   RaceResult,
   TeamSelection,
 } from "./types";
+import { supabase } from "../../lib/supabase";
 
 type RaceCardProps = {
   race: Race;
@@ -53,6 +57,113 @@ export default function RaceCard({
   results,
   selections,
 }: RaceCardProps) {
+  const [showHorseSilks, setShowHorseSilks] = useState(true);
+  const [horseSilks, setHorseSilks] = useState<
+    Record<string, string | null>
+  >({});
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHorseSilksSetting() {
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) {
+        return;
+      }
+
+      if (error) {
+        console.error(
+          "Race card horse silks setting load error:",
+          error
+        );
+
+        setShowHorseSilks(true);
+        return;
+      }
+
+      const settings =
+        data && typeof data === "object"
+          ? (data as {
+              show_horse_silks?: boolean;
+            })
+          : null;
+
+      setShowHorseSilks(
+        settings?.show_horse_silks !== false
+      );
+    }
+
+    void loadHorseSilksSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHorseSilks() {
+      if (!showHorseSilks || entries.length === 0) {
+        setHorseSilks({});
+        return;
+      }
+
+      const horseIds = Array.from(
+        new Set(
+          entries
+            .map((entry) => entry.horse_id)
+            .filter(Boolean)
+        )
+      );
+
+      if (horseIds.length === 0) {
+        setHorseSilks({});
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("horses")
+        .select("id, silks_url")
+        .in("id", horseIds);
+
+      if (!active) {
+        return;
+      }
+
+      if (error) {
+        console.error(
+          "Race card horse silks load error:",
+          error
+        );
+
+        setHorseSilks({});
+        return;
+      }
+
+      const silkMap: Record<string, string | null> = {};
+
+      for (const horse of data ?? []) {
+        silkMap[String(horse.id)] =
+          typeof horse.silks_url === "string" &&
+          horse.silks_url.trim()
+            ? horse.silks_url
+            : null;
+      }
+
+      setHorseSilks(silkMap);
+    }
+
+    void loadHorseSilks();
+
+    return () => {
+      active = false;
+    };
+  }, [entries, showHorseSilks]);
+
   const resultByEntryId = new Map(
     results.map((result) => [result.race_entry_id, result])
   );
@@ -76,6 +187,7 @@ export default function RaceCard({
 
     const resultStatusA =
       resultA?.result_status as keyof typeof statusOrder | undefined;
+
     const resultStatusB =
       resultB?.result_status as keyof typeof statusOrder | undefined;
 
@@ -197,6 +309,12 @@ export default function RaceCard({
               result={resultByEntryId.get(entry.id) ?? null}
               selection={
                 selectionByEntryId.get(entry.id) ?? null
+              }
+              showHorseSilks={showHorseSilks}
+              silksUrl={
+                showHorseSilks
+                  ? horseSilks[entry.horse_id] ?? null
+                  : null
               }
             />
           ))
