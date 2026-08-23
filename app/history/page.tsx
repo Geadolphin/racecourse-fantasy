@@ -25,6 +25,7 @@ type HistorySelection = {
   race_entry_id: string;
   horse_id: string;
   horse_name: string;
+  silks_url?: string | null;
   is_captain: boolean;
   selected_price: number;
   fantasy_points: number;
@@ -190,6 +191,43 @@ export default function HistoryPage() {
   );
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [showHorseSilks, setShowHorseSilks] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHorseSilksSetting() {
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) return;
+
+      if (error) {
+        console.error(
+          "Horse silks setting load error:",
+          error
+        );
+        setShowHorseSilks(true);
+        return;
+      }
+
+      const settings =
+        data && typeof data === "object"
+          ? (data as { show_horse_silks?: boolean })
+          : null;
+
+      setShowHorseSilks(
+        settings?.show_horse_silks !== false
+      );
+    }
+
+    void loadHorseSilksSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -382,18 +420,23 @@ export default function HistoryPage() {
         }
       }
 
+      const roundsWithSilks =
+        await hydrateRoundSilks(
+          roundsWithAutofillPenalty
+        );
+
       const hydratedData = loadedData
         ? {
             ...loadedData,
-            rounds: roundsWithAutofillPenalty,
+            rounds: roundsWithSilks,
           }
         : null;
 
       setHistoryData(hydratedData);
 
-      if (roundsWithAutofillPenalty.length > 0) {
+      if (roundsWithSilks.length > 0) {
         const latestRound = [
-          ...roundsWithAutofillPenalty,
+          ...roundsWithSilks,
         ].sort(
           (a, b) =>
             b.round_number - a.round_number
@@ -417,6 +460,56 @@ export default function HistoryPage() {
       active = false;
     };
   }, []);
+
+  async function hydrateRoundSilks(
+    roundsToHydrate: RoundHistory[]
+  ) {
+    if (!showHorseSilks || roundsToHydrate.length === 0) {
+      return roundsToHydrate;
+    }
+
+    const horseIds = Array.from(
+      new Set(
+        roundsToHydrate
+          .flatMap((round) => round.selections ?? [])
+          .map((selection) => selection.horse_id)
+          .filter(Boolean)
+      )
+    );
+
+    if (horseIds.length === 0) {
+      return roundsToHydrate;
+    }
+
+    const { data: horseRows, error } = await supabase
+      .from("horses")
+      .select("id, silks_url")
+      .in("id", horseIds);
+
+    if (error) {
+      console.error(
+        "Season history horse silks load error:",
+        error
+      );
+      return roundsToHydrate;
+    }
+
+    const silksByHorseId = new Map(
+      (horseRows ?? []).map((horse: any) => [
+        String(horse.id),
+        horse.silks_url ?? null,
+      ])
+    );
+
+    return roundsToHydrate.map((round) => ({
+      ...round,
+      selections: (round.selections ?? []).map((selection) => ({
+        ...selection,
+        silks_url:
+          silksByHorseId.get(selection.horse_id) ?? null,
+      })),
+    }));
+  }
 
   async function changeSeason(
     seasonId: string
@@ -542,18 +635,23 @@ export default function HistoryPage() {
       }
     }
 
+    const roundsWithSilks =
+      await hydrateRoundSilks(
+        roundsWithAutofillPenalty
+      );
+
     setHistoryData(
       loadedData
         ? {
             ...loadedData,
-            rounds: roundsWithAutofillPenalty,
+            rounds: roundsWithSilks,
           }
         : null
     );
 
-    if (roundsWithAutofillPenalty.length > 0) {
+    if (roundsWithSilks.length > 0) {
       const latestRound = [
-        ...roundsWithAutofillPenalty,
+        ...roundsWithSilks,
       ].sort(
         (a, b) =>
           b.round_number - a.round_number
@@ -1099,19 +1197,34 @@ export default function HistoryPage() {
                               }
                             >
                               <td className="px-5 py-4">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Link
-                                    href={`/horses/${selection.horse_id}`}
-                                    className="text-base font-bold text-slate-900 hover:text-teal-700 hover:underline"
-                                  >
-                                    {selection.horse_name}
-                                  </Link>
+                                <div className="flex items-center gap-3">
+                                  {showHorseSilks &&
+                                    selection.silks_url && (
+                                      <div className="flex h-10 w-10 shrink-0 items-center justify-center">
+                                        <img
+                                          src={selection.silks_url}
+                                          alt={`${selection.horse_name} silks`}
+                                          className="h-full w-full object-contain"
+                                        />
+                                      </div>
+                                    )}
 
-                                  {selection.is_captain && (
-                                    <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-bold text-amber-900">
-                                      Captain
-                                    </span>
-                                  )}
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Link
+                                        href={`/horses/${selection.horse_id}`}
+                                        className="truncate text-base font-bold text-slate-900 hover:text-teal-700 hover:underline"
+                                      >
+                                        {selection.horse_name}
+                                      </Link>
+
+                                      {selection.is_captain && (
+                                        <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-bold text-amber-900">
+                                          Captain
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               </td>
 
