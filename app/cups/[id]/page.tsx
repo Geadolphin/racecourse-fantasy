@@ -525,18 +525,30 @@ export default function CupDetailPage() {
       match.match_status === "final" ||
       match.match_status === "scored";
 
-    if (matchIsFinal || !live?.is_live) {
+    // Once the Cup match itself has been finalised, use the stored
+    // Cup result returned by get_player_cup_detail.
+    if (matchIsFinal) {
       return {
         ...match,
         live_score: false,
       };
     }
 
+    // After round lockout the live-score RPC continues to return the
+    // calculated fixture score. Keep displaying that score even after
+    // the fantasy round is completed; is_live only controls the LIVE UI.
+    if (live) {
+      return {
+        ...match,
+        participant_1_score: live.participant_1_score,
+        participant_2_score: live.participant_2_score,
+        live_score: live.is_live,
+      };
+    }
+
     return {
       ...match,
-      participant_1_score: live.participant_1_score,
-      participant_2_score: live.participant_2_score,
-      live_score: true,
+      live_score: false,
     };
   });
 
