@@ -123,6 +123,7 @@ export default function PrivateLeaguesPage() {
         automaticQualifiers: 2,
         groupMeetings: 1,
     });
+    const [leagueCupRoundIds, setLeagueCupRoundIds] = useState<string[]>([]);
 
     const loadLeagueData = useCallback(
         async ({
@@ -775,6 +776,35 @@ export default function PrivateLeaguesPage() {
         return values;
     }
 
+    function getKnockoutStageLabels(knockoutTeams: number) {
+        if (knockoutTeams === 48) {
+            return [
+                "Preliminary Round",
+                "Round of 32",
+                "Round of 16",
+                "Quarter Finals",
+                "Semi Finals",
+                "Final",
+            ];
+        }
+
+        const labels: string[] = [];
+        let teams = knockoutTeams;
+
+        while (teams >= 2) {
+            if (teams === 2) labels.push("Final");
+            else if (teams === 4) labels.push("Semi Finals");
+            else if (teams === 8) labels.push("Quarter Finals");
+            else if (teams === 16) labels.push("Round of 16");
+            else if (teams === 32) labels.push("Round of 32");
+            else labels.push(`Round of ${teams}`);
+
+            teams = teams / 2;
+        }
+
+        return labels;
+    }
+
     function openLeagueCupModal() {
         const league = data?.selected_league;
         if (!league || !league.is_owner) return;
@@ -802,6 +832,7 @@ export default function PrivateLeaguesPage() {
             automaticQualifiers: qualifierCounts[0] ?? 1,
             groupMeetings: 1,
         });
+        setLeagueCupRoundIds([]);
 
         setError("");
         setSuccessMessage("");
@@ -866,6 +897,65 @@ export default function PrivateLeaguesPage() {
             cup_id: string;
         };
 
+        if (created?.cup_id) {
+            const { data: stageRows, error: stagesError } = await supabase
+                .from("cup_stages")
+                .select("id, sequence_number, stage_name")
+                .eq("cup_id", created.cup_id)
+                .order("sequence_number", { ascending: true });
+
+            if (stagesError) {
+                console.error("League Cup stages load error:", stagesError);
+                setError(
+                    `League Cup created, but its schedule could not be loaded: ${stagesError.message}`
+                );
+                setLeagueCupSaving(false);
+                await loadLeagueCups(league.id);
+                return;
+            }
+
+            const stages = stageRows ?? [];
+            const selectedAssignments = leagueCupRoundIds
+                .map((roundId, index) => ({
+                    roundId,
+                    stage: stages[index] ?? null,
+                }))
+                .filter(
+                    (item): item is {
+                        roundId: string;
+                        stage: {
+                            id: string;
+                            sequence_number: number;
+                            stage_name: string;
+                        };
+                    } => Boolean(item.roundId && item.stage)
+                );
+
+            for (const assignment of selectedAssignments) {
+                const { error: scheduleError } = await supabase.rpc(
+                    "admin_update_cup_stage_round",
+                    {
+                        p_cup_id: created.cup_id,
+                        p_stage_id: assignment.stage.id,
+                        p_round_id: assignment.roundId,
+                    }
+                );
+
+                if (scheduleError) {
+                    console.error(
+                        "League Cup round assignment error:",
+                        scheduleError
+                    );
+                    setError(
+                        `League Cup created, but ${assignment.stage.stage_name} could not be scheduled: ${scheduleError.message}`
+                    );
+                    setLeagueCupSaving(false);
+                    await loadLeagueCups(league.id);
+                    return;
+                }
+            }
+        }
+
         await loadLeagueCups(league.id);
 
         setLeagueCupModalOpen(false);
@@ -915,6 +1005,24 @@ export default function PrivateLeaguesPage() {
             ? (leagueCupTeamsPerGroup - 1) *
               leagueCupForm.groupMeetings
             : 0;
+
+    const leagueCupKnockoutStageLabels = getKnockoutStageLabels(
+        leagueCupKnockoutTeams
+    );
+
+    const leagueCupScheduleLabels = [
+        ...Array.from(
+            { length: leagueCupGroupMatchdays },
+            (_, index) => `Group Matchday ${index + 1}`
+        ),
+        ...leagueCupKnockoutStageLabels,
+    ];
+
+    const selectedLeagueCupRoundIds = new Set(
+        leagueCupRoundIds
+            .slice(0, leagueCupScheduleLabels.length)
+            .filter(Boolean)
+    );
 
     if (loading) {
         return (
@@ -1547,7 +1655,7 @@ export default function PrivateLeaguesPage() {
                         }
                     }}
                 >
-                    <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl">
+                    <div className="max-h-[92vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl">
                         <div className="flex items-start justify-between gap-4 border-b border-slate-800 bg-slate-950 px-6 py-4 text-white">
                             <div>
                                 <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
@@ -1572,7 +1680,7 @@ export default function PrivateLeaguesPage() {
                             </button>
                         </div>
 
-                        <div className="p-6">
+                        <div className="max-h-[calc(92vh-92px)] overflow-y-auto p-6">
                             <label
                                 htmlFor="league-cup-name"
                                 className="block text-sm font-bold text-slate-800"
@@ -1699,6 +1807,88 @@ export default function PrivateLeaguesPage() {
                                         ? `${leagueCupTeamsPerGroup} teams per group × ${leagueCupForm.groupMeetings} meeting${leagueCupForm.groupMeetings === 1 ? "" : "s"} = ${leagueCupGroupMatchdays} group matchday${leagueCupGroupMatchdays === 1 ? "" : "s"}.`
                                         : "Choose a valid group format."}
                                 </p>
+                            </div>
+
+                            <div className="mt-5">
+                                <div className="flex items-end justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-800">
+                                            Cup schedule
+                                        </p>
+                                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                                            Choose which Racecourse Fantasy round each Cup stage uses. Leave a stage unassigned if you want to schedule it later.
+                                        </p>
+                                    </div>
+
+                                    <span className="shrink-0 text-xs font-bold text-slate-500">
+                                        {leagueCupScheduleLabels.length} stages
+                                    </span>
+                                </div>
+
+                                <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                    {leagueCupScheduleLabels.map((label, index) => {
+                                        const currentRoundId =
+                                            leagueCupRoundIds[index] ?? "";
+
+                                        return (
+                                            <div
+                                                key={`${label}-${index}`}
+                                                className="grid gap-2 rounded-lg bg-white p-2.5 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center"
+                                            >
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-bold text-slate-800">
+                                                        {label}
+                                                    </p>
+                                                </div>
+
+                                                <select
+                                                    aria-label={`Round for ${label}`}
+                                                    value={currentRoundId}
+                                                    onChange={(event) => {
+                                                        const roundId = event.target.value;
+
+                                                        setLeagueCupRoundIds((current) => {
+                                                            const next = [
+                                                                ...current,
+                                                            ];
+                                                            next[index] = roundId;
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                                                >
+                                                    <option value="">
+                                                        Assign later
+                                                    </option>
+
+                                                    {leagueRounds.map((round) => {
+                                                        const alreadyUsed =
+                                                            selectedLeagueCupRoundIds.has(
+                                                                round.id
+                                                            ) &&
+                                                            currentRoundId !== round.id;
+
+                                                        return (
+                                                            <option
+                                                                key={round.id}
+                                                                value={round.id}
+                                                                disabled={alreadyUsed}
+                                                            >
+                                                                Round {round.round_number}
+                                                                {round.name
+                                                                    ? ` — ${round.name}`
+                                                                    : ""}
+                                                                {alreadyUsed
+                                                                    ? " — already used"
+                                                                    : ""}
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </select>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
                             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
