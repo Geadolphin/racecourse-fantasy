@@ -76,6 +76,7 @@ type LeagueCup = {
     group_count: number;
     teams_per_group: number;
     automatic_qualifiers_per_group: number;
+    group_meetings?: number;
     additional_qualifier_position: number | null;
     additional_qualifier_count: number;
     created_at: string;
@@ -85,6 +86,7 @@ type LeagueCupForm = {
     name: string;
     groupCount: number;
     automaticQualifiers: number;
+    groupMeetings: 1 | 2 | 3;
 };
 
 type ModalType = "create" | "join" | "rename" | null;
@@ -119,6 +121,7 @@ export default function PrivateLeaguesPage() {
         name: "",
         groupCount: 1,
         automaticQualifiers: 2,
+        groupMeetings: 1,
     });
 
     const loadLeagueData = useCallback(
@@ -797,6 +800,7 @@ export default function PrivateLeaguesPage() {
             name: `${league.name} Cup`,
             groupCount: preferredGroupCount,
             automaticQualifiers: qualifierCounts[0] ?? 1,
+            groupMeetings: 1,
         });
 
         setError("");
@@ -845,6 +849,7 @@ export default function PrivateLeaguesPage() {
                 p_teams_per_group: teamsPerGroup,
                 p_automatic_qualifiers_per_group:
                     leagueCupForm.automaticQualifiers,
+                p_group_meetings: leagueCupForm.groupMeetings,
                 p_additional_qualifier_position: null,
                 p_additional_qualifier_count: 0,
             }
@@ -903,6 +908,13 @@ export default function PrivateLeaguesPage() {
     const leagueCupKnockoutTeams =
         leagueCupForm.groupCount *
         leagueCupForm.automaticQualifiers;
+
+    const leagueCupGroupMatchdays =
+        Number.isInteger(leagueCupTeamsPerGroup) &&
+        leagueCupTeamsPerGroup >= 2
+            ? (leagueCupTeamsPerGroup - 1) *
+              leagueCupForm.groupMeetings
+            : 0;
 
     if (loading) {
         return (
@@ -1314,6 +1326,9 @@ export default function PrivateLeaguesPage() {
 
                                                 <p className="mt-1 text-sm text-slate-500">
                                                     {cup.competing_teams} teams · {cup.group_count} {cup.group_count === 1 ? "group" : "groups"} · {cup.teams_per_group} per group
+                                                    {cup.group_meetings
+                                                        ? ` · Play each opponent ${cup.group_meetings === 1 ? "once" : cup.group_meetings === 2 ? "twice" : "three times"}`
+                                                        : ""}
                                                 </p>
                                             </div>
 
@@ -1653,8 +1668,41 @@ export default function PrivateLeaguesPage() {
                                 </div>
                             </div>
 
+                            <div className="mt-5">
+                                <label
+                                    htmlFor="league-cup-group-meetings"
+                                    className="block text-sm font-bold text-slate-800"
+                                >
+                                    Meet each group opponent
+                                </label>
+
+                                <select
+                                    id="league-cup-group-meetings"
+                                    value={leagueCupForm.groupMeetings}
+                                    onChange={(event) =>
+                                        setLeagueCupForm((current) => ({
+                                            ...current,
+                                            groupMeetings: Number(
+                                                event.target.value
+                                            ) as 1 | 2 | 3,
+                                        }))
+                                    }
+                                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                                >
+                                    <option value={1}>Once</option>
+                                    <option value={2}>Twice</option>
+                                    <option value={3}>Three times</option>
+                                </select>
+
+                                <p className="mt-2 text-sm text-slate-500">
+                                    {leagueCupTeamsPerGroup > 0
+                                        ? `${leagueCupTeamsPerGroup} teams per group × ${leagueCupForm.groupMeetings} meeting${leagueCupForm.groupMeetings === 1 ? "" : "s"} = ${leagueCupGroupMatchdays} group matchday${leagueCupGroupMatchdays === 1 ? "" : "s"}.`
+                                        : "Choose a valid group format."}
+                                </p>
+                            </div>
+
                             <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                                <div className="grid grid-cols-3 gap-3 text-center">
+                                <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
                                     <div>
                                         <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
                                             Entrants
