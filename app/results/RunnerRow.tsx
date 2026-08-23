@@ -8,6 +8,8 @@ type RunnerRowProps = {
   entry: RaceEntry;
   result: RaceResult | null;
   selection: TeamSelection | null;
+  showHorseSilks?: boolean;
+  silksUrl?: string | null;
 };
 
 function formatCurrency(value: number) {
@@ -73,6 +75,8 @@ export default function RunnerRow({
   entry,
   result,
   selection,
+  showHorseSilks = true,
+  silksUrl = null,
 }: RunnerRowProps) {
   const isSelected = Boolean(selection);
   const isCaptain = selection?.is_captain === true;
@@ -112,62 +116,74 @@ export default function RunnerRow({
           </p>
         </div>
 
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            {entry.saddlecloth_number !== null && (
-              <span className="inline-flex min-w-5 items-center justify-center text-sm font-medium text-slate-500">
-                {entry.saddlecloth_number}
-              </span>
-            )}
+        <div className="flex min-w-0 items-stretch gap-3">
+          {showHorseSilks && silksUrl && (
+            <div className="flex w-11 shrink-0 items-center justify-center self-stretch">
+              <img
+                src={silksUrl}
+                alt={`${entry.horse?.name ?? "Horse"} silks`}
+                className="h-full max-h-14 w-full object-contain"
+              />
+            </div>
+          )}
 
-            <p className="truncate text-lg font-semibold text-slate-950">
-              {entry.horse?.name ?? "Unknown horse"}
-            </p>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {entry.saddlecloth_number !== null && (
+                <span className="inline-flex min-w-5 items-center justify-center text-sm font-medium text-slate-500">
+                  {entry.saddlecloth_number}
+                </span>
+              )}
 
-            {isSelected && (
-              <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-800">
-                Your Horse
-              </span>
-            )}
+              <p className="truncate text-lg font-semibold text-slate-950">
+                {entry.horse?.name ?? "Unknown horse"}
+              </p>
 
-            {isCaptain && (
-              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
-                Captain
-              </span>
-            )}
+              {isSelected && (
+                <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-800">
+                  Your Horse
+                </span>
+              )}
 
-            {result?.is_dead_heat && (
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-800">
-                Dead Heat
-              </span>
-            )}
-          </div>
+              {isCaptain && (
+                <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
+                  Captain
+                </span>
+              )}
 
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
-            <span>
-              Current price:{" "}
-              <span className="font-medium text-slate-700">
-                {formatCurrency(
-                  result?.price_after ??
-                    entry.horse?.current_price ??
-                    0
-                )}
-              </span>
-            </span>
+              {result?.is_dead_heat && (
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-800">
+                  Dead Heat
+                </span>
+              )}
+            </div>
 
-            {result && (
-              <span
-                className={
-                  priceChange > 0
-                    ? "font-semibold text-green-700"
-                    : priceChange < 0
-                      ? "font-semibold text-red-700"
-                      : "font-medium text-slate-600"
-                }
-              >
-                Price change: {getPriceChangeLabel(priceChange)}
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+              <span>
+                Current price:{" "}
+                <span className="font-medium text-slate-700">
+                  {formatCurrency(
+                    result?.price_after ??
+                      entry.horse?.current_price ??
+                      0
+                  )}
+                </span>
               </span>
-            )}
+
+              {result && (
+                <span
+                  className={
+                    priceChange > 0
+                      ? "font-semibold text-green-700"
+                      : priceChange < 0
+                        ? "font-semibold text-red-700"
+                        : "font-medium text-slate-600"
+                  }
+                >
+                  Price change: {getPriceChangeLabel(priceChange)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
