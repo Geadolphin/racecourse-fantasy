@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useParams,
   useRouter,
@@ -42,6 +42,11 @@ type MemberRow = {
   is_owner: boolean;
 };
 
+type AvailableUser = {
+  id: string;
+  display_name: string | null;
+};
+
 export default function AdminLeagueDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -69,6 +74,18 @@ export default function AdminLeagueDetailPage() {
 
   const [deletingLeague, setDeletingLeague] =
     useState(false);
+
+  const [availableUsers, setAvailableUsers] =
+    useState<AvailableUser[]>([]);
+
+  const [addMemberOpen, setAddMemberOpen] =
+    useState(false);
+
+  const [memberSearch, setMemberSearch] =
+    useState("");
+
+  const [addingUserId, setAddingUserId] =
+    useState<string | null>(null);
 
   async function loadLeague() {
     setLoading(true);
@@ -238,6 +255,27 @@ export default function AdminLeagueDetailPage() {
 
     setMembers(memberRows);
 
+    const {
+      data: allProfilesData,
+      error: allProfilesError,
+    } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .order("display_name", { ascending: true });
+
+    if (allProfilesError) {
+      console.error(
+        "Admin available users load error:",
+        allProfilesError
+      );
+
+      setAvailableUsers([]);
+    } else {
+      setAvailableUsers(
+        (allProfilesData ?? []) as AvailableUser[]
+      );
+    }
+
     setLoading(false);
   }
 
@@ -248,6 +286,73 @@ export default function AdminLeagueDetailPage() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leagueId]);
+
+  const memberUserIds = useMemo(
+    () => new Set(members.map((member) => member.user_id)),
+    [members]
+  );
+
+  const filteredAvailableUsers = useMemo(() => {
+    const term = memberSearch.trim().toLowerCase();
+
+    return availableUsers
+      .filter((user) => !memberUserIds.has(user.id))
+      .filter((user) => {
+        if (!term) {
+          return true;
+        }
+
+        return (
+          user.display_name
+            ?.toLowerCase()
+            .includes(term) ?? false
+        );
+      })
+      .slice(0, 50);
+  }, [
+    availableUsers,
+    memberSearch,
+    memberUserIds,
+  ]);
+
+  async function handleAddMember(user: AvailableUser) {
+    if (!league) {
+      return;
+    }
+
+    setAddingUserId(user.id);
+    setError("");
+
+    const { error: addError } =
+      await supabase.rpc(
+        "admin_add_private_league_member",
+        {
+          p_league_id: league.id,
+          p_user_id: user.id,
+        }
+      );
+
+    if (addError) {
+      console.error(
+        "Admin add league member error:",
+        addError
+      );
+
+      setError(
+        addError.message ||
+          "Unable to add member."
+      );
+
+      setAddingUserId(null);
+      return;
+    }
+
+    setMemberSearch("");
+    setAddMemberOpen(false);
+    setAddingUserId(null);
+
+    await loadLeague();
+  }
 
   async function handleRemoveMember(
     member: MemberRow
@@ -483,14 +588,28 @@ export default function AdminLeagueDetailPage() {
         </section>
 
         <section className="rounded-xl border bg-white shadow-sm">
-          <div className="border-b px-5 py-4">
-            <h2 className="text-lg font-bold text-slate-950">
-              League Members
-            </h2>
+          <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">
+                League Members
+              </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
-              {members.length} members
-            </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {members.length} members
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMemberSearch("");
+                setAddMemberOpen(true);
+              }}
+              disabled={members.length >= 24}
+              className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Add Member
+            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -593,6 +712,102 @@ export default function AdminLeagueDetailPage() {
           </div>
         </section>
       </div>
+
+      {addMemberOpen && league && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              addingUserId === null
+            ) {
+              setAddMemberOpen(false);
+            }
+          }}
+        >
+          <section className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl">
+            <div className="border-b border-slate-800 bg-slate-950 px-6 py-4 text-white">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-300">
+                Administration
+              </p>
+
+              <h2 className="mt-1 text-2xl font-bold">
+                Add League Member
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Add an existing Racecourse Fantasy user to {league.name}.
+              </p>
+            </div>
+
+            <div className="p-6">
+              <label
+                htmlFor="member-search"
+                className="block text-sm font-bold text-slate-800"
+              >
+                Search users
+              </label>
+
+              <input
+                id="member-search"
+                type="search"
+                value={memberSearch}
+                onChange={(event) =>
+                  setMemberSearch(event.target.value)
+                }
+                placeholder="Search by display name..."
+                autoFocus
+                className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+              />
+
+              <div className="mt-4 max-h-80 overflow-y-auto rounded-xl border border-slate-200">
+                {filteredAvailableUsers.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-slate-500">
+                    No available users found.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {filteredAvailableUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between gap-4 px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-950">
+                            {user.display_name?.trim() || "Unnamed user"}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleAddMember(user)}
+                          disabled={addingUserId !== null}
+                          className="shrink-0 rounded-lg bg-teal-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {addingUserId === user.id
+                            ? "Adding..."
+                            : "Add"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setAddMemberOpen(false)}
+                  disabled={addingUserId !== null}
+                  className="rounded-lg border bg-white px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
