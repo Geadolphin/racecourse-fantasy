@@ -128,16 +128,34 @@ export default function CupsPage() {
     setErrorMessage("");
 
     try {
-      const { data, error } = await supabase.rpc(
-        "get_player_cups_page_data"
-      );
+      const [
+        { data, error },
+        { data: leagueCupRows, error: leagueCupError },
+      ] = await Promise.all([
+        supabase.rpc("get_player_cups_page_data"),
+        supabase
+          .from("cup_competitions")
+          .select("id")
+          .not("league_id", "is", null),
+      ]);
 
       if (error) {
         throw error;
       }
 
+      if (leagueCupError) {
+        throw leagueCupError;
+      }
+
       const loadedData = data as unknown as CupsPageData;
-      const loadedCups = loadedData?.cups ?? [];
+
+      const leagueCupIds = new Set(
+        (leagueCupRows ?? []).map((cup) => cup.id)
+      );
+
+      const loadedCups = (loadedData?.cups ?? []).filter(
+        (cup) => !leagueCupIds.has(cup.id)
+      );
 
       setCups(loadedCups);
 

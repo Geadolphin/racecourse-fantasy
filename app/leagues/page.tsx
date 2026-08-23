@@ -1440,12 +1440,23 @@ export default function PrivateLeaguesPage() {
                                                 </p>
                                             </div>
 
-                                            <Link
-                                                href={`/cups/${cup.id}`}
-                                                className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white transition hover:bg-slate-800"
-                                            >
-                                                View Cup
-                                            </Link>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {selectedLeague.is_owner && (
+                                                    <Link
+                                                        href={`/leagues/${selectedLeague.id}/cups/${cup.id}/manage`}
+                                                        className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-teal-700"
+                                                    >
+                                                        Manage Cup
+                                                    </Link>
+                                                )}
+
+                                                <Link
+                                                    href={`/leagues/${selectedLeague.id}/cups/${cup.id}`}
+                                                    className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white transition hover:bg-slate-800"
+                                                >
+                                                    View Cup
+                                                </Link>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

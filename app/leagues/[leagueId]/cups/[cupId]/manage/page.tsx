@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -13,11 +13,17 @@ import {
   RefreshCw,
   ShieldCheck,
   Swords,
+  Trash2,
   Trophy,
   Users,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+
+type FinalsFormat =
+  | "straight_knockout"
+  | "seeded_byes"
+  | "double_chance";
 
 type Cup = {
   id: string;
@@ -32,6 +38,8 @@ type Cup = {
   automatic_qualifiers_per_group: number;
   additional_qualifier_position: number | null;
   additional_qualifier_count: number;
+  finals_format?: FinalsFormat;
+  double_chance_team_count?: number;
 };
 
 type Participant = {
@@ -148,6 +156,7 @@ export default function LeagueCupManagementPage() {
 
   const leagueId = params.leagueId;
   const cupId = params.cupId;
+  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [league, setLeague] = useState<League | null>(null);
@@ -163,6 +172,24 @@ export default function LeagueCupManagementPage() {
 
   const [publishingCup, setPublishingCup] =
     useState(false);
+
+  const [deletingCup, setDeletingCup] =
+    useState(false);
+
+  const [finalsFormat, setFinalsFormat] =
+    useState<FinalsFormat>("straight_knockout");
+
+  const [doubleChanceTeamCount, setDoubleChanceTeamCount] =
+    useState(4);
+
+  const [savingFinalsFormat, setSavingFinalsFormat] =
+    useState(false);
+
+  const [generatingFinals, setGeneratingFinals] =
+    useState(false);
+
+  const [scoringFinalsStageId, setScoringFinalsStageId] =
+    useState<string | null>(null);
 
   const [errorMessage, setErrorMessage] =
     useState("");
@@ -196,6 +223,7 @@ export default function LeagueCupManagementPage() {
       { data: leagueRaw, error: leagueError },
       { data: detailRaw, error: detailError },
       { data: leagueCupsRaw, error: leagueCupsError },
+      { data: finalsRaw, error: finalsError },
     ] = await Promise.all([
       supabase
         .from("leagues")
@@ -210,6 +238,12 @@ export default function LeagueCupManagementPage() {
       supabase.rpc("get_league_cups", {
         p_league_id: leagueId,
       }),
+
+      supabase
+        .from("cup_competitions")
+        .select("finals_format, double_chance_team_count")
+        .eq("id", cupId)
+        .maybeSingle(),
     ]);
 
     if (leagueError || !leagueRaw) {
@@ -276,6 +310,34 @@ export default function LeagueCupManagementPage() {
     const loadedDetail =
       detailRaw as unknown as CupDetailData;
 
+    if (finalsError) {
+      console.error(
+        "League Cup finals format load error:",
+        finalsError
+      );
+    }
+
+    const loadedFinalsFormat =
+      (finalsRaw?.finals_format as FinalsFormat | null) ??
+      "straight_knockout";
+
+    const loadedDoubleChanceTeamCount =
+      Number(finalsRaw?.double_chance_team_count ?? 0);
+
+    loadedDetail.cup = {
+      ...loadedDetail.cup,
+      finals_format: loadedFinalsFormat,
+      double_chance_team_count:
+        loadedDoubleChanceTeamCount,
+    };
+
+    setFinalsFormat(loadedFinalsFormat);
+    setDoubleChanceTeamCount(
+      loadedDoubleChanceTeamCount > 0
+        ? loadedDoubleChanceTeamCount
+        : 4
+    );
+
     const {
       data: roundRows,
       error: roundError,
@@ -330,6 +392,25 @@ export default function LeagueCupManagementPage() {
     [stages]
   );
 
+  const allGroupStagesComplete =
+    groupStages.length > 0 &&
+    groupStages.every(
+      (stage) => stage.is_complete
+    );
+
+  const firstFinalsStage =
+    knockoutStages[0] ?? null;
+
+  const firstFinalsMatches = firstFinalsStage
+    ? (cupData?.matches ?? []).filter(
+        (match) =>
+          match.stage_id === firstFinalsStage.id
+      )
+    : [];
+
+  const finalsGenerated =
+    firstFinalsMatches.length > 0;
+
   const groupMatches = useMemo(
     () =>
       (cupData?.matches ?? []).filter((match) =>
@@ -367,6 +448,12 @@ export default function LeagueCupManagementPage() {
   const allStagesScheduled =
     stages.length > 0 &&
     scheduledStageCount === stages.length;
+
+  const knockoutTeamCount = cup
+    ? cup.group_count *
+        cup.automatic_qualifiers_per_group +
+      (cup.additional_qualifier_count ?? 0)
+    : 0;
 
   const canPublish =
     cup?.status === "draft" &&
@@ -444,6 +531,203 @@ export default function LeagueCupManagementPage() {
 
     setSuccessMessage("Cup schedule updated.");
     setUpdatingStageId(null);
+  }
+
+  async function handleSaveFinalsFormat() {
+    if (!cup || !league) {
+      return;
+    }
+
+    if (league.owner_user_id !== currentUserId) {
+      setErrorMessage(
+        "Only the league owner can change the finals format."
+      );
+      return;
+    }
+
+    const doubleChanceCount =
+      finalsFormat === "double_chance"
+        ? 4
+        : 0;
+
+    setSavingFinalsFormat(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const { error } = await supabase.rpc(
+      "update_league_cup_finals_format",
+      {
+        p_cup_id: cup.id,
+        p_finals_format: finalsFormat,
+        p_double_chance_team_count:
+          doubleChanceCount,
+      }
+    );
+
+    if (error) {
+      setErrorMessage(
+        error.message ||
+          "Unable to update the finals format."
+      );
+      setSavingFinalsFormat(false);
+      return;
+    }
+
+    setSuccessMessage("Finals format updated.");
+    setSavingFinalsFormat(false);
+
+    /*
+     * The backend rebuilds the knockout stages when the
+     * finals format changes, so reload the page data to
+     * immediately show the correct finals weeks.
+     */
+    await loadPage();
+  }
+
+  async function handleGenerateFinals() {
+    if (!cup || !league) {
+      return;
+    }
+
+    if (league.owner_user_id !== currentUserId) {
+      setErrorMessage(
+        "Only the league owner can generate the finals."
+      );
+      return;
+    }
+
+    if (!allGroupStagesComplete) {
+      setErrorMessage(
+        "All group-stage matchdays must be complete before the finals can be generated."
+      );
+      return;
+    }
+
+    if (!firstFinalsStage) {
+      setErrorMessage(
+        "No finals stages have been created. Save the finals format first."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      finalsGenerated
+        ? `Regenerate the opening finals matches for "${cup.name}"?`
+        : `Generate the finals for "${cup.name}"?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setGeneratingFinals(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const { error } = await supabase.rpc(
+      "generate_league_cup_first_finals",
+      {
+        p_cup_id: cup.id,
+      }
+    );
+
+    if (error) {
+      setErrorMessage(
+        error.message ||
+          "Unable to generate the League Cup finals."
+      );
+      setGeneratingFinals(false);
+      return;
+    }
+
+    setSuccessMessage(
+      finalsGenerated
+        ? "Opening finals matches regenerated."
+        : "League Cup finals generated."
+    );
+
+    setGeneratingFinals(false);
+    await loadPage();
+  }
+
+  async function handleScoreAndProgressFinals(
+    stage: Stage
+  ) {
+    if (!cup || !league) {
+      return;
+    }
+
+    if (league.owner_user_id !== currentUserId) {
+      setErrorMessage(
+        "Only the league owner can score and progress the finals."
+      );
+      return;
+    }
+
+    if (!stage.round_id) {
+      setErrorMessage(
+        `Assign a Racecourse Fantasy round to ${stage.stage_name} before scoring it.`
+      );
+      return;
+    }
+
+    const stageMatches =
+      (cupData?.matches ?? []).filter(
+        (match) => match.stage_id === stage.id
+      );
+
+    if (stageMatches.length === 0) {
+      setErrorMessage(
+        stage === firstFinalsStage
+          ? "Generate the finals before scoring the opening finals week."
+          : `${stage.stage_name} has not been generated yet. Complete the previous finals week first.`
+      );
+      return;
+    }
+
+    const isFinal =
+      stage.stage_name === "Final" ||
+      stage.knockout_team_count === 2;
+
+    const confirmed = window.confirm(
+      isFinal
+        ? `Score the Final for "${cup.name}" and complete the Cup?`
+        : `Score ${stage.stage_name} and generate the next finals week?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setScoringFinalsStageId(stage.id);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const { error } = await supabase.rpc(
+      "score_and_progress_league_cup_finals",
+      {
+        p_cup_id: cup.id,
+        p_stage_id: stage.id,
+      }
+    );
+
+    if (error) {
+      setErrorMessage(
+        error.message ||
+          `Unable to score ${stage.stage_name}.`
+      );
+      setScoringFinalsStageId(null);
+      return;
+    }
+
+    setSuccessMessage(
+      isFinal
+        ? "Final scored. League Cup completed."
+        : `${stage.stage_name} scored and the next finals week generated.`
+    );
+
+    setScoringFinalsStageId(null);
+    await loadPage();
   }
 
   async function handleGenerateFixtures() {
@@ -584,6 +868,58 @@ export default function LeagueCupManagementPage() {
 
     setPublishingCup(false);
     await loadPage();
+  }
+
+  async function handleDeleteCup() {
+    if (!cup || !league) {
+      return;
+    }
+
+    if (league.owner_user_id !== currentUserId) {
+      setErrorMessage(
+        "Only the league owner can delete this League Cup."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete "${cup.name}"?\n\nThis will permanently delete the League Cup, including its participants, groups, fixtures, stages and results. This cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const typedConfirmation = window.prompt(
+      `Type DELETE to permanently delete "${cup.name}".`
+    );
+
+    if (typedConfirmation !== "DELETE") {
+      return;
+    }
+
+    setDeletingCup(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const { error } = await supabase.rpc(
+      "admin_delete_cup",
+      {
+        p_cup_id: cup.id,
+      }
+    );
+
+    if (error) {
+      setErrorMessage(
+        error.message ||
+          "Unable to delete the League Cup."
+      );
+      setDeletingCup(false);
+      return;
+    }
+
+    router.push("/leagues");
+    router.refresh();
   }
 
   if (loading) {
@@ -735,6 +1071,157 @@ export default function LeagueCupManagementPage() {
 
         <section className="mt-5 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
           <div className="flex items-center gap-3 border-b border-slate-200 p-4 sm:p-5">
+            <Trophy className="h-5 w-5 text-purple-700" />
+
+            <div>
+              <h2 className="font-black text-slate-950">
+                Finals Format
+              </h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Choose how teams progress once the group stage is complete.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-5">
+            <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
+              <div>
+                <label
+                  htmlFor="finals-format"
+                  className="block text-sm font-black text-slate-800"
+                >
+                  Format
+                </label>
+
+                <select
+                  id="finals-format"
+                  value={finalsFormat}
+                  onChange={(event) => {
+                    const nextFormat =
+                      event.target.value as FinalsFormat;
+
+                    setFinalsFormat(nextFormat);
+
+                    if (
+                      nextFormat === "double_chance"
+                    ) {
+                      setDoubleChanceTeamCount(4);
+                    }
+                  }}
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                >
+                  <option value="straight_knockout">
+                    Straight Knockout
+                  </option>
+
+                  <option value="seeded_byes">
+                    Higher Seeds Get a Bye
+                  </option>
+
+                  <option value="double_chance">
+                    Double Chance
+                  </option>
+                </select>
+
+                {finalsFormat === "double_chance" && (
+                  <div className="mt-4 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                    <p className="text-xs font-black uppercase tracking-wide text-purple-700">
+                      Double-chance positions
+                    </p>
+
+                    <p className="mt-1 text-sm font-bold text-purple-950">
+                      1st–2nd in each group
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-purple-700">
+                      3rd–4th enter the elimination path.
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleSaveFinalsFormat()
+                  }
+                  disabled={savingFinalsFormat}
+                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg bg-purple-700 px-4 py-2.5 text-sm font-black text-white transition hover:bg-purple-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingFinalsFormat ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4" />
+                  )}
+
+                  {savingFinalsFormat
+                    ? "Saving..."
+                    : "Save Finals Format"}
+                </button>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-4 sm:p-5">
+                {finalsFormat ===
+                "straight_knockout" ? (
+                  <>
+                    <p className="font-black text-slate-950">
+                      Straight Knockout
+                    </p>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      All {knockoutTeamCount} qualifiers enter a normal knockout bracket. One loss eliminates a team.
+                    </p>
+                  </>
+                ) : finalsFormat ===
+                  "seeded_byes" ? (
+                  <>
+                    <p className="font-black text-slate-950">
+                      Higher Seeds Get a Bye
+                    </p>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      Higher-ranked qualifiers can skip the opening finals round while lower-ranked qualifiers play an elimination round.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-black text-slate-950">
+                      Double Chance
+                    </p>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      In the 2-group, 8-team format, teams finishing 1st or 2nd receive a double chance. Teams finishing 3rd or 4th play elimination finals.
+                    </p>
+
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                        Finals path
+                      </p>
+
+                      <div className="mt-3 space-y-2 text-sm font-semibold text-slate-700">
+                        <p>Week 1: 1A v 2B, 1B v 2A, 3A v 4B, 3B v 4A</p>
+                        <p>Week 2: QF losers v elimination-final winners</p>
+                        <p>Week 3: QF winners return against Week 2 winners</p>
+                        <p>Week 4: Final</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                    Finals field
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-slate-800">
+                    {knockoutTeamCount} teams
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-5 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
+          <div className="flex items-center gap-3 border-b border-slate-200 p-4 sm:p-5">
             <Trophy className="h-5 w-5 text-teal-700" />
             <div>
               <h2 className="font-black text-slate-950">
@@ -803,6 +1290,31 @@ export default function LeagueCupManagementPage() {
               </button>
             )}
 
+            {allGroupStagesComplete &&
+              firstFinalsStage &&
+              cupData.cup.status !== "completed" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleGenerateFinals()
+                  }
+                  disabled={generatingFinals}
+                  className="inline-flex items-center gap-2 rounded-lg bg-purple-700 px-4 py-2.5 text-sm font-black text-white transition hover:bg-purple-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {generatingFinals ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trophy className="h-4 w-4" />
+                  )}
+
+                  {generatingFinals
+                    ? "Generating Finals..."
+                    : finalsGenerated
+                      ? "Regenerate Opening Finals"
+                      : "Generate Finals"}
+                </button>
+              )}
+
             {cupData.cup.status === "draft" && (
               <button
                 type="button"
@@ -844,7 +1356,7 @@ export default function LeagueCupManagementPage() {
                 Cup Schedule
               </h2>
               <p className="mt-0.5 text-sm text-slate-500">
-                Assign the Racecourse Fantasy round used for each Cup stage.
+                Assign the Racecourse Fantasy round used for each Cup stage. Finals stages can then be scored and progressed directly here.
               </p>
             </div>
           </div>
@@ -892,7 +1404,7 @@ export default function LeagueCupManagementPage() {
                     </p>
                   </div>
 
-                  <div>
+                  <div className="flex flex-col gap-2">
                     <select
                       value={stage.round_id ?? ""}
                       onChange={(event) =>
@@ -930,11 +1442,94 @@ export default function LeagueCupManagementPage() {
                         );
                       })}
                     </select>
+
+                    {stage.stage_type === "knockout" &&
+                      !stage.is_complete && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleScoreAndProgressFinals(
+                              stage
+                            )
+                          }
+                          disabled={
+                            scoringFinalsStageId ===
+                              stage.id ||
+                            !stage.round_id ||
+                            (cupData?.matches ?? []).filter(
+                              (match) =>
+                                match.stage_id ===
+                                stage.id
+                            ).length === 0
+                          }
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-950 px-3 py-2.5 text-sm font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {scoringFinalsStageId ===
+                          stage.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+
+                          {scoringFinalsStageId ===
+                          stage.id
+                            ? "Scoring..."
+                            : stage.stage_name ===
+                                  "Final" ||
+                                stage.knockout_team_count ===
+                                  2
+                              ? "Score Final"
+                              : "Score & Progress"}
+                        </button>
+                      )}
                   </div>
                 </div>
               ))}
             </div>
           )}
+        </section>
+
+        <section className="mt-5 overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 border-b border-red-100 bg-red-50 p-4 sm:p-5">
+            <Trash2 className="h-5 w-5 text-red-700" />
+
+            <div>
+              <h2 className="font-black text-red-950">
+                Danger Zone
+              </h2>
+              <p className="mt-0.5 text-sm text-red-700">
+                Permanently remove this League Cup and all of its Cup data.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div>
+              <p className="font-black text-slate-950">
+                Delete League Cup
+              </p>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                This deletes the Cup, groups, fixtures, stages, participants and results. The private league itself is not deleted.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleDeleteCup()}
+              disabled={deletingCup}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-black text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deletingCup ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+
+              {deletingCup
+                ? "Deleting..."
+                : "Delete League Cup"}
+            </button>
+          </div>
         </section>
 
         <section className="mt-5 grid gap-4 md:grid-cols-2">
