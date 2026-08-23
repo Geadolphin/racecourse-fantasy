@@ -33,6 +33,7 @@ type ComparisonSelection = {
   race_entry_id: string;
   horse_id: string;
   horse_name: string;
+  silks_url?: string | null;
   is_captain: boolean;
   selected_price: number;
   fantasy_points: number;
@@ -174,9 +175,49 @@ export default function CompareTeamsPage() {
   const [loadingComparison, setLoadingComparison] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [showHorseSilks, setShowHorseSilks] = useState(true);
   const [entryProjectionData, setEntryProjectionData] = useState<
     Record<string, { projected_points: number | null; has_official_result: boolean }>
   >({});
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSiteSettings() {
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) {
+        return;
+      }
+
+      if (error) {
+        console.error(
+          "Compare teams site settings load error:",
+          error
+        );
+        return;
+      }
+
+      const settings =
+        data && typeof data === "object"
+          ? (data as {
+              show_horse_silks?: boolean;
+            })
+          : null;
+
+      setShowHorseSilks(
+        settings?.show_horse_silks !== false
+      );
+    }
+
+    void loadSiteSettings();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -357,6 +398,102 @@ export default function CompareTeamsPage() {
       active = false;
     };
   }, [selectedOpponentUserId, selectedRoundId]);
+
+  useEffect(() => {
+    if (!showHorseSilks || !comparisonData) {
+      return;
+    }
+
+    const selections = [
+      ...(comparisonData.my_team?.selections ?? []),
+      ...(comparisonData.opponent_team?.selections ?? []),
+    ];
+
+    const horseIds = [
+      ...new Set(
+        selections
+          .map((selection) => selection.horse_id)
+          .filter(Boolean)
+      ),
+    ];
+
+    if (horseIds.length === 0) {
+      return;
+    }
+
+    let active = true;
+
+    async function loadHorseSilks() {
+      const { data, error } = await supabase
+        .from("horses")
+        .select("id, silks_url")
+        .in("id", horseIds);
+
+      if (!active) {
+        return;
+      }
+
+      if (error) {
+        console.error(
+          "Compare teams horse silks load error:",
+          error
+        );
+        return;
+      }
+
+      const silksByHorseId = new Map(
+        (data ?? []).map((horse: any) => [
+          String(horse.id),
+          horse.silks_url ?? null,
+        ])
+      );
+
+      setComparisonData((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const hydrateSelections = (
+          rows: ComparisonSelection[] | undefined
+        ) =>
+          (rows ?? []).map((selection) => ({
+            ...selection,
+            silks_url:
+              silksByHorseId.get(selection.horse_id) ?? null,
+          }));
+
+        return {
+          ...current,
+          my_team: current.my_team
+            ? {
+                ...current.my_team,
+                selections: hydrateSelections(
+                  current.my_team.selections
+                ),
+              }
+            : null,
+          opponent_team: current.opponent_team
+            ? {
+                ...current.opponent_team,
+                selections: hydrateSelections(
+                  current.opponent_team.selections
+                ),
+              }
+            : null,
+        };
+      });
+    }
+
+    void loadHorseSilks();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    showHorseSilks,
+    comparisonData?.my_team?.id,
+    comparisonData?.opponent_team?.id,
+  ]);
 
   useEffect(() => {
     const entryIds = [
@@ -610,18 +747,18 @@ export default function CompareTeamsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
+    <main className="min-h-screen bg-slate-100 p-3 md:p-5">
       <div className="mx-auto max-w-7xl">
-        <header className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm md:p-8">
+        <header className="rounded-xl bg-slate-900 p-4 text-white shadow-sm md:p-5">
           <p className="text-sm font-semibold uppercase tracking-wider text-teal-300">
             Head-to-head
           </p>
 
-          <h1 className="mt-2 text-3xl font-bold md:text-4xl">
+          <h1 className="mt-1 text-2xl font-bold md:text-3xl">
             Compare Teams
           </h1>
 
-          <p className="mt-2 max-w-2xl text-slate-300">
+          <p className="mt-1 max-w-2xl text-sm text-slate-300">
             Compare your selections against another manager after
             round lockout.
           </p>
@@ -633,8 +770,8 @@ export default function CompareTeamsPage() {
           </div>
         )}
 
-        <section className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-2">
+        <section className="mt-4 rounded-xl border bg-white p-4 shadow-sm">
+          <div className="grid gap-3 md:grid-cols-2">
             <div>
               <label
                 htmlFor="comparison-round"
@@ -650,7 +787,7 @@ export default function CompareTeamsPage() {
                   setSelectedRoundId(event.target.value)
                 }
                 disabled={rounds.length === 0}
-                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-700 disabled:cursor-not-allowed disabled:bg-slate-100"
               >
                 {rounds.length === 0 ? (
                   <option value="">
@@ -717,7 +854,7 @@ export default function CompareTeamsPage() {
                     availableTeams.length === 0
                   }
                   autoComplete="off"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 pr-24 text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-20 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
                 />
 
                 {opponentSearch.trim() && (
@@ -821,7 +958,7 @@ export default function CompareTeamsPage() {
                   !comparisonData?.locked ||
                   availableTeams.length === 0
                 }
-                className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
               >
                 <option value="">
                   {loadingComparison
@@ -845,7 +982,7 @@ export default function CompareTeamsPage() {
               </select>
 
               {selectedOpponent && (
-                <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3">
+                <div className="mt-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2">
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-[11px] font-black uppercase tracking-wide text-teal-700">
@@ -875,7 +1012,7 @@ export default function CompareTeamsPage() {
           </div>
 
           {comparisonData?.round && (
-            <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-600">
+            <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600">
               <span>
                 Round {comparisonData.round.round_number}
               </span>
@@ -962,14 +1099,14 @@ export default function CompareTeamsPage() {
 
         {!loadingComparison && myTeam && opponentTeam && (
           <>
-            <section className="mt-6 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white shadow-lg">
-              <div className="border-b border-slate-800 px-5 py-4 sm:px-6">
+            <section className="mt-4 overflow-hidden rounded-xl border border-slate-800 bg-slate-950 text-white shadow-lg">
+              <div className="border-b border-slate-800 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.2em] text-teal-300">
                       Official Head-to-Head
                     </p>
-                    <h2 className="mt-1 text-xl font-black sm:text-2xl">
+                    <h2 className="mt-0.5 text-lg font-black sm:text-xl">
                       Round {comparisonData?.round?.round_number ?? "—"}
                       {comparisonData?.round?.name
                         ? ` · ${comparisonData.round.name}`
@@ -984,16 +1121,16 @@ export default function CompareTeamsPage() {
               </div>
 
               <div className="grid lg:grid-cols-[1fr_auto_1fr]">
-                <div className="p-5 sm:p-6 lg:text-right">
+                <div className="p-4 lg:text-right">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
                     Your Team
                   </p>
 
-                  <h3 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
+                  <h3 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">
                     {myTeam.team_name?.trim() || "My Team"}
                   </h3>
 
-                  <div className="mt-4 flex flex-wrap gap-2 lg:justify-end">
+                  <div className="mt-2 flex flex-wrap gap-1.5 lg:justify-end">
                     <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">
                       Rank {getRankDisplay(myTeam.score?.round_rank)}
                     </span>
@@ -1003,14 +1140,14 @@ export default function CompareTeamsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-center border-y border-slate-800 bg-slate-900 px-6 py-6 lg:border-x lg:border-y-0">
+                <div className="flex items-center justify-center border-y border-slate-800 bg-slate-900 px-4 py-4 lg:border-x lg:border-y-0">
                   <div className="text-center">
                     <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                       Current Score
                     </p>
 
-                    <div className="mt-2 flex items-center justify-center gap-4">
-                      <span className="text-4xl font-black tabular-nums sm:text-5xl">
+                    <div className="mt-1 flex items-center justify-center gap-3">
+                      <span className="text-3xl font-black tabular-nums sm:text-4xl">
                         {myScore}
                       </span>
 
@@ -1018,23 +1155,23 @@ export default function CompareTeamsPage() {
                         vs
                       </span>
 
-                      <span className="text-4xl font-black tabular-nums sm:text-5xl">
+                      <span className="text-3xl font-black tabular-nums sm:text-4xl">
                         {opponentScore}
                       </span>
                     </div>
 
-                    <p className="mt-3 text-xs font-semibold text-slate-400">
+                    <p className="mt-1.5 text-[11px] font-semibold text-slate-400">
                       Projected {myProjectedScore} – {opponentProjectedScore}
                     </p>
                   </div>
                 </div>
 
-                <div className="p-5 sm:p-6">
+                <div className="p-4">
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
                     Opponent
                   </p>
 
-                  <h3 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">
+                  <h3 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">
                     {selectedOpponent?.display_name?.trim() ||
                       opponentTeam.team_name?.trim() ||
                       "Opponent"}
@@ -1052,8 +1189,8 @@ export default function CompareTeamsPage() {
               </div>
             </section>
 
-            <section className="mt-4 grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-4">
-              <div className="border-b border-slate-200 p-5 sm:border-b-0 sm:border-r">
+            <section className="mt-3 grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-4">
+              <div className="border-b border-slate-200 p-4 sm:border-b-0 sm:border-r">
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                   Shared Horses
                 </p>
@@ -1062,7 +1199,7 @@ export default function CompareTeamsPage() {
                 </p>
               </div>
 
-              <div className="border-b border-slate-200 p-5 xl:border-b-0 xl:border-r">
+              <div className="border-b border-slate-200 p-4 xl:border-b-0 xl:border-r">
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                   Captains
                 </p>
@@ -1092,7 +1229,7 @@ export default function CompareTeamsPage() {
                 </div>
               </div>
 
-              <div className="border-b border-slate-200 p-5 sm:border-b-0 sm:border-r">
+              <div className="border-b border-slate-200 p-4 sm:border-b-0 sm:border-r">
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                   Score Margin
                 </p>
@@ -1110,7 +1247,7 @@ export default function CompareTeamsPage() {
                 </p>
               </div>
 
-              <div className="p-5">
+              <div className="p-4">
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
                   Salary Margin
                 </p>
@@ -1120,13 +1257,13 @@ export default function CompareTeamsPage() {
               </div>
             </section>
 
-            <section className="mt-8">
-              <div className="mb-4 flex flex-col gap-3 border-b border-slate-300 pb-4 sm:flex-row sm:items-end sm:justify-between">
+            <section className="mt-5">
+              <div className="mb-3 flex flex-col gap-2 border-b border-slate-300 pb-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">
                     Team Sheets
                   </p>
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  <h2 className="mt-0.5 text-xl font-black text-slate-950">
                     Horse-by-Horse Comparison
                   </h2>
                 </div>
@@ -1147,20 +1284,20 @@ export default function CompareTeamsPage() {
                 </div>
               </div>
 
-              <div className="space-y-5">
+              <div className="space-y-3">
                 {raceGroups.map((group) => (
                   <article
                     key={group.race_id}
-                    className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm"
+                    className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm"
                   >
-                    <div className="border-b border-slate-800 bg-slate-950 px-5 py-4 text-white">
+                    <div className="border-b border-slate-800 bg-slate-950 px-4 py-2.5 text-white">
                       <div className="flex flex-wrap items-end justify-between gap-3">
                         <div>
                           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-teal-300">
                             {group.racecourse_name ?? "Racecourse"} · Race {group.race_number}
                           </p>
 
-                          <h3 className="mt-1 text-xl font-black">
+                          <h3 className="mt-0.5 text-lg font-black">
                             {group.race_name}
                           </h3>
                         </div>
@@ -1172,8 +1309,8 @@ export default function CompareTeamsPage() {
                     </div>
 
                     <div className="grid lg:grid-cols-2">
-                      <div className="border-b border-slate-200 p-5 lg:border-b-0 lg:border-r">
-                        <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="border-b border-slate-200 p-3.5 lg:border-b-0 lg:border-r">
+                        <div className="mb-2 flex items-center justify-between gap-3">
                           <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">
                             Your Team Sheet
                           </p>
@@ -1187,7 +1324,7 @@ export default function CompareTeamsPage() {
                             No selection in this race.
                           </p>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             {group.mySelections.map((selection) => {
                               const shared = sharedHorseIds.has(
                                 selection.horse_id
@@ -1199,99 +1336,25 @@ export default function CompareTeamsPage() {
                               return (
                                 <div
                                   key={selection.race_entry_id}
-                                  className={`rounded-xl border px-4 py-3 ${
+                                  className={`rounded-lg border px-3 py-2 ${
                                     shared
                                       ? "border-emerald-200 bg-emerald-50"
                                       : "border-blue-200 bg-blue-50"
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-4">
-                                    <div className="min-w-0">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <Link
-                                          href={`/horses/${selection.horse_id}`}
-                                          className="truncate font-black text-slate-900 transition hover:text-teal-700"
-                                        >
-                                          {selection.horse_name}
-                                        </Link>
-
-                                        {selection.is_captain && (
-                                          <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-900">
-                                            Captain
-                                          </span>
+                                    <div className="flex min-w-0 items-stretch gap-2.5">
+                                      {showHorseSilks &&
+                                        selection.silks_url && (
+                                          <div className="flex w-10 shrink-0 items-center justify-center self-stretch">
+                                            <img
+                                              src={selection.silks_url}
+                                              alt={`${selection.horse_name} silks`}
+                                              className="h-full max-h-12 w-full object-contain"
+                                            />
+                                          </div>
                                         )}
 
-                                        {shared && (
-                                          <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-900">
-                                            Shared
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      <p className="mt-1 text-xs font-semibold text-slate-500">
-                                        {formatCurrency(
-                                          selection.selected_price
-                                        )}
-                                      </p>
-                                    </div>
-
-                                    <div className="shrink-0 text-right">
-                                      <p
-                                        className={`text-xl font-black tabular-nums ${
-                                          displayed.projected
-                                            ? "text-amber-700"
-                                            : "text-slate-950"
-                                        }`}
-                                      >
-                                        {displayed.points ?? "—"}
-                                      </p>
-                                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                                        {displayed.label}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="p-5">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">
-                            Opponent Team Sheet
-                          </p>
-                          <span className="text-xs font-bold text-slate-400">
-                            {group.opponentSelections.length} selected
-                          </span>
-                        </div>
-
-                        {group.opponentSelections.length === 0 ? (
-                          <p className="rounded-xl bg-slate-100 p-4 text-sm text-slate-500">
-                            No selection in this race.
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {group.opponentSelections.map(
-                              (selection) => {
-                                const shared = sharedHorseIds.has(
-                                  selection.horse_id
-                                );
-
-                                const displayed =
-                                  getSelectionDisplay(selection);
-
-                                return (
-                                  <div
-                                    key={selection.race_entry_id}
-                                    className={`rounded-xl border px-4 py-3 ${
-                                      shared
-                                        ? "border-emerald-200 bg-emerald-50"
-                                        : "border-orange-200 bg-orange-50"
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between gap-4">
                                       <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                           <Link
@@ -1314,16 +1377,116 @@ export default function CompareTeamsPage() {
                                           )}
                                         </div>
 
-                                        <p className="mt-1 text-xs font-semibold text-slate-500">
+                                        <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
                                           {formatCurrency(
                                             selection.selected_price
                                           )}
                                         </p>
                                       </div>
+                                    </div>
+
+                                    <div className="shrink-0 text-right">
+                                      <p
+                                        className={`text-lg font-black tabular-nums ${
+                                          displayed.projected
+                                            ? "text-amber-700"
+                                            : "text-slate-950"
+                                        }`}
+                                      >
+                                        {displayed.points ?? "—"}
+                                      </p>
+                                      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                        {displayed.label}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-4">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <p className="text-xs font-black uppercase tracking-[0.16em] text-orange-700">
+                            Opponent Team Sheet
+                          </p>
+                          <span className="text-xs font-bold text-slate-400">
+                            {group.opponentSelections.length} selected
+                          </span>
+                        </div>
+
+                        {group.opponentSelections.length === 0 ? (
+                          <p className="rounded-xl bg-slate-100 p-4 text-sm text-slate-500">
+                            No selection in this race.
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {group.opponentSelections.map(
+                              (selection) => {
+                                const shared = sharedHorseIds.has(
+                                  selection.horse_id
+                                );
+
+                                const displayed =
+                                  getSelectionDisplay(selection);
+
+                                return (
+                                  <div
+                                    key={selection.race_entry_id}
+                                    className={`rounded-lg border px-3 py-2 ${
+                                      shared
+                                        ? "border-emerald-200 bg-emerald-50"
+                                        : "border-orange-200 bg-orange-50"
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div className="flex min-w-0 items-stretch gap-2.5">
+                                        {showHorseSilks &&
+                                          selection.silks_url && (
+                                            <div className="flex w-10 shrink-0 items-center justify-center self-stretch">
+                                              <img
+                                                src={selection.silks_url}
+                                                alt={`${selection.horse_name} silks`}
+                                                className="h-full max-h-12 w-full object-contain"
+                                              />
+                                            </div>
+                                          )}
+
+                                        <div className="min-w-0">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <Link
+                                              href={`/horses/${selection.horse_id}`}
+                                              className="truncate font-black text-slate-900 transition hover:text-teal-700"
+                                            >
+                                              {selection.horse_name}
+                                            </Link>
+
+                                            {selection.is_captain && (
+                                              <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-900">
+                                                Captain
+                                              </span>
+                                            )}
+
+                                            {shared && (
+                                              <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-emerald-900">
+                                                Shared
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                                            {formatCurrency(
+                                              selection.selected_price
+                                            )}
+                                          </p>
+                                        </div>
+                                      </div>
 
                                       <div className="shrink-0 text-right">
                                         <p
-                                          className={`text-xl font-black tabular-nums ${
+                                          className={`text-lg font-black tabular-nums ${
                                             displayed.projected
                                               ? "text-amber-700"
                                               : "text-slate-950"
