@@ -1676,7 +1676,7 @@ export default function MyTeamPage() {
                         return (
                           <div
                             key={selection.id}
-                            className={`grid min-h-[92px] grid-cols-[minmax(0,1fr)_68px] items-center gap-2 rounded-lg border px-3 py-2 ${
+                            className={`grid min-h-[96px] grid-cols-[minmax(0,1fr)_58px] items-center gap-2 rounded-lg border px-3 py-2 ${
                               isScratched
                                 ? "border-red-300 bg-red-50"
                                 : selection.is_captain
@@ -1688,18 +1688,18 @@ export default function MyTeamPage() {
                               {showHorseSilks &&
                                 horse?.id &&
                                 horseSilks[horse.id] && (
-                                  <div className="flex w-9 shrink-0 items-center justify-center self-stretch">
+                                  <div className="flex w-8 shrink-0 items-center justify-center self-stretch">
                                     <img
                                       src={horseSilks[horse.id] ?? ""}
                                       alt={`${horse.name} silks`}
-                                      className="h-full max-h-[72px] w-full object-contain"
+                                      className="h-full max-h-[70px] w-full object-contain"
                                     />
                                   </div>
                                 )}
 
                               <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <p className="truncate text-[17px] font-black leading-tight text-slate-950">
+                                <div className="flex min-w-0 flex-wrap items-start gap-1.5">
+                                  <p className="max-w-full whitespace-normal break-words text-[15px] font-black leading-[1.05] text-slate-950">
                                     {horse?.name ?? "Unknown horse"}
                                   </p>
 
