@@ -459,6 +459,42 @@ export default function MyTeamPage() {
     Date.now()
   );
 
+  const [showHorseSilks, setShowHorseSilks] = useState(true);
+  const [horseSilks, setHorseSilks] = useState<Record<string, string | null>>(
+    {}
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSilkSetting() {
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Horse silks setting load error:", error);
+        setShowHorseSilks(true);
+        return;
+      }
+
+      const settings =
+        data && typeof data === "object"
+          ? (data as { show_horse_silks?: boolean })
+          : null;
+
+      setShowHorseSilks(settings?.show_horse_silks !== false);
+    }
+
+    void loadSilkSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const loadTeam = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
@@ -548,6 +584,60 @@ export default function MyTeamPage() {
   useEffect(() => {
     void loadTeam();
   }, [loadTeam]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHorseSilks() {
+      if (!showHorseSilks || selections.length === 0) {
+        setHorseSilks({});
+        return;
+      }
+
+      const horseIds = Array.from(
+        new Set(
+          selections
+            .map((selection) => selection.race_entry?.horse?.id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+
+      if (horseIds.length === 0) {
+        setHorseSilks({});
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("horses")
+        .select("id, silks_url")
+        .in("id", horseIds);
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Horse silks load error:", error);
+        setHorseSilks({});
+        return;
+      }
+
+      const silkMap: Record<string, string | null> = {};
+
+      for (const row of data ?? []) {
+        silkMap[String(row.id)] =
+          typeof row.silks_url === "string" && row.silks_url.trim()
+            ? row.silks_url
+            : null;
+      }
+
+      setHorseSilks(silkMap);
+    }
+
+    void loadHorseSilks();
+
+    return () => {
+      active = false;
+    };
+  }, [selections, showHorseSilks]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -1029,7 +1119,7 @@ export default function MyTeamPage() {
                   No horses have been selected.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {sortedSelections.map((selection) => {
                     const entry = selection.race_entry;
                     const horse = entry?.horse;
@@ -1064,7 +1154,7 @@ export default function MyTeamPage() {
                             setSelectedHorseId(horse.id);
                           }
                         }}
-                        className={`cursor-pointer overflow-hidden rounded-xl border px-4 py-3.5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                        className={`cursor-pointer overflow-hidden rounded-xl border px-3 py-2.5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                           isScratched
                             ? "border-red-300 bg-red-50 hover:border-red-400 focus:ring-red-500"
                             : selection.is_captain
@@ -1073,10 +1163,23 @@ export default function MyTeamPage() {
                         }`}
                         aria-label={horse ? `View statistics for ${horse.name}` : "Horse statistics unavailable"}
                       >
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-                          <div className="min-w-0">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                          <div className="flex min-w-0 items-stretch gap-2.5">
+                            {showHorseSilks &&
+                              horse?.id &&
+                              horseSilks[horse.id] && (
+                                <div className="flex w-10 shrink-0 items-center justify-center self-stretch">
+                                  <img
+                                    src={horseSilks[horse.id] ?? ""}
+                                    alt={`${horse.name} silks`}
+                                    className="h-full max-h-16 w-full object-contain"
+                                  />
+                                </div>
+                              )}
+
+                            <div className="min-w-0">
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
-                              <h3 className="truncate text-base font-bold text-slate-950 md:text-xl">
+                              <h3 className="truncate text-base font-bold leading-tight text-slate-950 md:text-lg">
                                 {horse?.name ?? "Unknown horse"}
                               </h3>
 
@@ -1088,7 +1191,7 @@ export default function MyTeamPage() {
 
                             </div>
 
-                            <div className="mt-2 space-y-2">
+                            <div className="mt-1.5 space-y-1">
                               {activeNominations.length > 0 ? (
                                 activeNominations.map((nomination) => {
                                   const nominationRace = nomination.race;
@@ -1100,7 +1203,7 @@ export default function MyTeamPage() {
                                   return (
                                     <div key={nomination.id} className="min-w-0">
                                       <div className="flex min-w-0 items-center gap-2">
-                                        <p className="truncate text-sm font-semibold text-slate-800">
+                                        <p className="truncate text-xs font-semibold text-slate-800">
                                           R{nominationRace.race_number} • {nominationRace.race_name}
                                         </p>
 
@@ -1113,7 +1216,7 @@ export default function MyTeamPage() {
                                         </span>
                                       </div>
 
-                                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-600">
+                                      <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium text-slate-600">
                                         {nominationRace.racecourse && (
                                           <span>{nominationRace.racecourse.name}</span>
                                         )}
@@ -1153,7 +1256,7 @@ export default function MyTeamPage() {
                                     </span>
                                   </div>
 
-                                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-600">
+                                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium text-slate-600">
                                     {race.racecourse && (
                                       <span>{race.racecourse.name}</span>
                                     )}
@@ -1177,9 +1280,10 @@ export default function MyTeamPage() {
                                 </p>
                               )}
                             </div>
+                            </div>
                           </div>
 
-                          <div className="flex min-w-[108px] flex-col items-end">
+                          <div className="flex min-w-[92px] flex-col items-end">
                             <Icon
                               name="chevron"
                               className="mb-1 hidden h-4 w-4 text-slate-300 sm:block"
@@ -1202,7 +1306,7 @@ export default function MyTeamPage() {
                                   </>
                                 ) : (
                                   <>
-                                    <p className="text-2xl font-bold leading-none text-amber-600 sm:text-3xl">
+                                    <p className="text-xl font-bold leading-none text-amber-600 sm:text-2xl">
                                       {displayedProjectedPoints}
                                     </p>
                                     <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -1215,12 +1319,12 @@ export default function MyTeamPage() {
                               </div>
                             ) : (
                               <div className="text-right">
-                                <p className="text-2xl font-bold leading-none text-teal-600 sm:text-3xl">{displayedPoints}</p>
+                                <p className="text-xl font-bold leading-none text-teal-600 sm:text-2xl">{displayedPoints}</p>
                                 <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{selection.is_captain ? "pts · 2×" : "pts"}</p>
                               </div>
                             )}
-                            <div className="mt-3 text-right">
-                              <p className="text-sm font-bold text-slate-950">
+                            <div className="mt-1.5 text-right">
+                              <p className="text-xs font-bold text-slate-950">
                                 {formatCurrency(
                                   roundIsComplete && horse?.id
                                     ? currentHorsePrices[horse.id] ??
@@ -1293,7 +1397,7 @@ export default function MyTeamPage() {
                           className="grid w-full grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500"
                           aria-label={`View race details for ${fixtureRace.race_name}`}
                         >
-                          <p className="text-sm font-bold text-slate-950">
+                          <p className="text-xs font-bold text-slate-950">
                             {formatRaceTime(fixtureRace.scheduled_start)}
                           </p>
 
@@ -1580,7 +1684,19 @@ export default function MyTeamPage() {
                                   : "border-slate-200 bg-white"
                             }`}
                           >
-                            <div className="min-w-0">
+                            <div className="flex min-w-0 items-stretch gap-2">
+                              {showHorseSilks &&
+                                horse?.id &&
+                                horseSilks[horse.id] && (
+                                  <div className="flex w-9 shrink-0 items-center justify-center self-stretch">
+                                    <img
+                                      src={horseSilks[horse.id] ?? ""}
+                                      alt={`${horse.name} silks`}
+                                      className="h-full max-h-[72px] w-full object-contain"
+                                    />
+                                  </div>
+                                )}
+
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <p className="truncate text-[17px] font-black leading-tight text-slate-950">
