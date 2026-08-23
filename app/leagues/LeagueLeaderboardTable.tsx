@@ -9,6 +9,7 @@ export type LeagueLeaderboardRow = {
   user_id: string;
   display_name: string;
   team_name: string;
+  member_name?: string | null;
   score: number;
   rank: number;
   overall_rank?: number | null;
@@ -147,6 +148,9 @@ export default function LeagueLeaderboardTable({
             const isCurrentUser =
               row.user_id === currentUserId;
 
+            const memberName =
+              row.member_name?.trim() || "";
+
             return (
               <tr
                 key={`${row.user_id}-${index}`}
@@ -168,6 +172,12 @@ export default function LeagueLeaderboardTable({
                     >
                       {row.team_name}
                     </Link>
+
+                    {memberName && (
+                      <span className="text-sm font-normal text-slate-500">
+                        ({memberName})
+                      </span>
+                    )}
 
                     {isCurrentUser && (
                       <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-800">
