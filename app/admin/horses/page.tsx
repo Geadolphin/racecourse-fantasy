@@ -23,6 +23,8 @@ export default function HorsesPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingSilksHorseId, setUploadingSilksHorseId] =
     useState<string | null>(null);
+  const [draggingSilksHorseId, setDraggingSilksHorseId] =
+    useState<string | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -238,6 +240,171 @@ export default function HorsesPage() {
     }
   }
 
+  async function uploadSilksFromUrl(
+    horse: Horse,
+    imageUrl: string
+  ) {
+    setErrorMessage("");
+    setUploadingSilksHorseId(horse.id);
+
+    try {
+      const response = await fetch("/api/admin/silks-from-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imageUrl,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result?.error ||
+            "Could not download the dropped image."
+        );
+      }
+
+      if (!result?.dataUrl) {
+        throw new Error(
+          "The image download did not return image data."
+        );
+      }
+
+      const fileResponse = await fetch(result.dataUrl);
+      const blob = await fileResponse.blob();
+
+      const contentType =
+        blob.type || result.contentType || "image/png";
+
+      const extension =
+        contentType === "image/jpeg"
+          ? "jpg"
+          : contentType === "image/webp"
+            ? "webp"
+            : contentType === "image/svg+xml"
+              ? "svg"
+              : "png";
+
+      const file = new File(
+        [blob],
+        `silks.${extension}`,
+        {
+          type: contentType,
+        }
+      );
+
+      await uploadSilks(horse, file);
+    } catch (error) {
+      console.error(
+        "Silks URL upload error:",
+        error
+      );
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not upload the dropped silks image."
+      );
+    } finally {
+      setUploadingSilksHorseId(null);
+      setDraggingSilksHorseId(null);
+    }
+  }
+
+  function getDroppedImageUrl(
+    dataTransfer: DataTransfer
+  ) {
+    const uriList =
+      dataTransfer.getData("text/uri-list");
+
+    if (uriList) {
+      const firstUrl = uriList
+        .split("\n")
+        .map((value) => value.trim())
+        .find(
+          (value) =>
+            value &&
+            !value.startsWith("#")
+        );
+
+      if (firstUrl) {
+        return firstUrl;
+      }
+    }
+
+    const html =
+      dataTransfer.getData("text/html");
+
+    if (html) {
+      const match = html.match(
+        /<img[^>]+src=["']([^"']+)["']/i
+      );
+
+      if (match?.[1]) {
+        return match[1];
+      }
+    }
+
+    const plainText =
+      dataTransfer.getData("text/plain").trim();
+
+    if (
+      plainText.startsWith("http://") ||
+      plainText.startsWith("https://")
+    ) {
+      return plainText;
+    }
+
+    return null;
+  }
+
+  async function handleSilksDrop(
+    event: React.DragEvent<HTMLDivElement>,
+    horse: Horse
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    setDraggingSilksHorseId(null);
+
+    if (uploadingSilksHorseId) {
+      return;
+    }
+
+    const imageFile = Array.from(
+      event.dataTransfer.files
+    ).find((file) =>
+      file.type.startsWith("image/")
+    );
+
+    if (imageFile) {
+      await uploadSilks(
+        horse,
+        imageFile
+      );
+      return;
+    }
+
+    const imageUrl = getDroppedImageUrl(
+      event.dataTransfer
+    );
+
+    if (imageUrl) {
+      await uploadSilksFromUrl(
+        horse,
+        imageUrl
+      );
+      return;
+    }
+
+    setErrorMessage(
+      "Drop an image file or drag an image directly from another website."
+    );
+  }
+
   function formatMoney(amount: number) {
     return new Intl.NumberFormat("en-AU", {
       style: "currency",
@@ -348,10 +515,45 @@ export default function HorsesPage() {
                     </td>
 
                     <td className="px-4 py-4">
-                      {(horse as Horse & {
-                        silks_url?: string | null;
-                      }).silks_url ? (
-                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                      <div
+                        onDragEnter={(event) => {
+                          event.preventDefault();
+                          setDraggingSilksHorseId(horse.id);
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "copy";
+                          setDraggingSilksHorseId(horse.id);
+                        }}
+                        onDragLeave={(event) => {
+                          if (
+                            !event.currentTarget.contains(
+                              event.relatedTarget as Node | null
+                            )
+                          ) {
+                            setDraggingSilksHorseId(null);
+                          }
+                        }}
+                        onDrop={(event) =>
+                          void handleSilksDrop(
+                            event,
+                            horse
+                          )
+                        }
+                        title="Drop a silk image here from your computer or another website"
+                        className={`flex h-16 w-20 items-center justify-center overflow-hidden rounded-lg border-2 transition ${
+                          draggingSilksHorseId === horse.id
+                            ? "border-teal-600 bg-teal-50 ring-2 ring-teal-100"
+                            : "border-dashed border-slate-300 bg-white"
+                        }`}
+                      >
+                        {uploadingSilksHorseId === horse.id ? (
+                          <span className="px-1 text-center text-[9px] font-bold uppercase text-slate-500">
+                            Uploading...
+                          </span>
+                        ) : (horse as Horse & {
+                            silks_url?: string | null;
+                          }).silks_url ? (
                           <img
                             src={
                               (horse as Horse & {
@@ -361,12 +563,12 @@ export default function HorsesPage() {
                             alt={`${horse.name} silks`}
                             className="h-full w-full object-contain p-1"
                           />
-                        </div>
-                      ) : (
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-[10px] font-bold uppercase text-slate-400">
-                          None
-                        </div>
-                      )}
+                        ) : (
+                          <span className="px-1 text-center text-[9px] font-bold uppercase leading-tight text-slate-400">
+                            Drop silks here
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="px-4 py-4 text-sm text-slate-700">
@@ -428,7 +630,7 @@ export default function HorsesPage() {
                                   silks_url?: string | null;
                                 }).silks_url
                               ? "Change Silks"
-                              : "Add Silks"}
+                              : "Upload Silks"}
 
                           <input
                             type="file"
