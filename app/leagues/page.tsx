@@ -1,7 +1,8 @@
 "use client";
 
-import { Copy, Crown, Pencil, Plus, Trash2, UserMinus, Users, LogOut, Trophy, ShieldCheck, CalendarDays, KeyRound, X } from "lucide-react";
+import { Copy, Crown, Pencil, Plus, Trash2, UserMinus, Users, LogOut, Trophy, ShieldCheck, CalendarDays, KeyRound, X, Swords } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { supabase } from "@/lib/supabase";
 
@@ -65,6 +66,27 @@ type PrivateLeaguesData = {
     season_leaderboard: LeagueLeaderboardRow[];
 };
 
+type LeagueCup = {
+    id: string;
+    league_id: string;
+    season_id: string;
+    name: string;
+    status: string;
+    competing_teams: number;
+    group_count: number;
+    teams_per_group: number;
+    automatic_qualifiers_per_group: number;
+    additional_qualifier_position: number | null;
+    additional_qualifier_count: number;
+    created_at: string;
+};
+
+type LeagueCupForm = {
+    name: string;
+    groupCount: number;
+    automaticQualifiers: number;
+};
+
 type ModalType = "create" | "join" | "rename" | null;
 
 export default function PrivateLeaguesPage() {
@@ -88,6 +110,16 @@ export default function PrivateLeaguesPage() {
 
     const [error, setError] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
+
+    const [leagueCups, setLeagueCups] = useState<LeagueCup[]>([]);
+    const [leagueCupsLoading, setLeagueCupsLoading] = useState(false);
+    const [leagueCupModalOpen, setLeagueCupModalOpen] = useState(false);
+    const [leagueCupSaving, setLeagueCupSaving] = useState(false);
+    const [leagueCupForm, setLeagueCupForm] = useState<LeagueCupForm>({
+        name: "",
+        groupCount: 1,
+        automaticQualifiers: 2,
+    });
 
     const loadLeagueData = useCallback(
         async ({
@@ -403,6 +435,47 @@ export default function PrivateLeaguesPage() {
             ? data?.round_leaderboard ?? []
             : data?.season_leaderboard ?? [];
 
+    const loadLeagueCups = useCallback(async (leagueId: string) => {
+        if (!leagueId) {
+            setLeagueCups([]);
+            return;
+        }
+
+        setLeagueCupsLoading(true);
+
+        const { data: cupsRaw, error: cupsError } = await supabase.rpc(
+            "get_league_cups",
+            { p_league_id: leagueId }
+        );
+
+        if (cupsError) {
+            console.error("League Cups error:", cupsError);
+            setLeagueCups([]);
+            setLeagueCupsLoading(false);
+            return;
+        }
+
+        const result = cupsRaw as {
+            success: boolean;
+            league_id: string;
+            cups: LeagueCup[];
+        };
+
+        setLeagueCups(result?.cups ?? []);
+        setLeagueCupsLoading(false);
+    }, []);
+
+    useEffect(() => {
+        const leagueId = data?.selected_league?.id ?? "";
+
+        if (!leagueId) {
+            setLeagueCups([]);
+            return;
+        }
+
+        void loadLeagueCups(leagueId);
+    }, [data?.selected_league?.id, loadLeagueCups]);
+
     async function changeSeason(seasonId: string) {
         setSelectedSeasonId(seasonId);
         setSelectedLeagueId("");
@@ -667,6 +740,138 @@ export default function PrivateLeaguesPage() {
         }
     }
 
+    function isPowerOfTwo(value: number) {
+        return value >= 2 && (value & (value - 1)) === 0;
+    }
+
+    function getValidGroupCounts(memberCount: number) {
+        if (memberCount < 2) return [1];
+
+        const divisors: number[] = [];
+
+        for (let groups = 1; groups <= memberCount; groups += 1) {
+            if (memberCount % groups === 0) {
+                divisors.push(groups);
+            }
+        }
+
+        return divisors;
+    }
+
+    function getValidQualifierCounts(groupCount: number, teamsPerGroup: number) {
+        const values: number[] = [];
+
+        for (let qualifiers = 1; qualifiers <= teamsPerGroup; qualifiers += 1) {
+            const knockoutTeams = groupCount * qualifiers;
+
+            if (knockoutTeams === 48 || isPowerOfTwo(knockoutTeams)) {
+                values.push(qualifiers);
+            }
+        }
+
+        return values;
+    }
+
+    function openLeagueCupModal() {
+        const league = data?.selected_league;
+        if (!league || !league.is_owner) return;
+
+        const groupCounts = getValidGroupCounts(league.member_count);
+        const preferredGroupCount =
+            groupCounts.find((count) => count >= 2 && league.member_count / count >= 3) ??
+            groupCounts.find((count) => count >= 2) ??
+            groupCounts[0] ??
+            1;
+
+        const teamsPerGroup = Math.max(
+            1,
+            Math.floor(league.member_count / preferredGroupCount)
+        );
+
+        const qualifierCounts = getValidQualifierCounts(
+            preferredGroupCount,
+            teamsPerGroup
+        );
+
+        setLeagueCupForm({
+            name: `${league.name} Cup`,
+            groupCount: preferredGroupCount,
+            automaticQualifiers: qualifierCounts[0] ?? 1,
+        });
+
+        setError("");
+        setSuccessMessage("");
+        setLeagueCupModalOpen(true);
+    }
+
+    async function createLeagueCup() {
+        const league = data?.selected_league;
+        if (!league || !league.is_owner) return;
+
+        const name = leagueCupForm.name.trim();
+
+        if (!name) {
+            setError("Enter a League Cup name.");
+            return;
+        }
+
+        if (league.member_count % leagueCupForm.groupCount !== 0) {
+            setError("The selected group format does not fit the league member count.");
+            return;
+        }
+
+        const teamsPerGroup =
+            league.member_count / leagueCupForm.groupCount;
+
+        const knockoutTeams =
+            leagueCupForm.groupCount *
+            leagueCupForm.automaticQualifiers;
+
+        if (knockoutTeams !== 48 && !isPowerOfTwo(knockoutTeams)) {
+            setError("The selected qualifiers do not produce a valid knockout field.");
+            return;
+        }
+
+        setLeagueCupSaving(true);
+        setError("");
+        setSuccessMessage("");
+
+        const { data: createdRaw, error: createError } = await supabase.rpc(
+            "create_league_cup",
+            {
+                p_league_id: league.id,
+                p_name: name,
+                p_group_count: leagueCupForm.groupCount,
+                p_teams_per_group: teamsPerGroup,
+                p_automatic_qualifiers_per_group:
+                    leagueCupForm.automaticQualifiers,
+                p_additional_qualifier_position: null,
+                p_additional_qualifier_count: 0,
+            }
+        );
+
+        if (createError) {
+            setError(createError.message);
+            setLeagueCupSaving(false);
+            return;
+        }
+
+        const created = createdRaw as {
+            success: boolean;
+            cup_id: string;
+        };
+
+        await loadLeagueCups(league.id);
+
+        setLeagueCupModalOpen(false);
+        setLeagueCupSaving(false);
+        setSuccessMessage(
+            created?.cup_id
+                ? "League Cup created successfully."
+                : "League Cup created."
+        );
+    }
+
     const selectedLeague = data?.selected_league ?? null;
     const leagueMembers = data?.members ?? [];
     const leagueRounds = useMemo(
@@ -677,6 +882,27 @@ export default function PrivateLeaguesPage() {
         [data]
     );
     const currentUserId = data?.current_user_id ?? "";
+
+    const leagueCupGroupCounts = selectedLeague
+        ? getValidGroupCounts(selectedLeague.member_count)
+        : [1];
+
+    const leagueCupTeamsPerGroup =
+        selectedLeague && leagueCupForm.groupCount > 0
+            ? selectedLeague.member_count / leagueCupForm.groupCount
+            : 0;
+
+    const leagueCupQualifierCounts =
+        Number.isInteger(leagueCupTeamsPerGroup) && leagueCupTeamsPerGroup > 0
+            ? getValidQualifierCounts(
+                leagueCupForm.groupCount,
+                leagueCupTeamsPerGroup
+            )
+            : [];
+
+    const leagueCupKnockoutTeams =
+        leagueCupForm.groupCount *
+        leagueCupForm.automaticQualifiers;
 
     if (loading) {
         return (
@@ -1023,6 +1249,86 @@ export default function PrivateLeaguesPage() {
                             />
                         </div>
 
+                        <section className="mb-6 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
+                            <div className="flex flex-col gap-4 border-b border-slate-800 bg-slate-950 px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <Swords className="h-5 w-5 text-teal-300" />
+                                        <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
+                                            League Cup
+                                        </p>
+                                    </div>
+                                    <h2 className="mt-1 text-xl font-black">
+                                        {selectedLeague.name} Cups
+                                    </h2>
+                                    <p className="mt-1 text-sm text-slate-400">
+                                        Cup tournaments contested only by members of this league.
+                                    </p>
+                                </div>
+
+                                {selectedLeague.is_owner &&
+                                    !selectedLeague.is_read_only && (
+                                        <button
+                                            type="button"
+                                            onClick={openLeagueCupModal}
+                                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-500 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-teal-400"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Create League Cup
+                                        </button>
+                                    )}
+                            </div>
+
+                            {leagueCupsLoading ? (
+                                <div className="p-8 text-center text-sm text-slate-500">
+                                    Loading League Cups...
+                                </div>
+                            ) : leagueCups.length === 0 ? (
+                                <div className="p-8 text-center">
+                                    <Trophy className="mx-auto h-9 w-9 text-slate-300" />
+                                    <h3 className="mt-3 font-black text-slate-900">
+                                        No League Cups yet
+                                    </h3>
+                                    <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">
+                                        {selectedLeague.is_owner
+                                            ? "Create a Cup tournament using the current members of this league."
+                                            : "The league administrator has not created a League Cup yet."}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-slate-200">
+                                    {leagueCups.map((cup) => (
+                                        <div
+                                            key={cup.id}
+                                            className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h3 className="truncate text-lg font-black text-slate-950">
+                                                        {cup.name}
+                                                    </h3>
+                                                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-600">
+                                                        {cup.status}
+                                                    </span>
+                                                </div>
+
+                                                <p className="mt-1 text-sm text-slate-500">
+                                                    {cup.competing_teams} teams · {cup.group_count} {cup.group_count === 1 ? "group" : "groups"} · {cup.teams_per_group} per group
+                                                </p>
+                                            </div>
+
+                                            <Link
+                                                href={`/cups/${cup.id}`}
+                                                className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-black text-white transition hover:bg-slate-800"
+                                            >
+                                                View Cup
+                                            </Link>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+
                     </>
                 )}
             </div>
@@ -1211,6 +1517,202 @@ export default function PrivateLeaguesPage() {
                             </div>
                         </div>
                     </section>
+                </div>
+            )}
+
+            {leagueCupModalOpen && selectedLeague && selectedLeague.is_owner && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4"
+                    onMouseDown={(event) => {
+                        if (
+                            event.target === event.currentTarget &&
+                            !leagueCupSaving
+                        ) {
+                            setLeagueCupModalOpen(false);
+                        }
+                    }}
+                >
+                    <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl">
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-800 bg-slate-950 px-6 py-4 text-white">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
+                                    League Cup
+                                </p>
+                                <h2 className="mt-1 text-2xl font-black">
+                                    Create League Cup
+                                </h2>
+                                <p className="mt-1 text-sm text-slate-400">
+                                    All {selectedLeague.member_count} current league members will be entered.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setLeagueCupModalOpen(false)}
+                                disabled={leagueCupSaving}
+                                className="rounded-lg border border-slate-700 bg-slate-900 p-2 text-slate-300 transition hover:border-teal-400 hover:text-white disabled:opacity-50"
+                                aria-label="Close League Cup creator"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            <label
+                                htmlFor="league-cup-name"
+                                className="block text-sm font-bold text-slate-800"
+                            >
+                                Cup name
+                            </label>
+
+                            <input
+                                id="league-cup-name"
+                                value={leagueCupForm.name}
+                                onChange={(event) =>
+                                    setLeagueCupForm((current) => ({
+                                        ...current,
+                                        name: event.target.value,
+                                    }))
+                                }
+                                maxLength={100}
+                                className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                            />
+
+                            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label
+                                        htmlFor="league-cup-groups"
+                                        className="block text-sm font-bold text-slate-800"
+                                    >
+                                        Groups
+                                    </label>
+
+                                    <select
+                                        id="league-cup-groups"
+                                        value={leagueCupForm.groupCount}
+                                        onChange={(event) => {
+                                            const groupCount = Number(event.target.value);
+                                            const teamsPerGroup =
+                                                selectedLeague.member_count / groupCount;
+                                            const qualifiers =
+                                                getValidQualifierCounts(
+                                                    groupCount,
+                                                    teamsPerGroup
+                                                );
+
+                                            setLeagueCupForm((current) => ({
+                                                ...current,
+                                                groupCount,
+                                                automaticQualifiers:
+                                                    qualifiers.includes(
+                                                        current.automaticQualifiers
+                                                    )
+                                                        ? current.automaticQualifiers
+                                                        : qualifiers[0] ?? 1,
+                                            }));
+                                        }}
+                                        className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                                    >
+                                        {leagueCupGroupCounts.map((groupCount) => (
+                                            <option
+                                                key={groupCount}
+                                                value={groupCount}
+                                            >
+                                                {groupCount} {groupCount === 1 ? "group" : "groups"} · {selectedLeague.member_count / groupCount} teams each
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label
+                                        htmlFor="league-cup-qualifiers"
+                                        className="block text-sm font-bold text-slate-800"
+                                    >
+                                        Qualifiers per group
+                                    </label>
+
+                                    <select
+                                        id="league-cup-qualifiers"
+                                        value={leagueCupForm.automaticQualifiers}
+                                        onChange={(event) =>
+                                            setLeagueCupForm((current) => ({
+                                                ...current,
+                                                automaticQualifiers:
+                                                    Number(event.target.value),
+                                            }))
+                                        }
+                                        className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                                    >
+                                        {leagueCupQualifierCounts.map((count) => (
+                                            <option key={count} value={count}>
+                                                Top {count}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                <div className="grid grid-cols-3 gap-3 text-center">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                            Entrants
+                                        </p>
+                                        <p className="mt-1 text-lg font-black text-slate-950">
+                                            {selectedLeague.member_count}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                            Group Size
+                                        </p>
+                                        <p className="mt-1 text-lg font-black text-slate-950">
+                                            {leagueCupTeamsPerGroup}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                                            Knockout
+                                        </p>
+                                        <p className="mt-1 text-lg font-black text-slate-950">
+                                            {leagueCupKnockoutTeams}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p className="mt-4 text-sm leading-6 text-slate-500">
+                                Participants are seeded automatically and the existing Cup group and knockout system will be used.
+                            </p>
+
+                            <div className="mt-6 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setLeagueCupModalOpen(false)}
+                                    disabled={leagueCupSaving}
+                                    className="rounded-lg border bg-white px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => void createLeagueCup()}
+                                    disabled={
+                                        leagueCupSaving ||
+                                        !leagueCupForm.name.trim() ||
+                                        leagueCupQualifierCounts.length === 0
+                                    }
+                                    className="rounded-lg bg-teal-700 px-4 py-2.5 font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {leagueCupSaving
+                                        ? "Creating..."
+                                        : "Create League Cup"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 
