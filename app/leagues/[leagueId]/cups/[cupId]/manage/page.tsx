@@ -1115,7 +1115,7 @@ export default function LeagueCupManagementPage() {
                   </option>
 
                   <option value="seeded_byes">
-                    Higher Seeds Get a Bye
+                    Top 6
                   </option>
 
                   <option value="double_chance">
@@ -1175,7 +1175,7 @@ export default function LeagueCupManagementPage() {
                   "seeded_byes" ? (
                   <>
                     <p className="font-black text-slate-950">
-                      Higher Seeds Get a Bye
+                      Top 6
                     </p>
 
                     <p className="mt-2 text-sm leading-6 text-slate-600">
