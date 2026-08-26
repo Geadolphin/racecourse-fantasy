@@ -317,6 +317,9 @@ export default function Dashboard() {
   const [team, setTeam] =
     useState<Team | null>(null);
 
+  const [currentRoundSalaryCap, setCurrentRoundSalaryCap] =
+    useState<number | null>(null);
+
   const [upcomingRace, setUpcomingRace] =
     useState<UpcomingRace | null>(null);
 
@@ -453,6 +456,7 @@ export default function Dashboard() {
         setRound(null);
         setSeason(null);
         setTeam(null);
+        setCurrentRoundSalaryCap(null);
         setRoundScore(null);
         setLiveRoundScore(null);
         setSeasonScore(null);
@@ -491,6 +495,7 @@ export default function Dashboard() {
       setRound(dashboardData.round);
       setSeason(dashboardData.season);
       setTeam(dashboardData.team);
+      setCurrentRoundSalaryCap(null);
       setAutofilledHorseCount(
         Number(dashboardData.team?.autofilled_horse_count ?? 0)
       );
@@ -573,6 +578,39 @@ export default function Dashboard() {
       );
 
       setLoading(false);
+
+      async function loadCurrentRoundSalaryCap() {
+        const { data: salaryCapRaw, error: salaryCapError } =
+          await supabase.rpc("get_my_round_salary_cap", {
+            p_round_id: resolvedDashboardData.round!.id,
+          });
+
+        if (!active) {
+          return;
+        }
+
+        if (salaryCapError) {
+          console.error(
+            "Dashboard current salary cap error:",
+            salaryCapError
+          );
+          setCurrentRoundSalaryCap(null);
+          return;
+        }
+
+        const resolvedSalaryCap =
+          salaryCapRaw == null
+            ? null
+            : Number(salaryCapRaw);
+
+        setCurrentRoundSalaryCap(
+          resolvedSalaryCap !== null &&
+            Number.isFinite(resolvedSalaryCap) &&
+            resolvedSalaryCap > 0
+            ? resolvedSalaryCap
+            : null
+        );
+      }
 
       async function loadPreviousOverallRank() {
         const {
@@ -1098,6 +1136,7 @@ export default function Dashboard() {
 
       void Promise.allSettled([
         loadLiveRoundScore(),
+        loadCurrentRoundSalaryCap(),
         loadPreviousOverallRank(),
         loadProjectedScore(),
         loadDashboardExtras(),
@@ -1158,6 +1197,7 @@ export default function Dashboard() {
     team?.salary_used ?? 0;
 
   const salaryCap =
+    currentRoundSalaryCap ??
     team?.salary_cap ??
     season?.salary_cap ??
     0;
