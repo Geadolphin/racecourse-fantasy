@@ -19,6 +19,194 @@ function getServerEnvironment() {
   };
 }
 
+async function getAdminRequestContext(request: NextRequest) {
+  const authorizationHeader = request.headers.get("authorization");
+
+  const accessToken = authorizationHeader?.startsWith("Bearer ")
+    ? authorizationHeader.slice("Bearer ".length)
+    : null;
+
+  if (!accessToken) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: "You must be signed in." },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const {
+    supabaseUrl,
+    supabaseAnonKey,
+    serviceRoleKey,
+  } = getServerEnvironment();
+
+  const authClient = createClient(
+    supabaseUrl,
+    supabaseAnonKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
+
+  const {
+    data: { user: requestingUser },
+    error: requestingUserError,
+  } = await authClient.auth.getUser(accessToken);
+
+  if (requestingUserError || !requestingUser) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: "Your session is invalid or has expired." },
+        { status: 401 }
+      ),
+    };
+  }
+
+  const adminClient = createClient(
+    supabaseUrl,
+    serviceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
+
+  const { data: requestingProfile, error: profileError } =
+    await adminClient
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", requestingUser.id)
+      .maybeSingle();
+
+  if (
+    profileError ||
+    !requestingProfile ||
+    requestingProfile.is_admin !== true
+  ) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: "Administrator access is required." },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return {
+    requestingUser,
+    adminClient,
+  };
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
+) {
+  try {
+    const { id: targetUserId } = await context.params;
+
+    if (!targetUserId) {
+      return NextResponse.json(
+        { error: "A user ID is required." },
+        { status: 400 }
+      );
+    }
+
+    const adminContext = await getAdminRequestContext(request);
+
+    if ("errorResponse" in adminContext) {
+      return adminContext.errorResponse;
+    }
+
+    const { adminClient } = adminContext;
+
+    const body = (await request.json()) as {
+      email?: unknown;
+    };
+
+    const newEmail =
+      typeof body.email === "string"
+        ? body.email.trim().toLowerCase()
+        : "";
+
+    if (
+      !newEmail ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)
+    ) {
+      return NextResponse.json(
+        { error: "A valid email address is required." },
+        { status: 400 }
+      );
+    }
+
+    const { data: targetProfile, error: targetProfileError } =
+      await adminClient
+        .from("profiles")
+        .select("id, display_name")
+        .eq("id", targetUserId)
+        .maybeSingle();
+
+    if (targetProfileError) {
+      return NextResponse.json(
+        { error: targetProfileError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!targetProfile) {
+      return NextResponse.json(
+        { error: "The user profile could not be found." },
+        { status: 404 }
+      );
+    }
+
+    const { data: updatedUserData, error: updateError } =
+      await adminClient.auth.admin.updateUserById(
+        targetUserId,
+        {
+          email: newEmail,
+          email_confirm: true,
+        }
+      );
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      user_id: targetUserId,
+      email: updatedUserData.user?.email ?? newEmail,
+      display_name:
+        targetProfile.display_name || "Unnamed Player",
+    });
+  } catch (error) {
+    console.error("Update admin user email route error:", error);
+
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "The user's email could not be updated.",
+      },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   context: {
@@ -32,114 +220,26 @@ export async function DELETE(
 
     if (!targetUserId) {
       return NextResponse.json(
-        {
-          error: "A user ID is required.",
-        },
-        {
-          status: 400,
-        }
+        { error: "A user ID is required." },
+        { status: 400 }
       );
     }
 
-    const authorizationHeader =
-      request.headers.get("authorization");
+    const adminContext = await getAdminRequestContext(request);
 
-    const accessToken = authorizationHeader?.startsWith("Bearer ")
-      ? authorizationHeader.slice("Bearer ".length)
-      : null;
-
-    if (!accessToken) {
-      return NextResponse.json(
-        {
-          error: "You must be signed in.",
-        },
-        {
-          status: 401,
-        }
-      );
+    if ("errorResponse" in adminContext) {
+      return adminContext.errorResponse;
     }
 
     const {
-      supabaseUrl,
-      supabaseAnonKey,
-      serviceRoleKey,
-    } = getServerEnvironment();
-
-    /*
-     * Verify the access token directly with Supabase Auth.
-     */
-    const authClient = createClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
-
-    const {
-      data: { user: requestingUser },
-      error: requestingUserError,
-    } = await authClient.auth.getUser(accessToken);
-
-    if (requestingUserError || !requestingUser) {
-      return NextResponse.json(
-        {
-          error: "Your session is invalid or has expired.",
-        },
-        {
-          status: 401,
-        }
-      );
-    }
+      requestingUser,
+      adminClient,
+    } = adminContext;
 
     if (requestingUser.id === targetUserId) {
       return NextResponse.json(
-        {
-          error: "You cannot deregister your own account.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    /*
-     * The service-role client must exist only on the server.
-     * It bypasses RLS, so never expose its key to browser code.
-     */
-    const adminClient = createClient(
-      supabaseUrl,
-      serviceRoleKey,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
-
-    const { data: requestingProfile, error: profileError } =
-      await adminClient
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", requestingUser.id)
-        .maybeSingle();
-
-    if (
-      profileError ||
-      !requestingProfile ||
-      requestingProfile.is_admin !== true
-    ) {
-      return NextResponse.json(
-        {
-          error: "Administrator access is required.",
-        },
-        {
-          status: 403,
-        }
+        { error: "You cannot deregister your own account." },
+        { status: 400 }
       );
     }
 
@@ -152,32 +252,18 @@ export async function DELETE(
 
     if (targetProfileError) {
       return NextResponse.json(
-        {
-          error: targetProfileError.message,
-        },
-        {
-          status: 500,
-        }
+        { error: targetProfileError.message },
+        { status: 500 }
       );
     }
 
     if (!targetProfile) {
       return NextResponse.json(
-        {
-          error: "The user profile could not be found.",
-        },
-        {
-          status: 404,
-        }
+        { error: "The user profile could not be found." },
+        { status: 404 }
       );
     }
 
-    /*
-     * Hard-delete the Auth account.
-     *
-     * This may fail when database or Storage relationships prevent
-     * deletion. The error is returned to the admin instead of hiding it.
-     */
     const { error: deleteError } =
       await adminClient.auth.admin.deleteUser(
         targetUserId,
@@ -186,26 +272,16 @@ export async function DELETE(
 
     if (deleteError) {
       return NextResponse.json(
-        {
-          error: deleteError.message,
-        },
-        {
-          status: 400,
-        }
+        { error: deleteError.message },
+        { status: 400 }
       );
     }
 
-    /*
-     * If profiles.id references auth.users with ON DELETE CASCADE,
-     * this does nothing. If the profile remains, remove it explicitly.
-     *
-     * Existing competition tables may still prevent this deletion.
-     * In that case the request returns an informative error.
-     */
-    const { error: profileDeleteError } = await adminClient
-      .from("profiles")
-      .delete()
-      .eq("id", targetUserId);
+    const { error: profileDeleteError } =
+      await adminClient
+        .from("profiles")
+        .delete()
+        .eq("id", targetUserId);
 
     if (profileDeleteError) {
       return NextResponse.json(
@@ -214,9 +290,7 @@ export async function DELETE(
             "The Auth account was deleted, but the profile could not be removed: " +
             profileDeleteError.message,
         },
-        {
-          status: 409,
-        }
+        { status: 409 }
       );
     }
 
@@ -236,9 +310,7 @@ export async function DELETE(
             ? error.message
             : "The user could not be deregistered.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
