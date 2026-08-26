@@ -557,10 +557,6 @@ export default function MyTeamPage() {
       p_round_id: teamData.round.id,
     });
 
-    if (!active) {
-      return;
-    }
-
     if (salaryCapError) {
       console.error(
         "My Team salary cap load error:",
