@@ -1,4 +1,4 @@
-"use client";
+
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -1452,12 +1452,12 @@ export default function EditTeamPage() {
                     >
                       <span className="w-5 text-center text-xs font-bold text-slate-400">{index + 1}</span>
 
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden">
                         {entry.horse?.silks_url ? (
                           <img
                             src={entry.horse.silks_url}
                             alt={`${entry.horse.name} silks`}
-                            className="h-full w-full object-contain p-0.5"
+                            className="h-full w-full object-contain"
                             loading="lazy"
                           />
                         ) : (
@@ -1603,12 +1603,12 @@ export default function EditTeamPage() {
                               }`}
                             >
                               <div className="flex min-w-0 items-center gap-2">
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden">
                                   {entry.horse?.silks_url ? (
                                     <img
                                       src={entry.horse.silks_url}
                                       alt={`${entry.horse.name} silks`}
-                                      className="h-full w-full object-contain p-0.5"
+                                      className="h-full w-full object-contain"
                                       loading="lazy"
                                     />
                                   ) : (
@@ -1801,12 +1801,12 @@ export default function EditTeamPage() {
                         >
                           <div className="flex items-center justify-between gap-4">
                             <div className="flex min-w-0 flex-1 items-center gap-3">
-                              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden">
                                 {entry.horse?.silks_url ? (
                                   <img
                                     src={entry.horse.silks_url}
                                     alt={`${entry.horse.name} silks`}
-                                    className="h-full w-full object-contain p-0.5"
+                                    className="h-full w-full object-contain"
                                     loading="lazy"
                                   />
                                 ) : (
