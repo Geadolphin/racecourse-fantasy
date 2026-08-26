@@ -764,11 +764,16 @@ export default function PrivateLeaguesPage() {
 
     function getValidQualifierCounts(groupCount: number, teamsPerGroup: number) {
         const values: number[] = [];
+        const isTop6Format = groupCount === 1 && teamsPerGroup === 9;
 
         for (let qualifiers = 1; qualifiers <= teamsPerGroup; qualifiers += 1) {
             const knockoutTeams = groupCount * qualifiers;
 
-            if (knockoutTeams === 48 || isPowerOfTwo(knockoutTeams)) {
+            if (
+                knockoutTeams === 48 ||
+                isPowerOfTwo(knockoutTeams) ||
+                (isTop6Format && qualifiers === 6)
+            ) {
                 values.push(qualifiers);
             }
         }
@@ -776,7 +781,14 @@ export default function PrivateLeaguesPage() {
         return values;
     }
 
-    function getKnockoutStageLabels(knockoutTeams: number) {
+    function getKnockoutStageLabels(
+        knockoutTeams: number,
+        isTop6Format = false
+    ) {
+        if (isTop6Format) {
+            return ["Quarter-finals", "Semi-finals", "Final"];
+        }
+
         if (knockoutTeams === 48) {
             return [
                 "Preliminary Round",
@@ -862,7 +874,17 @@ export default function PrivateLeaguesPage() {
             leagueCupForm.groupCount *
             leagueCupForm.automaticQualifiers;
 
-        if (knockoutTeams !== 48 && !isPowerOfTwo(knockoutTeams)) {
+        const isTop6Format =
+            leagueCupForm.groupCount === 1 &&
+            teamsPerGroup === 9 &&
+            leagueCupForm.automaticQualifiers === 6 &&
+            leagueCupForm.groupMeetings === 1;
+
+        if (
+            !isTop6Format &&
+            knockoutTeams !== 48 &&
+            !isPowerOfTwo(knockoutTeams)
+        ) {
             setError("The selected qualifiers do not produce a valid knockout field.");
             return;
         }
@@ -999,15 +1021,28 @@ export default function PrivateLeaguesPage() {
         leagueCupForm.groupCount *
         leagueCupForm.automaticQualifiers;
 
+    const leagueCupIsTop6Format =
+        leagueCupForm.groupCount === 1 &&
+        leagueCupTeamsPerGroup === 9 &&
+        leagueCupForm.automaticQualifiers === 6;
+
+    const leagueCupMatchesPerTeam =
+        Number.isInteger(leagueCupTeamsPerGroup) &&
+        leagueCupTeamsPerGroup >= 2
+            ? (leagueCupTeamsPerGroup - 1) * leagueCupForm.groupMeetings
+            : 0;
+
     const leagueCupGroupMatchdays =
         Number.isInteger(leagueCupTeamsPerGroup) &&
         leagueCupTeamsPerGroup >= 2
-            ? (leagueCupTeamsPerGroup - 1) *
-              leagueCupForm.groupMeetings
+            ? (leagueCupTeamsPerGroup % 2 === 0
+                  ? leagueCupTeamsPerGroup - 1
+                  : leagueCupTeamsPerGroup) * leagueCupForm.groupMeetings
             : 0;
 
     const leagueCupKnockoutStageLabels = getKnockoutStageLabels(
-        leagueCupKnockoutTeams
+        leagueCupKnockoutTeams,
+        leagueCupIsTop6Format
     );
 
     const leagueCupScheduleLabels = [
@@ -1734,16 +1769,28 @@ export default function PrivateLeaguesPage() {
                                                     teamsPerGroup
                                                 );
 
-                                            setLeagueCupForm((current) => ({
-                                                ...current,
-                                                groupCount,
-                                                automaticQualifiers:
+                                            setLeagueCupForm((current) => {
+                                                const automaticQualifiers =
                                                     qualifiers.includes(
                                                         current.automaticQualifiers
                                                     )
                                                         ? current.automaticQualifiers
-                                                        : qualifiers[0] ?? 1,
-                                            }));
+                                                        : qualifiers[0] ?? 1;
+
+                                                const isTop6Selection =
+                                                    groupCount === 1 &&
+                                                    teamsPerGroup === 9 &&
+                                                    automaticQualifiers === 6;
+
+                                                return {
+                                                    ...current,
+                                                    groupCount,
+                                                    automaticQualifiers,
+                                                    groupMeetings: isTop6Selection
+                                                        ? 1
+                                                        : current.groupMeetings,
+                                                };
+                                            });
                                         }}
                                         className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                                     >
@@ -1769,13 +1816,21 @@ export default function PrivateLeaguesPage() {
                                     <select
                                         id="league-cup-qualifiers"
                                         value={leagueCupForm.automaticQualifiers}
-                                        onChange={(event) =>
+                                        onChange={(event) => {
+                                            const automaticQualifiers =
+                                                Number(event.target.value);
+
                                             setLeagueCupForm((current) => ({
                                                 ...current,
-                                                automaticQualifiers:
-                                                    Number(event.target.value),
-                                            }))
-                                        }
+                                                automaticQualifiers,
+                                                groupMeetings:
+                                                    current.groupCount === 1 &&
+                                                    leagueCupTeamsPerGroup === 9 &&
+                                                    automaticQualifiers === 6
+                                                        ? 1
+                                                        : current.groupMeetings,
+                                            }));
+                                        }}
                                         className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                                     >
                                         {leagueCupQualifierCounts.map((count) => (
@@ -1806,7 +1861,8 @@ export default function PrivateLeaguesPage() {
                                             ) as 1 | 2 | 3,
                                         }))
                                     }
-                                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                                    disabled={leagueCupIsTop6Format}
+                                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
                                 >
                                     <option value={1}>Once</option>
                                     <option value={2}>Twice</option>
@@ -1815,9 +1871,18 @@ export default function PrivateLeaguesPage() {
 
                                 <p className="mt-2 text-sm text-slate-500">
                                     {leagueCupTeamsPerGroup > 0
-                                        ? `${leagueCupTeamsPerGroup} teams per group × ${leagueCupForm.groupMeetings} meeting${leagueCupForm.groupMeetings === 1 ? "" : "s"} = ${leagueCupGroupMatchdays} group matchday${leagueCupGroupMatchdays === 1 ? "" : "s"}.`
+                                        ? `${leagueCupTeamsPerGroup} teams per group · ${leagueCupMatchesPerTeam} match${leagueCupMatchesPerTeam === 1 ? "" : "es"} per team · ${leagueCupGroupMatchdays} group matchday${leagueCupGroupMatchdays === 1 ? "" : "s"}${leagueCupTeamsPerGroup % 2 === 1 ? " (one team has a bye each matchday)" : ""}.`
                                         : "Choose a valid group format."}
                                 </p>
+
+                                {leagueCupIsTop6Format && (
+                                    <div className="mt-3 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
+                                        <p className="font-black">Top 6 finals</p>
+                                        <p className="mt-1 leading-5 text-purple-700">
+                                            1st and 2nd advance directly to the semi-finals. Quarter-finals are 3rd v 6th and 4th v 5th.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="mt-5">
