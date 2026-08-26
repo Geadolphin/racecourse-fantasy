@@ -44,6 +44,7 @@ type Horse = {
   id: string;
   name: string;
   current_price: number;
+  silks_url: string | null;
 };
 
 type Racecourse = {
@@ -373,7 +374,8 @@ export default function EditTeamPage() {
           horse:horses (
             id,
             name,
-            current_price
+            current_price,
+            silks_url
           ),
 
           race:races!inner (
@@ -1449,6 +1451,22 @@ export default function EditTeamPage() {
                       }`}
                     >
                       <span className="w-5 text-center text-xs font-bold text-slate-400">{index + 1}</span>
+
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white">
+                        {entry.horse?.silks_url ? (
+                          <img
+                            src={entry.horse.silks_url}
+                            alt={`${entry.horse.name} silks`}
+                            className="h-full w-full object-contain p-0.5"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="text-[9px] font-bold uppercase text-slate-300">
+                            Silk
+                          </span>
+                        )}
+                      </div>
+
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <p className="truncate font-bold text-slate-900">{entry.horse?.name ?? "Unknown horse"}</p>
@@ -1584,8 +1602,24 @@ export default function EditTeamPage() {
                                 isSelected ? "bg-teal-50" : "bg-white hover:bg-slate-50"
                               }`}
                             >
-                              <div className="min-w-0">
-                                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-white">
+                                  {entry.horse?.silks_url ? (
+                                    <img
+                                      src={entry.horse.silks_url}
+                                      alt={`${entry.horse.name} silks`}
+                                      className="h-full w-full object-contain p-0.5"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <span className="text-[8px] font-bold uppercase text-slate-300">
+                                      Silk
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                                   {entry.saddlecloth_number && (
                                     <span className="inline-flex min-w-5 items-center justify-center text-xs font-medium text-slate-500">
                                       {entry.saddlecloth_number}
@@ -1624,8 +1658,8 @@ export default function EditTeamPage() {
                                       Locked
                                     </span>
                                   )}
+                                  </div>
                                 </div>
-
                               </div>
 
                               <div className="shrink-0 whitespace-nowrap text-right">
@@ -1766,7 +1800,23 @@ export default function EditTeamPage() {
                           }`}
                         >
                           <div className="flex items-center justify-between gap-4">
-                            <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                {entry.horse?.silks_url ? (
+                                  <img
+                                    src={entry.horse.silks_url}
+                                    alt={`${entry.horse.name} silks`}
+                                    className="h-full w-full object-contain p-0.5"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <span className="text-[9px] font-bold uppercase text-slate-300">
+                                    Silk
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
                               {entry.horse?.id ? (
                                 <button
                                   type="button"
@@ -1789,6 +1839,7 @@ export default function EditTeamPage() {
                                   Scratched
                                 </span>
                               )}
+                              </div>
                             </div>
 
                             <p className="shrink-0 text-lg font-semibold leading-tight text-slate-950">
