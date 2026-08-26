@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Crown, Pencil, Plus, Trash2, UserMinus, Users, LogOut, Trophy, ShieldCheck, CalendarDays, KeyRound, X, Swords } from "lucide-react";
+import { Copy, Crown, Pencil, Plus, Trash2, UserMinus, Users, LogOut, Trophy, ShieldCheck, KeyRound, X, Swords } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
@@ -129,7 +129,6 @@ export default function PrivateLeaguesPage() {
         bonusDominantWin: false,
         bonusTopThree: false,
     });
-    const [leagueCupRoundIds, setLeagueCupRoundIds] = useState<string[]>([]);
 
     const loadLeagueData = useCallback(
         async ({
@@ -841,8 +840,6 @@ export default function PrivateLeaguesPage() {
             bonusDominantWin: false,
             bonusTopThree: false,
         });
-        setLeagueCupRoundIds([]);
-
         setError("");
         setSuccessMessage("");
         setLeagueCupModalOpen(true);
@@ -909,64 +906,6 @@ export default function PrivateLeaguesPage() {
             cup_id: string;
         };
 
-        if (created?.cup_id) {
-            const { data: stageRows, error: stagesError } = await supabase
-                .from("cup_stages")
-                .select("id, sequence_number, stage_name")
-                .eq("cup_id", created.cup_id)
-                .order("sequence_number", { ascending: true });
-
-            if (stagesError) {
-                console.error("League Cup stages load error:", stagesError);
-                setError(
-                    `League Cup created, but its schedule could not be loaded: ${stagesError.message}`
-                );
-                setLeagueCupSaving(false);
-                await loadLeagueCups(league.id);
-                return;
-            }
-
-            const stages = stageRows ?? [];
-            const selectedAssignments = leagueCupRoundIds
-                .map((roundId, index) => ({
-                    roundId,
-                    stage: stages[index] ?? null,
-                }))
-                .filter(
-                    (item): item is {
-                        roundId: string;
-                        stage: {
-                            id: string;
-                            sequence_number: number;
-                            stage_name: string;
-                        };
-                    } => Boolean(item.roundId && item.stage)
-                );
-
-            for (const assignment of selectedAssignments) {
-                const { error: scheduleError } = await supabase.rpc(
-                    "admin_update_cup_stage_round",
-                    {
-                        p_cup_id: created.cup_id,
-                        p_stage_id: assignment.stage.id,
-                        p_round_id: assignment.roundId,
-                    }
-                );
-
-                if (scheduleError) {
-                    console.error(
-                        "League Cup round assignment error:",
-                        scheduleError
-                    );
-                    setError(
-                        `League Cup created, but ${assignment.stage.stage_name} could not be scheduled: ${scheduleError.message}`
-                    );
-                    setLeagueCupSaving(false);
-                    await loadLeagueCups(league.id);
-                    return;
-                }
-            }
-        }
 
         await loadLeagueCups(league.id);
 
@@ -1017,24 +956,6 @@ export default function PrivateLeaguesPage() {
             ? (leagueCupTeamsPerGroup - 1) *
               leagueCupForm.groupMeetings
             : 0;
-
-    const leagueCupKnockoutStageLabels = getKnockoutStageLabels(
-        leagueCupKnockoutTeams
-    );
-
-    const leagueCupScheduleLabels = [
-        ...Array.from(
-            { length: leagueCupGroupMatchdays },
-            (_, index) => `Group Matchday ${index + 1}`
-        ),
-        ...leagueCupKnockoutStageLabels,
-    ];
-
-    const selectedLeagueCupRoundIds = new Set(
-        leagueCupRoundIds
-            .slice(0, leagueCupScheduleLabels.length)
-            .filter(Boolean)
-    );
 
     if (loading) {
         return (
@@ -1775,7 +1696,7 @@ export default function PrivateLeaguesPage() {
                                         htmlFor="league-cup-qualifiers"
                                         className="block text-sm font-bold text-slate-800"
                                     >
-                                        Qualifiers per group
+                                        Number of qualifiers per group
                                     </label>
 
                                     <select
@@ -1908,88 +1829,6 @@ export default function PrivateLeaguesPage() {
                                             </span>
                                         </span>
                                     </label>
-                                </div>
-                            </div>
-
-                            <div className="mt-5">
-                                <div className="flex items-end justify-between gap-3">
-                                    <div>
-                                        <p className="text-sm font-bold text-slate-800">
-                                            Cup schedule
-                                        </p>
-                                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                                            Choose which Racecourse Fantasy round each Cup stage uses. Leave a stage unassigned if you want to schedule it later.
-                                        </p>
-                                    </div>
-
-                                    <span className="shrink-0 text-xs font-bold text-slate-500">
-                                        {leagueCupScheduleLabels.length} stages
-                                    </span>
-                                </div>
-
-                                <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                    {leagueCupScheduleLabels.map((label, index) => {
-                                        const currentRoundId =
-                                            leagueCupRoundIds[index] ?? "";
-
-                                        return (
-                                            <div
-                                                key={`${label}-${index}`}
-                                                className="grid gap-2 rounded-lg bg-white p-2.5 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center"
-                                            >
-                                                <div className="min-w-0">
-                                                    <p className="truncate text-sm font-bold text-slate-800">
-                                                        {label}
-                                                    </p>
-                                                </div>
-
-                                                <select
-                                                    aria-label={`Round for ${label}`}
-                                                    value={currentRoundId}
-                                                    onChange={(event) => {
-                                                        const roundId = event.target.value;
-
-                                                        setLeagueCupRoundIds((current) => {
-                                                            const next = [
-                                                                ...current,
-                                                            ];
-                                                            next[index] = roundId;
-                                                            return next;
-                                                        });
-                                                    }}
-                                                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-                                                >
-                                                    <option value="">
-                                                        Assign later
-                                                    </option>
-
-                                                    {leagueRounds.map((round) => {
-                                                        const alreadyUsed =
-                                                            selectedLeagueCupRoundIds.has(
-                                                                round.id
-                                                            ) &&
-                                                            currentRoundId !== round.id;
-
-                                                        return (
-                                                            <option
-                                                                key={round.id}
-                                                                value={round.id}
-                                                                disabled={alreadyUsed}
-                                                            >
-                                                                Round {round.round_number}
-                                                                {round.name
-                                                                    ? ` — ${round.name}`
-                                                                    : ""}
-                                                                {alreadyUsed
-                                                                    ? " — already used"
-                                                                    : ""}
-                                                            </option>
-                                                        );
-                                                    })}
-                                                </select>
-                                            </div>
-                                        );
-                                    })}
                                 </div>
                             </div>
 
