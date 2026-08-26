@@ -1992,16 +1992,16 @@ export default function EditTeamPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
                     {[
-                      ["1st", 50, 42, 37, 32],
-                      ["2nd", 45, 35, 30, 25],
-                      ["3rd", 35, 30, 25, 20],
-                      ["4th", 30, 25, 20, 18],
-                      ["5th", 25, 20, 18, 16],
-                      ["6th", 20, 18, 16, 14],
-                      ["7th", 18, 16, 14, 12],
-                      ["8th", 16, 14, 12, 10],
-                      ["9th", 14, 12, 10, 8],
-                      ["10th", 12, 10, 8, 6],
+                      ["1st", 45, 35, 30, 25],
+                      ["2nd", 35, 30, 25, 20],
+                      ["3rd", 30, 25, 20, 18],
+                      ["4th", 25, 20, 18, 16],
+                      ["5th", 20, 18, 16, 14],
+                      ["6th", 18, 16, 14, 12],
+                      ["7th", 16, 14, 12, 10],
+                      ["8th", 14, 12, 10, 8],
+                      ["9th", 12, 10, 8, 6],
+                      ["10th", 10, 8, 6, 4],
                     ].map(([finish, g1, g2, g3, listed]) => (
                       <tr key={String(finish)} className="bg-white">
                         <td className="px-3 py-2.5 text-left font-black text-slate-950">{finish}</td>
