@@ -772,15 +772,22 @@ export default function PrivateLeaguesPage() {
 
         for (let qualifiers = 1; qualifiers <= teamsPerGroup; qualifiers += 1) {
             const knockoutTeams = groupCount * qualifiers;
-            const isTop6LeagueCup =
+
+            const isOneGroupTop6 =
                 groupCount === 1 &&
                 teamsPerGroup === 9 &&
                 qualifiers === 6;
 
+            const isThreeGroupsTop2 =
+                groupCount === 3 &&
+                teamsPerGroup === 3 &&
+                qualifiers === 2;
+
             if (
                 knockoutTeams === 48 ||
                 isPowerOfTwo(knockoutTeams) ||
-                isTop6LeagueCup
+                isOneGroupTop6 ||
+                isThreeGroupsTop2
             ) {
                 values.push(qualifiers);
             }
@@ -876,15 +883,21 @@ export default function PrivateLeaguesPage() {
             leagueCupForm.groupCount *
             leagueCupForm.automaticQualifiers;
 
-        const isTop6LeagueCup =
+        const isOneGroupTop6 =
             leagueCupForm.groupCount === 1 &&
             teamsPerGroup === 9 &&
             leagueCupForm.automaticQualifiers === 6;
 
+        const isThreeGroupsTop2 =
+            leagueCupForm.groupCount === 3 &&
+            teamsPerGroup === 3 &&
+            leagueCupForm.automaticQualifiers === 2;
+
         if (
             knockoutTeams !== 48 &&
             !isPowerOfTwo(knockoutTeams) &&
-            !isTop6LeagueCup
+            !isOneGroupTop6 &&
+            !isThreeGroupsTop2
         ) {
             setError("The selected qualifiers do not produce a valid knockout field.");
             return;
