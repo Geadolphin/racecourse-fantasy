@@ -910,7 +910,6 @@ export default function EditTeamPage() {
         selectedEntryIds.includes(entry.id) ||
         selectedHorseIds.has(entry.horse_id) ||
         entry.entry_status !== "runner" ||
-        entry.projected_points === null ||
         entryIsLocked(entry)
       ) {
         continue;
@@ -921,53 +920,57 @@ export default function EditTeamPage() {
       candidateGroups.set(entry.horse_id, current);
     }
 
+    if (candidateGroups.size < spotsToFill) {
+      setErrorMessage(
+        `There are not enough available horses to complete a ${teamSize}-horse team.`
+      );
+      return;
+    }
+
+    function shuffle<T>(items: T[]) {
+      const shuffled = [...items];
+
+      for (let index = shuffled.length - 1; index > 0; index -= 1) {
+        const randomIndex = Math.floor(Math.random() * (index + 1));
+        [shuffled[index], shuffled[randomIndex]] = [
+          shuffled[randomIndex],
+          shuffled[index],
+        ];
+      }
+
+      return shuffled;
+    }
+
     type FillState = {
       cost: number;
-      points: number;
       entryIds: string[];
     };
 
-    let states: FillState[][] = Array.from(
-      { length: spotsToFill + 1 },
-      () => []
+    const randomCandidateGroups = shuffle(
+      [...candidateGroups.values()].map((horseEntries) =>
+        shuffle(horseEntries)
+      )
     );
-    states[0] = [{ cost: 0, points: 0, entryIds: [] }];
 
-    function pruneStates(items: FillState[]) {
-      const bestByCost = new Map<number, FillState>();
+    let states: Map<number, FillState>[] = Array.from(
+      { length: spotsToFill + 1 },
+      () => new Map<number, FillState>()
+    );
 
-      for (const item of items) {
-        const existing = bestByCost.get(item.cost);
-        if (
-          !existing ||
-          item.points > existing.points
-        ) {
-          bestByCost.set(item.cost, item);
-        }
-      }
+    states[0].set(0, {
+      cost: 0,
+      entryIds: [],
+    });
 
-      const sorted = [...bestByCost.values()].sort(
-        (a, b) => a.cost - b.cost
+    for (const horseEntries of randomCandidateGroups) {
+      const nextStates = states.map(
+        (group) => new Map<number, FillState>(group)
       );
 
-      const pruned: FillState[] = [];
-      let bestPointsSoFar = -Infinity;
-
-      for (const item of sorted) {
-        if (item.points > bestPointsSoFar) {
-          pruned.push(item);
-          bestPointsSoFar = item.points;
-        }
-      }
-
-      return pruned;
-    }
-
-    for (const horseEntries of candidateGroups.values()) {
-      const nextStates = states.map((group) => [...group]);
-
       for (let count = 0; count < spotsToFill; count += 1) {
-        for (const state of states[count]) {
+        const currentStates = shuffle([...states[count].values()]);
+
+        for (const state of currentStates) {
           for (const entry of horseEntries) {
             const newCost = state.cost + entry.price_at_entry;
 
@@ -975,67 +978,63 @@ export default function EditTeamPage() {
               continue;
             }
 
-            nextStates[count + 1].push({
+            const newState: FillState = {
               cost: newCost,
-              points:
-                state.points + (entry.projected_points ?? 0),
               entryIds: [...state.entryIds, entry.id],
-            });
+            };
+
+            const existing = nextStates[count + 1].get(newCost);
+
+            // Keep a random valid combination when multiple teams have the
+            // same cost so repeated Fill Team clicks produce different teams.
+            if (!existing || Math.random() < 0.5) {
+              nextStates[count + 1].set(newCost, newState);
+            }
           }
         }
       }
 
-      states = nextStates.map(pruneStates);
+      states = nextStates;
     }
 
-    const solutions = states[spotsToFill];
+    const solutions = [...states[spotsToFill].values()];
 
     if (solutions.length === 0) {
       setErrorMessage(
-        `A valid ${teamSize}-horse team cannot be completed within the remaining salary cap using horses with projections.`
+        `A valid ${teamSize}-horse team cannot be completed within your remaining salary cap.`
       );
       return;
     }
 
-    const bestSolution = [...solutions].sort((a, b) => {
-      if (a.points !== b.points) {
-        return b.points - a.points;
-      }
-
-      return a.cost - b.cost;
-    })[0];
+    const randomSolution =
+      solutions[Math.floor(Math.random() * solutions.length)];
 
     const completedEntryIds = [
       ...selectedEntryIds,
-      ...bestSolution.entryIds,
+      ...randomSolution.entryIds,
     ];
 
     setSelectedEntryIds(completedEntryIds);
 
-    if (captainEntryId === null) {
-      const completedEntries = entries.filter((entry) =>
-        completedEntryIds.includes(entry.id)
+    // If the captain is not already locked, choose a random captain from the
+    // completed team. Projected points are deliberately ignored.
+    if (!lockedCaptainEntryId) {
+      const captainCandidates = completedEntryIds.filter(
+        (entryId) => !entryIdIsLocked(entryId)
       );
 
-      const bestCaptain = [...completedEntries].sort((a, b) => {
-        const pointsDifference =
-          (b.projected_points ?? -1) -
-          (a.projected_points ?? -1);
+      if (captainCandidates.length > 0) {
+        const randomCaptainId =
+          captainCandidates[
+            Math.floor(Math.random() * captainCandidates.length)
+          ];
 
-        if (pointsDifference !== 0) {
-          return pointsDifference;
-        }
-
-        return a.price_at_entry - b.price_at_entry;
-      })[0];
-
-      if (bestCaptain) {
-        setCaptainEntryId(bestCaptain.id);
+        setCaptainEntryId(randomCaptainId);
       }
     }
 
     setSuccessMessage(
-      `Team filled with the highest projected-points combination available within your remaining salary cap. Review it before saving or submitting.`
+      "Team filled randomly within your salary cap, with a random eligible captain. Review it before saving or submitting."
     );
   }
 
