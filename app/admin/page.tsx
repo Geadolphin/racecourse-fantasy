@@ -1,1237 +1,1725 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import Link from "next/link";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  Flag,
+  Trophy,
+  Users,
+} from "lucide-react";
 
-type DashboardCounts = {
-  users: number;
-  horses: number;
-  races: number;
-  rounds: number;
+import { supabase } from "@/lib/supabase";
+
+type SeasonOption = {
+  id: string;
+  name: string;
+  year: number;
+  is_active: boolean;
 };
 
-type AdminRound = {
+type SeasonSummary = {
+  rounds: number;
+  completed_rounds: number;
+  races: number;
+  official_races: number;
+  players: number;
+  highest_round_score: number;
+};
+
+type HorseLeader = {
+  horse_id: string;
+  horse_name: string;
+  current_price: number;
+  season_points: number;
+  eligible_starts: number;
+  average_points: number;
+};
+
+type PlayerLeader = {
+  user_id: string;
+  display_name: string;
+  total_points: number;
+  overall_rank: number | null;
+  rounds_played: number;
+  round_wins: number;
+  highest_round_score: number;
+  top_ten_finishes: number;
+};
+
+type SelectionLeader = {
+  horse_id: string;
+  horse_name: string;
+  selection_count?: number;
+  captain_count?: number;
+  ownership_percentage?: number;
+  captain_percentage?: number;
+};
+
+type RoundSpecialHorse = {
+  horse_id: string;
+  horse_name: string;
+  price: number;
+  selection_count: number;
+  ownership_percentage: number;
+  round_points: number;
+  is_captain?: boolean;
+};
+
+type RoundSpecialTeam = {
+  horses: RoundSpecialHorse[];
+  total_price: number;
+  combined_ownership_percentage: number;
+  total_points: number;
+  base_points?: number;
+  captain_points?: number;
+  captain?: {
+    horse_id: string;
+    horse_name: string;
+    round_points: number;
+    doubled_points: number;
+  } | null;
+};
+
+type RoundSpecialStats = {
+  best_pod: RoundSpecialHorse | null;
+  popular_flop: RoundSpecialHorse | null;
+  missed_opportunity: RoundSpecialHorse | null;
+  template_team: RoundSpecialTeam | null;
+  perfect_team: RoundSpecialTeam | null;
+  salary_cap: number;
+  team_size: number;
+};
+
+type HorsePerformanceStats = {
+  most_points?: RoundSpecialHorse | null;
+  best_value?: (RoundSpecialHorse & { value_score?: number }) | null;
+};
+
+type RoundSummaryStats = {
+  average_score?: number | null;
+  highest_score?: number | null;
+  highest_score_player_id?: string | null;
+  highest_score_player_name?: string | null;
+  average_salary_used?: number | null;
+};
+
+type SeasonRecordStat = {
+  user_id?: string | null;
+  display_name?: string | null;
+  value?: number | null;
+  rounds?: number | null;
+};
+
+type SeasonRecordsStats = {
+  highest_round_score?: SeasonRecordStat | null;
+  most_round_wins?: SeasonRecordStat | null;
+  best_captain?: SeasonRecordStat | null;
+  biggest_rank_rise?: SeasonRecordStat | null;
+};
+
+type OwnershipRound = {
   id: string;
-  season_id: string;
   round_number: number;
   name: string | null;
-  status: string;
-  lockout_at: string | null;
-};
-
-type RaceRow = {
-  id: string;
-  round_id: string;
-  race_number: number;
-  race_name: string;
+  round_date: string | null;
   status: string;
 };
 
-type RaceEntryRow = {
-  id: string;
-  race_id: string;
+type PriceLeader = {
   horse_id: string;
-  entry_status: string;
-};
-
-type RaceResultRow = {
-  id: string;
-  race_entry_id: string;
-  is_official: boolean;
-};
-
-type TeamRow = {
-  id: string;
-  round_id: string;
-  status: string;
-};
-
-type RoundScoreRow = {
-  team_id: string;
-};
-
-type PriceHistoryRow = {
-  id: string;
-  race_id: string | null;
-  horse_id: string;
-  price_after: number;
-};
-
-type HorsePriceRow = {
-  id: string;
+  horse_name: string;
+  total_change: number;
   current_price: number;
 };
 
-type CheckStatus = "ready" | "pending" | "issue";
-
-type ChecklistItem = {
-  label: string;
-  status: CheckStatus;
-  detail: string;
-  href?: string;
+type StatsData = {
+  success: boolean;
+  message?: string;
+  season: {
+    id: string;
+    name: string;
+  } | null;
+  season_summary: SeasonSummary | null;
+  ownership_rounds: OwnershipRound[];
+  selected_round_id: string | null;
+  selected_round: OwnershipRound | null;
+  total_teams_in_round: number;
+  horse_leaders: HorseLeader[];
+  player_leaders: PlayerLeader[];
+  most_selected: SelectionLeader[];
+  most_captained: SelectionLeader[];
+  special_stats: RoundSpecialStats;
+  horse_performance?: HorsePerformanceStats;
+  round_stats?: RoundSummaryStats;
+  season_records?: SeasonRecordsStats;
+  price_risers: PriceLeader[];
+  price_fallers: PriceLeader[];
 };
 
-const initialCounts: DashboardCounts = {
-  users: 0,
-  horses: 0,
-  races: 0,
-  rounds: 0,
-};
+type Tab = "ownership" | "performance" | "round" | "season";
 
-function StatusBadge({ status }: { status: CheckStatus }) {
-  const classes =
-    status === "ready"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : status === "issue"
-        ? "border-red-200 bg-red-50 text-red-700"
-        : "border-amber-200 bg-amber-50 text-amber-700";
+type SortDirection = "asc" | "desc";
 
-  const label =
-    status === "ready"
-      ? "Ready"
-      : status === "issue"
-        ? "Issue"
-        : "Pending";
+type HorseSortKey =
+  | "horse_name"
+  | "season_points"
+  | "eligible_starts"
+  | "average_points"
+  | "current_price";
 
+type PlayerSortKey =
+  | "overall_rank"
+  | "display_name"
+  | "total_points"
+  | "rounds_played"
+  | "round_wins"
+  | "top_ten_finishes"
+  | "highest_round_score";
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatSignedCurrency(value: number) {
+  const formatted = formatCurrency(Math.abs(value));
+
+  if (value > 0) return `+${formatted}`;
+  if (value < 0) return `-${formatted}`;
+  return formatted;
+}
+
+function rankDisplay(rank: number | null, index: number) {
+  const resolvedRank = rank ?? index + 1;
+
+  if (resolvedRank === 1) return "🥇";
+  if (resolvedRank === 2) return "🥈";
+  if (resolvedRank === 3) return "🥉";
+
+  return `#${resolvedRank}`;
+}
+
+function SpecialHorseCard({
+  title,
+  description,
+  horse,
+}: {
+  title: string;
+  description: string;
+  horse: RoundSpecialHorse | null;
+}) {
   return (
-    <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${classes}`}
-    >
-      {label}
-    </span>
+    <section className="rounded-2xl border bg-white p-5 shadow-sm">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+        {title}
+      </p>
+
+      <p className="mt-1 text-sm text-slate-500">{description}</p>
+
+      {horse ? (
+        <div className="mt-5">
+          <Link
+            href={`/horses/${horse.horse_id}`}
+            className="text-xl font-black text-slate-950 hover:text-teal-700 hover:underline"
+          >
+            {horse.horse_name}
+          </Link>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-lg bg-slate-100 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Points
+              </p>
+              <p className="mt-1 text-lg font-black text-teal-700">
+                {horse.round_points}
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-slate-100 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Owned
+              </p>
+              <p className="mt-1 text-lg font-black text-slate-950">
+                {Number(horse.ownership_percentage).toFixed(1)}%
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-slate-100 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Price
+              </p>
+              <p className="mt-1 text-sm font-black text-slate-950">
+                {formatCurrency(horse.price)}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-5 text-sm text-slate-500">
+          No qualifying horse for this round.
+        </p>
+      )}
+    </section>
   );
 }
 
-export default function AdminDashboardPage() {
-  const [counts, setCounts] =
-    useState<DashboardCounts>(initialCounts);
 
-  const [activeSeason, setActiveSeason] =
-    useState<string>("No active season");
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  accent = "teal",
+}: {
+  title: string;
+  value: string;
+  subtitle?: string;
+  accent?: "teal" | "amber" | "slate";
+}) {
+  const accentClass =
+    accent === "amber"
+      ? "text-amber-700"
+      : accent === "slate"
+        ? "text-slate-950"
+        : "text-teal-700";
 
-  const [activeSeasonId, setActiveSeasonId] =
-    useState<string | null>(null);
+  return (
+    <section className="rounded-2xl border bg-white p-5 shadow-sm">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+        {title}
+      </p>
+      <p className={`mt-3 text-3xl font-black ${accentClass}`}>{value}</p>
+      {subtitle && <p className="mt-2 text-sm text-slate-500">{subtitle}</p>}
+    </section>
+  );
+}
 
-  const [seasonRounds, setSeasonRounds] =
-    useState<AdminRound[]>([]);
+function TeamPanel({
+  title,
+  description,
+  team,
+}: {
+  title: string;
+  description: string;
+  team: RoundSpecialTeam | null;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <div className="border-b bg-slate-50 px-5 py-4">
+        <h3 className="text-xl font-black text-slate-950">{title}</h3>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+      </div>
 
-  const [selectedRoundId, setSelectedRoundId] =
-    useState<string>("");
+      {team ? (
+        <>
+          <div className="grid grid-cols-2 gap-px bg-slate-200 sm:grid-cols-3">
+            <div className="bg-white px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Team Score
+              </p>
+              <p className="mt-1 text-xl font-black text-teal-700">
+                {team.total_points}
+              </p>
+            </div>
 
-  const [checklist, setChecklist] =
-    useState<ChecklistItem[]>([]);
+            <div className="bg-white px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Salary
+              </p>
+              <p className="mt-1 text-base font-black text-slate-950">
+                {formatCurrency(team.total_price)}
+              </p>
+            </div>
 
-  const [checklistLoading, setChecklistLoading] =
-    useState(false);
+            <div className="bg-white px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Combined Own.
+              </p>
+              <p className="mt-1 text-base font-black text-slate-950">
+                {Number(team.combined_ownership_percentage).toFixed(1)}%
+              </p>
+            </div>
+          </div>
 
+          <div className="divide-y">
+            {team.horses.map((horse, index) => (
+              <div
+                key={horse.horse_id}
+                className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 px-5 py-3"
+              >
+                <span className="text-sm font-black text-slate-400">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Link
+                      href={`/horses/${horse.horse_id}`}
+                      className="truncate font-bold text-slate-950 hover:text-teal-700 hover:underline"
+                    >
+                      {horse.horse_name}
+                    </Link>
+
+                    {horse.is_captain && (
+                      <span
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-800"
+                        title="Captain — scores double points"
+                      >
+                        C
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {Number(horse.ownership_percentage).toFixed(1)}% owned ·{" "}
+                    {formatCurrency(horse.price)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="font-black text-teal-700">
+                    {horse.is_captain
+                      ? horse.round_points * 2
+                      : horse.round_points}{" "}
+                    pts
+                  </span>
+
+                  {horse.is_captain && (
+                    <p className="mt-0.5 text-[10px] font-bold text-amber-700">
+                      {horse.round_points} × 2
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="p-8 text-center text-slate-500">
+          No valid team is available yet.
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function StatsPage() {
+  const [data, setData] = useState<StatsData | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("ownership");
+  const [selectedRoundId, setSelectedRoundId] = useState("");
+  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const [automationMessage, setAutomationMessage] = useState("");
+  const [seasonLoading, setSeasonLoading] = useState(false);
+  const [ownershipLoading, setOwnershipLoading] = useState(false);
+  const [mostSelectedPage, setMostSelectedPage] = useState(0);
 
-  const [showHorseSilks, setShowHorseSilks] = useState(true);
-  const [silksSettingLoading, setSilksSettingLoading] =
-    useState(true);
-  const [silksSettingSaving, setSilksSettingSaving] =
-    useState(false);
-  const [silksSettingMessage, setSilksSettingMessage] =
-    useState("");
+  const [horseSortKey, setHorseSortKey] =
+    useState<HorseSortKey>("season_points");
+  const [horseSortDirection, setHorseSortDirection] =
+    useState<SortDirection>("desc");
+
+  const [playerSortKey, setPlayerSortKey] =
+    useState<PlayerSortKey>("overall_rank");
+  const [playerSortDirection, setPlayerSortDirection] =
+    useState<SortDirection>("asc");
+
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const [roundStatsFallback, setRoundStatsFallback] =
+    useState<RoundSummaryStats | null>(null);
+
+  const [bestCaptainFallback, setBestCaptainFallback] =
+    useState<SeasonRecordStat | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    async function loadHorseSilksSetting() {
-      setSilksSettingLoading(true);
+    async function loadInitialStats() {
+      setLoading(true);
+      setErrorMessage("");
 
-      const { data, error } = await supabase.rpc(
-        "get_public_site_settings"
-      );
+      const [
+        { data: seasonsData, error: seasonsError },
+        { data: statsData, error: statsError },
+      ] = await Promise.all([
+        supabase
+          .from("seasons")
+          .select("id, name, year, is_active")
+          .order("year", { ascending: false }),
+        supabase.rpc("get_stats_page_data", {
+          p_round_id: null,
+          p_season_id: null,
+        }),
+      ]);
 
-      if (!active) {
+      if (!active) return;
+
+      if (seasonsError || statsError) {
+        console.error("Stats page load error:", {
+          seasonsError,
+          statsError,
+        });
+
+        setErrorMessage(
+          statsError?.message ||
+            seasonsError?.message ||
+            "The Stats Centre could not be loaded."
+        );
+        setData(null);
+        setSeasons([]);
+        setSelectedSeasonId("");
+        setLoading(false);
         return;
       }
 
-      if (error) {
-        console.error(
-          "Horse silks setting load error:",
-          error
-        );
-        setSilksSettingMessage(
-          `Could not load the horse silks setting: ${error.message}`
-        );
-      } else {
-        const settings =
-          data && typeof data === "object"
-            ? (data as {
-                show_horse_silks?: boolean;
-              })
-            : null;
+      const loadedData = statsData as unknown as StatsData;
+      const loadedSeasons = (seasonsData ?? []) as SeasonOption[];
 
-        setShowHorseSilks(
-          settings?.show_horse_silks !== false
-        );
-      }
-
-      setSilksSettingLoading(false);
+      setData(loadedData);
+      setSeasons(loadedSeasons);
+      setSelectedSeasonId(
+        loadedData.season?.id ??
+          loadedSeasons.find((season) => season.is_active)?.id ??
+          loadedSeasons[0]?.id ??
+          ""
+      );
+      setSelectedRoundId(loadedData.selected_round_id ?? "");
+      setLoading(false);
     }
 
-    void loadHorseSilksSetting();
+    void loadInitialStats();
 
     return () => {
       active = false;
     };
   }, []);
 
-  async function toggleHorseSilks() {
-    if (silksSettingSaving) {
-      return;
-    }
+  async function changeSeason(seasonId: string) {
+    setSelectedSeasonId(seasonId);
+    setMostSelectedPage(0);
+    setSeasonLoading(true);
+    setErrorMessage("");
 
-    const nextValue = !showHorseSilks;
-
-    setSilksSettingSaving(true);
-    setSilksSettingMessage("");
-
-    const { data, error } = await supabase.rpc(
-      "admin_set_horse_silks_enabled",
+    const { data: statsData, error } = await supabase.rpc(
+      "get_stats_page_data",
       {
-        p_enabled: nextValue,
+        p_round_id: null,
+        p_season_id: seasonId || null,
       }
     );
 
     if (error) {
-      console.error(
-        "Horse silks setting update error:",
-        error
+      console.error("Stats season change error:", error);
+      setErrorMessage(
+        error.message || "The selected season statistics could not be loaded."
       );
-      setSilksSettingMessage(
-        `Could not update horse silks: ${error.message}`
-      );
-      setSilksSettingSaving(false);
+      setSeasonLoading(false);
       return;
     }
 
-    const result =
-      data && typeof data === "object"
-        ? (data as {
-            show_horse_silks?: boolean;
-          })
-        : null;
+    const loadedData = statsData as unknown as StatsData;
 
-    const savedValue =
-      result?.show_horse_silks ?? nextValue;
-
-    setShowHorseSilks(savedValue);
-    setSilksSettingMessage(
-      savedValue
-        ? "Horse silks are now ON across the website."
-        : "Horse silks are now OFF across the website."
-    );
-    setSilksSettingSaving(false);
+    setData(loadedData);
+    setSelectedSeasonId(loadedData.season?.id ?? seasonId);
+    setSelectedRoundId(loadedData.selected_round_id ?? "");
+    setSeasonLoading(false);
   }
 
-  useEffect(() => {
-    async function loadDashboard() {
-      setLoading(true);
-      setMessage("");
-      setAutomationMessage("");
+  async function changeOwnershipRound(roundId: string) {
+    setSelectedRoundId(roundId);
+    setMostSelectedPage(0);
+    setOwnershipLoading(true);
+    setErrorMessage("");
 
-      const now = new Date().toISOString();
-
-      const {
-        data: lockedRounds,
-        error: lockRoundsError,
-      } = await supabase
-        .from("rounds")
-        .update({
-          status: "locked",
-        })
-        .eq("status", "open")
-        .lte("lockout_at", now)
-        .select("id");
-
-      if (lockRoundsError) {
-        console.error(
-          "Automatic round lock error:",
-          lockRoundsError
-        );
-
-        setMessage(
-          `Could not automatically lock expired rounds: ${lockRoundsError.message}`
-        );
-      } else if (lockedRounds && lockedRounds.length > 0) {
-        const roundWord =
-          lockedRounds.length === 1 ? "round" : "rounds";
-
-        setAutomationMessage(
-          `${lockedRounds.length} expired ${roundWord} automatically locked.`
-        );
+    const { data: statsData, error } = await supabase.rpc(
+      "get_stats_page_data",
+      {
+        p_round_id: roundId || null,
+        p_season_id: selectedSeasonId || null,
       }
+    );
 
-      const [
-        usersResponse,
-        horsesResponse,
-        racesResponse,
-        roundsResponse,
-        seasonResponse,
-      ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id", {
-            count: "exact",
-            head: true,
-          }),
-
-        supabase
-          .from("horses")
-          .select("id", {
-            count: "exact",
-            head: true,
-          }),
-
-        supabase
-          .from("races")
-          .select("id", {
-            count: "exact",
-            head: true,
-          }),
-
-        supabase
-          .from("rounds")
-          .select("id", {
-            count: "exact",
-            head: true,
-          }),
-
-        supabase
-          .from("seasons")
-          .select("id, name, year")
-          .eq("is_active", true)
-          .maybeSingle(),
-      ]);
-
-      const responses = [
-        usersResponse,
-        horsesResponse,
-        racesResponse,
-        roundsResponse,
-        seasonResponse,
-      ];
-
-      const firstLoadError = responses.find(
-        (response) => response.error
-      )?.error;
-
-      if (firstLoadError) {
-        console.error(
-          "Admin dashboard load error:",
-          firstLoadError
-        );
-
-        setMessage((currentMessage) => {
-          const loadMessage =
-            `Could not load some dashboard information: ${firstLoadError.message}`;
-
-          if (currentMessage) {
-            return `${currentMessage} ${loadMessage}`;
-          }
-
-          return loadMessage;
-        });
-      }
-
-      setCounts({
-        users: usersResponse.count ?? 0,
-        horses: horsesResponse.count ?? 0,
-        races: racesResponse.count ?? 0,
-        rounds: roundsResponse.count ?? 0,
-      });
-
-      if (seasonResponse.data) {
-        setActiveSeason(
-          `${seasonResponse.data.name} ${seasonResponse.data.year}`
-        );
-        setActiveSeasonId(seasonResponse.data.id);
-      } else {
-        setActiveSeason("No active season");
-        setActiveSeasonId(null);
-        setSeasonRounds([]);
-        setSelectedRoundId("");
-      }
-
-      setLoading(false);
-    }
-
-    void loadDashboard();
-  }, []);
-
-  useEffect(() => {
-    if (!activeSeasonId) {
+    if (error) {
+      console.error("Ownership round RPC error:", error);
+      setErrorMessage(
+        error.message || "The ownership statistics could not be loaded."
+      );
+      setOwnershipLoading(false);
       return;
     }
 
-    let active = true;
+    const loadedData = statsData as unknown as StatsData;
 
-    async function loadSeasonRounds() {
-      const { data, error } = await supabase
-        .from("rounds")
-        .select(
-          "id, season_id, round_number, name, status, lockout_at"
-        )
-        .eq("season_id", activeSeasonId)
-        .order("round_number", { ascending: true });
+    setData(loadedData);
+    setSelectedRoundId(loadedData.selected_round_id ?? roundId);
+    setOwnershipLoading(false);
+  }
 
-      if (!active) {
-        return;
+  const sortedHorseLeaders = useMemo(() => {
+    const rows = [...(data?.horse_leaders ?? [])];
+
+    rows.sort((a, b) => {
+      let comparison = 0;
+
+      switch (horseSortKey) {
+        case "horse_name":
+          comparison = a.horse_name.localeCompare(b.horse_name);
+          break;
+
+        case "season_points":
+          comparison = a.season_points - b.season_points;
+          break;
+
+        case "eligible_starts":
+          comparison = a.eligible_starts - b.eligible_starts;
+          break;
+
+        case "average_points":
+          comparison =
+            Number(a.average_points) - Number(b.average_points);
+          break;
+
+        case "current_price":
+          comparison = a.current_price - b.current_price;
+          break;
       }
 
-      if (error) {
-        console.error("Round checklist round load error:", error);
-        setMessage((current) =>
-          current
-            ? `${current} Could not load the active season rounds: ${error.message}`
-            : `Could not load the active season rounds: ${error.message}`
-        );
-        return;
+      if (comparison === 0) {
+        comparison = a.horse_name.localeCompare(b.horse_name);
       }
 
-      const loadedRounds = (data ?? []) as AdminRound[];
-      setSeasonRounds(loadedRounds);
+      return horseSortDirection === "asc"
+        ? comparison
+        : -comparison;
+    });
 
-      if (loadedRounds.length === 0) {
-        setSelectedRoundId("");
-        return;
-      }
+    return rows;
+  }, [data, horseSortDirection, horseSortKey]);
 
-      const preferredRound =
-        loadedRounds.find((round) =>
-          ["open", "locked"].includes(round.status)
-        ) ??
-        [...loadedRounds]
-          .reverse()
-          .find((round) => round.status === "completed") ??
-        loadedRounds[0];
+  const participatingPlayerLeaders = useMemo(
+    () =>
+      (data?.player_leaders ?? []).filter(
+        (player) => Number(player.rounds_played) > 0
+      ),
+    [data]
+  );
 
-      setSelectedRoundId((current) => {
-        if (
-          current &&
-          loadedRounds.some((round) => round.id === current)
-        ) {
-          return current;
+  const sortedPlayerLeaders = useMemo(() => {
+    const rows = [...participatingPlayerLeaders];
+
+    rows.sort((a, b) => {
+      let comparison = 0;
+
+      switch (playerSortKey) {
+        case "overall_rank": {
+          const rankA = a.overall_rank ?? Number.MAX_SAFE_INTEGER;
+          const rankB = b.overall_rank ?? Number.MAX_SAFE_INTEGER;
+          comparison = rankA - rankB;
+          break;
         }
 
-        return preferredRound.id;
-      });
-    }
+        case "display_name":
+          comparison = a.display_name.localeCompare(b.display_name);
+          break;
 
-    void loadSeasonRounds();
+        case "total_points":
+          comparison = a.total_points - b.total_points;
+          break;
 
-    return () => {
-      active = false;
-    };
-  }, [activeSeasonId]);
+        case "rounds_played":
+          comparison = a.rounds_played - b.rounds_played;
+          break;
+
+        case "round_wins":
+          comparison = a.round_wins - b.round_wins;
+          break;
+
+        case "top_ten_finishes":
+          comparison =
+            a.top_ten_finishes - b.top_ten_finishes;
+          break;
+
+        case "highest_round_score":
+          comparison =
+            a.highest_round_score - b.highest_round_score;
+          break;
+      }
+
+      if (comparison === 0) {
+        comparison = a.display_name.localeCompare(b.display_name);
+      }
+
+      return playerSortDirection === "asc"
+        ? comparison
+        : -comparison;
+    });
+
+    return rows;
+  }, [
+    participatingPlayerLeaders,
+    playerSortDirection,
+    playerSortKey,
+  ]);
 
   useEffect(() => {
-    if (!selectedRoundId) {
-      setChecklist([]);
-      return;
-    }
-
     let active = true;
 
-    async function loadChecklist() {
-      setChecklistLoading(true);
-
-      const selectedRound = seasonRounds.find(
-        (round) => round.id === selectedRoundId
-      );
-
-      if (!selectedRound) {
-        setChecklist([]);
-        setChecklistLoading(false);
+    async function loadRoundStatsFallback() {
+      if (!selectedRoundId) {
+        setRoundStatsFallback(null);
         return;
       }
 
-      const [
-        racesResponse,
-        teamsResponse,
-      ] = await Promise.all([
-        supabase
-          .from("races")
-          .select(
-            "id, round_id, race_number, race_name, status"
-          )
-          .eq("round_id", selectedRoundId)
-          .order("race_number", { ascending: true }),
-
-        supabase
+      const { data: teamsData, error: teamsError } =
+        await supabase
           .from("teams")
-          .select("id, round_id, status")
-          .eq("round_id", selectedRoundId),
-      ]);
+          .select("id, user_id, salary_used")
+          .eq("round_id", selectedRoundId)
+          .in("status", ["submitted", "locked", "scored"]);
 
-      if (!active) {
-        return;
-      }
+      if (!active) return;
 
-      if (racesResponse.error || teamsResponse.error) {
-        const error =
-          racesResponse.error ?? teamsResponse.error;
-
-        console.error("Round checklist load error:", error);
-        setChecklist([
-          {
-            label: "Checklist data",
-            status: "issue",
-            detail:
-              error?.message ??
-              "The checklist could not be loaded.",
-          },
-        ]);
-        setChecklistLoading(false);
-        return;
-      }
-
-      const races = (racesResponse.data ?? []) as RaceRow[];
-      const teams = (teamsResponse.data ?? []) as TeamRow[];
-
-      // Only submitted/locked/scored teams are eligible for round scoring.
-      // Draft teams may be incomplete and should not be flagged as missing scores.
-      const eligibleTeams = teams.filter((team) =>
-        ["submitted", "locked", "scored"].includes(team.status)
-      );
-
-      const raceIds = races.map((race) => race.id);
-      const teamIds = eligibleTeams.map((team) => team.id);
-
-      let entries: RaceEntryRow[] = [];
-      let results: RaceResultRow[] = [];
-      let roundScores: RoundScoreRow[] = [];
-      let priceHistory: PriceHistoryRow[] = [];
-
-      if (raceIds.length > 0) {
-        const [
-          entriesResponse,
-          priceHistoryResponse,
-        ] = await Promise.all([
-          supabase
-            .from("race_entries")
-            .select(
-              "id, race_id, horse_id, entry_status"
-            )
-            .in("race_id", raceIds),
-
-          supabase
-            .from("horse_price_history")
-            .select(
-              "id, race_id, horse_id, price_after"
-            )
-            .in("race_id", raceIds),
-        ]);
-
-        if (!active) {
-          return;
-        }
-
-        const nestedError =
-          entriesResponse.error ??
-          priceHistoryResponse.error;
-
-        if (nestedError) {
-          console.error(
-            "Round checklist detail load error:",
-            nestedError
-          );
-          setChecklist([
-            {
-              label: "Checklist data",
-              status: "issue",
-              detail: nestedError.message,
-            },
-          ]);
-          setChecklistLoading(false);
-          return;
-        }
-
-        entries =
-          (entriesResponse.data ?? []) as RaceEntryRow[];
-
-        priceHistory =
-          (priceHistoryResponse.data ??
-            []) as PriceHistoryRow[];
-
-        const raceEntryIds = entries.map(
-          (entry) => entry.id
+      if (teamsError) {
+        console.error(
+          "Round stats teams load error:",
+          teamsError
         );
-
-        if (raceEntryIds.length > 0) {
-          const { data: resultsData, error: resultsError } =
-            await supabase
-              .from("race_results")
-              .select(
-                "id, race_entry_id, is_official"
-              )
-              .in("race_entry_id", raceEntryIds);
-
-          if (!active) {
-            return;
-          }
-
-          if (resultsError) {
-            console.error(
-              "Round checklist result load error:",
-              resultsError
-            );
-            setChecklist([
-              {
-                label: "Checklist data",
-                status: "issue",
-                detail: resultsError.message,
-              },
-            ]);
-            setChecklistLoading(false);
-            return;
-          }
-
-          results =
-            (resultsData ?? []) as RaceResultRow[];
-        }
+        setRoundStatsFallback(null);
+        return;
       }
 
-      if (teamIds.length > 0) {
-        const { data, error } = await supabase
+      const teams = teamsData ?? [];
+
+      if (teams.length === 0) {
+        setRoundStatsFallback(null);
+        return;
+      }
+
+      const teamIds = teams.map((team) => team.id);
+
+      const { data: scoresData, error: scoresError } =
+        await supabase
           .from("player_round_scores")
-          .select("team_id")
+          .select("team_id, total_points")
           .in("team_id", teamIds);
 
-        if (!active) {
-          return;
-        }
+      if (!active) return;
 
-        if (error) {
-          console.error(
-            "Round checklist score load error:",
-            error
-          );
-        } else {
-          roundScores = (data ?? []) as RoundScoreRow[];
-        }
+      if (scoresError) {
+        console.error(
+          "Round stats scores load error:",
+          scoresError
+        );
+        setRoundStatsFallback(null);
+        return;
       }
 
-      const unresolvedRaces = races.filter(
-        (race) =>
-          !["official", "abandoned", "cancelled"].includes(
-            race.status
-          )
-      );
-
-      const racesWithoutEntries = races.filter(
-        (race) =>
-          !entries.some(
-            (entry) =>
-              entry.race_id === race.id &&
-              entry.entry_status !== "scratched_before_lockout"
-          )
-      );
-
-      const officialRaces = races.filter(
-        (race) => race.status === "official"
-      );
-
-      const raceIdByEntryId = new Map(
-        entries.map((entry) => [
-          entry.id,
-          entry.race_id,
+      const scoreByTeamId = new Map(
+        (scoresData ?? []).map((score) => [
+          score.team_id,
+          Number(score.total_points ?? 0),
         ])
       );
 
-      const officialRacesWithoutResults =
-        officialRaces.filter(
-          (race) =>
-            !results.some(
-              (result) =>
-                raceIdByEntryId.get(
-                  result.race_entry_id
-                ) === race.id &&
-                result.is_official
-            )
+      const scoredTeams = teams.map((team) => ({
+        ...team,
+        total_points:
+          scoreByTeamId.get(team.id) ?? 0,
+      }));
+
+      const averageScore =
+        scoredTeams.length > 0
+          ? scoredTeams.reduce(
+              (sum, team) =>
+                sum + team.total_points,
+              0
+            ) / scoredTeams.length
+          : null;
+
+      const highestTeam =
+        scoredTeams.length > 0
+          ? [...scoredTeams].sort(
+              (a, b) =>
+                b.total_points - a.total_points
+            )[0]
+          : null;
+
+      const salaryValues = teams
+        .map((team) =>
+          Number(team.salary_used ?? 0)
+        )
+        .filter((salary) =>
+          Number.isFinite(salary)
         );
 
-      const roundResolved =
-        races.length > 0 && unresolvedRaces.length === 0;
+      const averageSalaryUsed =
+        salaryValues.length > 0
+          ? salaryValues.reduce(
+              (sum, salary) => sum + salary,
+              0
+            ) / salaryValues.length
+          : null;
 
-      const roundCompleted =
-        selectedRound.status === "completed";
+      let highestScorePlayerName:
+        | string
+        | null = null;
 
-      let priceMismatchCount = 0;
+      if (highestTeam?.user_id) {
+        const {
+          data: profileData,
+          error: profileError,
+        } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", highestTeam.user_id)
+          .maybeSingle();
 
-      if (roundCompleted && priceHistory.length > 0) {
-        const latestPriceByHorse = new Map<
-          string,
-          PriceHistoryRow
-        >();
+        if (!active) return;
 
-        for (const row of priceHistory) {
-          latestPriceByHorse.set(row.horse_id, row);
-        }
-
-        const horseIds = [...latestPriceByHorse.keys()];
-
-        if (horseIds.length > 0) {
-          const { data: horsePriceData, error } =
-            await supabase
-              .from("horses")
-              .select("id, current_price")
-              .in("id", horseIds);
-
-          if (!active) {
-            return;
-          }
-
-          if (error) {
-            console.error(
-              "Round checklist horse price load error:",
-              error
-            );
-          } else {
-            const horses =
-              (horsePriceData ?? []) as HorsePriceRow[];
-
-            priceMismatchCount = horses.filter((horse) => {
-              const expected =
-                latestPriceByHorse.get(horse.id)?.price_after;
-
-              return (
-                expected !== undefined &&
-                horse.current_price !== expected
-              );
-            }).length;
-          }
+        if (profileError) {
+          console.error(
+            "Round stats profile load error:",
+            profileError
+          );
+        } else {
+          highestScorePlayerName =
+            profileData?.display_name ?? null;
         }
       }
 
-      const lockoutPassed =
-        selectedRound.lockout_at !== null &&
-        new Date(selectedRound.lockout_at).getTime() <=
-          Date.now();
-
-      const lockedOrLater =
-        ["locked", "completed"].includes(
-          selectedRound.status
-        ) || lockoutPassed;
-
-      const scoredTeamCount = new Set(
-        roundScores.map((score) => score.team_id)
-      ).size;
-
-      const checklistItems: ChecklistItem[] = [
-        {
-          label: "Races created",
-          status: races.length > 0 ? "ready" : "issue",
-          detail:
-            races.length > 0
-              ? `${races.length} ${
-                  races.length === 1 ? "race" : "races"
-                } created for this round.`
-              : "No races have been created for this round.",
-          href: "/admin/races",
-        },
-        {
-          label: "Race entries added",
-          status:
-            races.length === 0
-              ? "pending"
-              : racesWithoutEntries.length === 0
-                ? "ready"
-                : "issue",
-          detail:
-            races.length === 0
-              ? "Create the round races first."
-              : racesWithoutEntries.length === 0
-                ? `${entries.length} race entries loaded across all races.`
-                : `${racesWithoutEntries.length} ${
-                    racesWithoutEntries.length === 1
-                      ? "race has"
-                      : "races have"
-                  } no active entries.`,
-          href: "/admin/race-entries",
-        },
-        {
-          label: "Round lockout",
-          status: lockedOrLater ? "ready" : "pending",
-          detail: lockedOrLater
-            ? "The round has reached lockout."
-            : selectedRound.lockout_at
-              ? `Lockout is ${new Date(
-                  selectedRound.lockout_at
-                ).toLocaleString("en-AU")}.`
-              : "No lockout time is set for this round.",
-          href: "/admin/rounds",
-        },
-        {
-          label: "Results entered",
-          status:
-            officialRaces.length === 0
-              ? "pending"
-              : officialRacesWithoutResults.length === 0
-                ? "ready"
-                : "issue",
-          detail:
-            officialRaces.length === 0
-              ? "No races have official results yet."
-              : officialRacesWithoutResults.length === 0
-                ? `${officialRaces.length} official ${
-                    officialRaces.length === 1
-                      ? "race has"
-                      : "races have"
-                  } saved results.`
-                : `${officialRacesWithoutResults.length} official ${
-                    officialRacesWithoutResults.length === 1
-                      ? "race is"
-                      : "races are"
-                  } missing official result rows.`,
-          href: "/admin/results",
-        },
-        {
-          label: "All races resolved",
-          status: roundResolved ? "ready" : "pending",
-          detail:
-            races.length === 0
-              ? "No races exist for this round."
-              : roundResolved
-                ? `All ${races.length} races are official, abandoned or cancelled.`
-                : `${unresolvedRaces.length} ${
-                    unresolvedRaces.length === 1
-                      ? "race remains"
-                      : "races remain"
-                  } unresolved.`,
-          href: "/admin/results",
-        },
-        {
-          label: "Round scoring",
-          status:
-            !roundResolved
-              ? "pending"
-              : eligibleTeams.length === 0
-                ? "ready"
-                : scoredTeamCount >= eligibleTeams.length
-                  ? "ready"
-                  : "issue",
-          detail:
-            !roundResolved
-              ? "Scoring completes after all races are resolved."
-              : eligibleTeams.length === 0
-                ? "No eligible teams were submitted for this round."
-                : scoredTeamCount >= eligibleTeams.length
-                  ? `${scoredTeamCount} of ${eligibleTeams.length} eligible teams have round scores.`
-                  : `${eligibleTeams.length - scoredTeamCount} ${
-                      eligibleTeams.length - scoredTeamCount === 1
-                        ? "eligible team is"
-                        : "eligible teams are"
-                    } missing a round score.`,
-        },
-        {
-          label: "Prices released",
-          status:
-            !roundCompleted
-              ? "pending"
-              : priceMismatchCount === 0
-                ? "ready"
-                : "issue",
-          detail:
-            !roundCompleted
-              ? "Horse prices remain held until the round is completed."
-              : priceMismatchCount === 0
-                ? "Completed-round horse prices match the stored price history."
-                : `${priceMismatchCount} ${
-                    priceMismatchCount === 1
-                      ? "horse price does"
-                      : "horse prices do"
-                  } not match the stored completed-round price.`,
-          href: "/admin/horses",
-        },
-        {
-          label: "Round completed",
-          status: roundCompleted ? "ready" : "pending",
-          detail: roundCompleted
-            ? "The round is marked completed."
-            : `Current round status: ${selectedRound.status}.`,
-          href: "/admin/rounds",
-        },
-      ];
-
-      setChecklist(checklistItems);
-      setChecklistLoading(false);
+      setRoundStatsFallback({
+        average_score: averageScore,
+        highest_score:
+          highestTeam?.total_points ?? null,
+        highest_score_player_id:
+          highestTeam?.user_id ?? null,
+        highest_score_player_name:
+          highestScorePlayerName,
+        average_salary_used:
+          averageSalaryUsed,
+      });
     }
 
-    void loadChecklist();
+    void loadRoundStatsFallback();
 
     return () => {
       active = false;
     };
-  }, [selectedRoundId, seasonRounds]);
+  }, [selectedRoundId]);
 
-  const selectedRound = useMemo(
-    () =>
-      seasonRounds.find(
-        (round) => round.id === selectedRoundId
-      ) ?? null,
-    [seasonRounds, selectedRoundId]
+  useEffect(() => {
+    let active = true;
+
+    async function loadBestCaptainFallback() {
+      if (!selectedSeasonId) {
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const {
+        data: seasonRounds,
+        error: roundsError,
+      } = await supabase
+        .from("rounds")
+        .select("id")
+        .eq("season_id", selectedSeasonId);
+
+      if (!active) return;
+
+      if (roundsError) {
+        console.error(
+          "Best captain rounds load error:",
+          roundsError
+        );
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const roundIds = (seasonRounds ?? []).map(
+        (round) => round.id
+      );
+
+      if (roundIds.length === 0) {
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const {
+        data: seasonTeams,
+        error: teamsError,
+      } = await supabase
+        .from("teams")
+        .select("id, user_id")
+        .in("round_id", roundIds)
+        .in("status", [
+          "submitted",
+          "locked",
+          "scored",
+        ]);
+
+      if (!active) return;
+
+      if (teamsError) {
+        console.error(
+          "Best captain teams load error:",
+          teamsError
+        );
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const teams = seasonTeams ?? [];
+      const teamIds = teams.map((team) => team.id);
+
+      if (teamIds.length === 0) {
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const userByTeamId = new Map(
+        teams.map((team) => [
+          team.id,
+          team.user_id,
+        ])
+      );
+
+      const {
+        data: captainSelections,
+        error: captainError,
+      } = await supabase
+        .from("team_selections")
+        .select("team_id, fantasy_points")
+        .in("team_id", teamIds)
+        .eq("is_captain", true);
+
+      if (!active) return;
+
+      if (captainError) {
+        console.error(
+          "Best captain selections load error:",
+          captainError
+        );
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const totalsByUser = new Map<
+        string,
+        {
+          total: number;
+          rounds: number;
+        }
+      >();
+
+      for (const selection of captainSelections ?? []) {
+        const userId = userByTeamId.get(
+          selection.team_id
+        );
+
+        if (!userId) {
+          continue;
+        }
+
+        const doubledCaptainPoints =
+          Number(selection.fantasy_points ?? 0) *
+          2;
+
+        const current =
+          totalsByUser.get(userId) ?? {
+            total: 0,
+            rounds: 0,
+          };
+
+        current.total += doubledCaptainPoints;
+        current.rounds += 1;
+
+        totalsByUser.set(userId, current);
+      }
+
+      const bestCaptain = Array.from(
+        totalsByUser.entries()
+      )
+        .map(([userId, record]) => ({
+          userId,
+          rounds: record.rounds,
+          average:
+            record.rounds > 0
+              ? record.total / record.rounds
+              : 0,
+        }))
+        .filter((record) => record.rounds > 0)
+        .sort(
+          (a, b) =>
+            b.average - a.average ||
+            b.rounds - a.rounds
+        )[0];
+
+      if (!bestCaptain) {
+        setBestCaptainFallback(null);
+        return;
+      }
+
+      const {
+        data: profileData,
+        error: profileError,
+      } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", bestCaptain.userId)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (profileError) {
+        console.error(
+          "Best captain profile load error:",
+          profileError
+        );
+      }
+
+      setBestCaptainFallback({
+        user_id: bestCaptain.userId,
+        display_name:
+          profileData?.display_name ??
+          "Player",
+        value: bestCaptain.average,
+        rounds: bestCaptain.rounds,
+      });
+    }
+
+    void loadBestCaptainFallback();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedSeasonId]);
+
+  function changeHorseSort(nextKey: HorseSortKey) {
+    if (horseSortKey === nextKey) {
+      setHorseSortDirection((current) =>
+        current === "asc" ? "desc" : "asc"
+      );
+      return;
+    }
+
+    setHorseSortKey(nextKey);
+    setHorseSortDirection(
+      nextKey === "horse_name" ? "asc" : "desc"
+    );
+  }
+
+  function changePlayerSort(nextKey: PlayerSortKey) {
+    if (playerSortKey === nextKey) {
+      setPlayerSortDirection((current) =>
+        current === "asc" ? "desc" : "asc"
+      );
+      return;
+    }
+
+    setPlayerSortKey(nextKey);
+    setPlayerSortDirection(
+      nextKey === "overall_rank" ||
+        nextKey === "display_name"
+        ? "asc"
+        : "desc"
+    );
+  }
+
+  function sortIcon(
+    active: boolean,
+    direction: SortDirection
+  ) {
+    if (!active) {
+      return <ArrowUpDown className="h-4 w-4 text-slate-400" />;
+    }
+
+    return direction === "asc" ? (
+      <ArrowUp className="h-4 w-4 text-teal-700" />
+    ) : (
+      <ArrowDown className="h-4 w-4 text-teal-700" />
+    );
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-100 p-6">
+        <div className="mx-auto max-w-7xl rounded-xl border bg-white p-10 text-center text-slate-500">
+          Loading Stats Centre...
+        </div>
+      </main>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <main className="min-h-screen bg-slate-100 p-4 md:p-8">
+        <div className="mx-auto max-w-4xl rounded-xl border bg-white p-8">
+          <h1 className="text-3xl font-black text-slate-950">
+            Stats Centre
+          </h1>
+
+          <p className="mt-4 text-red-700">{errorMessage}</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!data?.season || !data.season_summary) {
+    return (
+      <main className="min-h-screen bg-slate-100 p-4 md:p-8">
+        <div className="mx-auto max-w-4xl rounded-xl border bg-white p-8 text-center">
+          <h1 className="text-3xl font-black text-slate-950">
+            Stats Centre
+          </h1>
+
+          <p className="mt-4 text-slate-600">
+            {data?.message || "No season statistics are available yet."}
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const selectedSeason = seasons.find(
+    (season) => season.id === selectedSeasonId
   );
 
-  const checklistReadyCount = checklist.filter(
-    (item) => item.status === "ready"
-  ).length;
+  const summary = data.season_summary;
 
-  const checklistIssueCount = checklist.filter(
-    (item) => item.status === "issue"
-  ).length;
+  const MOST_SELECTED_PAGE_SIZE = 10;
+  const mostSelectedRows = data.most_selected ?? [];
+  const mostSelectedPageCount = Math.max(
+    1,
+    Math.ceil(
+      mostSelectedRows.length / MOST_SELECTED_PAGE_SIZE
+    )
+  );
+  const safeMostSelectedPage = Math.min(
+    mostSelectedPage,
+    mostSelectedPageCount - 1
+  );
+  const mostSelectedStart =
+    safeMostSelectedPage * MOST_SELECTED_PAGE_SIZE;
+  const visibleMostSelected = mostSelectedRows.slice(
+    mostSelectedStart,
+    mostSelectedStart + MOST_SELECTED_PAGE_SIZE
+  );
 
-  const cards = [
-    {
-      title: "Registered users",
-      value: counts.users,
-      href: "/admin/users",
-    },
-    {
-      title: "Horses",
-      value: counts.horses,
-      href: "/admin/horses",
-    },
-    {
-      title: "Races",
-      value: counts.races,
-      href: "/admin/races",
-    },
-    {
-      title: "Rounds",
-      value: counts.rounds,
-      href: "/admin/rounds",
-    },
+  const derivedHighestRoundPlayer = [...participatingPlayerLeaders].sort(
+    (a, b) => b.highest_round_score - a.highest_round_score
+  )[0];
+
+  const derivedMostRoundWinsPlayer = [...participatingPlayerLeaders].sort(
+    (a, b) =>
+      b.round_wins - a.round_wins ||
+      b.total_points - a.total_points ||
+      a.display_name.localeCompare(b.display_name)
+  )[0];
+
+  const highestRoundRecord =
+    data.season_records?.highest_round_score ??
+    (derivedHighestRoundPlayer
+      ? {
+          user_id: derivedHighestRoundPlayer.user_id,
+          display_name: derivedHighestRoundPlayer.display_name,
+          value: derivedHighestRoundPlayer.highest_round_score,
+        }
+      : null);
+
+  const bestCaptainRecord =
+    data.season_records?.best_captain ??
+    bestCaptainFallback;
+
+  const mostRoundWinsRecord =
+    data.season_records?.most_round_wins ??
+    (derivedMostRoundWinsPlayer
+      ? {
+          user_id: derivedMostRoundWinsPlayer.user_id,
+          display_name: derivedMostRoundWinsPlayer.display_name,
+          value: derivedMostRoundWinsPlayer.round_wins,
+        }
+      : null);
+
+  const derivedMostPointsLeader =
+    [...(data.horse_leaders ?? [])].sort(
+      (a, b) =>
+        Number(b.season_points ?? 0) -
+          Number(a.season_points ?? 0) ||
+        a.horse_name.localeCompare(
+          b.horse_name
+        )
+    )[0] ?? null;
+
+  const mostPointsHorse:
+    | RoundSpecialHorse
+    | null =
+    data.horse_performance?.most_points ??
+    (derivedMostPointsLeader
+      ? {
+          horse_id:
+            derivedMostPointsLeader.horse_id,
+          horse_name:
+            derivedMostPointsLeader.horse_name,
+          price: Number(
+            derivedMostPointsLeader.current_price ??
+              0
+          ),
+          selection_count: 0,
+          ownership_percentage: 0,
+          round_points: Number(
+            derivedMostPointsLeader.season_points ??
+              0
+          ),
+        }
+      : null);
+
+  const derivedBestValueLeader =
+    (data.horse_leaders ?? [])
+      .filter(
+        (horse) =>
+          Number(horse.season_points ?? 0) >
+            0 &&
+          Number(horse.current_price ?? 0) >
+            0
+      )
+      .map((horse) => ({
+        horse,
+        valueScore:
+          Number(horse.season_points ?? 0) /
+          Number(horse.current_price ?? 1),
+      }))
+      .sort(
+        (a, b) =>
+          b.valueScore - a.valueScore ||
+          Number(
+            b.horse.season_points ?? 0
+          ) -
+            Number(
+              a.horse.season_points ?? 0
+            ) ||
+          a.horse.horse_name.localeCompare(
+            b.horse.horse_name
+          )
+      )[0] ?? null;
+
+  const bestValueHorse:
+    | (RoundSpecialHorse & {
+        value_score?: number;
+      })
+    | null =
+    data.horse_performance?.best_value ??
+    (derivedBestValueLeader
+      ? {
+          horse_id:
+            derivedBestValueLeader.horse
+              .horse_id,
+          horse_name:
+            derivedBestValueLeader.horse
+              .horse_name,
+          price: Number(
+            derivedBestValueLeader.horse
+              .current_price ?? 0
+          ),
+          selection_count: 0,
+          ownership_percentage: 0,
+          round_points: Number(
+            derivedBestValueLeader.horse
+              .season_points ?? 0
+          ),
+          value_score:
+            derivedBestValueLeader.valueScore,
+        }
+      : null);
+
+  const resolvedRoundStats: RoundSummaryStats = {
+    average_score:
+      data.round_stats?.average_score ??
+      roundStatsFallback?.average_score ??
+      null,
+    highest_score:
+      data.round_stats?.highest_score ??
+      roundStatsFallback?.highest_score ??
+      null,
+    highest_score_player_id:
+      data.round_stats
+        ?.highest_score_player_id ??
+      roundStatsFallback
+        ?.highest_score_player_id ??
+      null,
+    highest_score_player_name:
+      data.round_stats
+        ?.highest_score_player_name ??
+      roundStatsFallback
+        ?.highest_score_player_name ??
+      null,
+    average_salary_used:
+      data.round_stats?.average_salary_used ??
+      roundStatsFallback
+        ?.average_salary_used ??
+      null,
+  };
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "ownership", label: "Ownership" },
+    { id: "performance", label: "Horse Performance" },
+    { id: "round", label: "Round Stats" },
+    { id: "season", label: "Season Records" },
   ];
 
   return (
-    <main className="p-6 sm:p-10">
+    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
       <div className="mx-auto max-w-7xl">
-        <div>
-          <p className="font-semibold text-teal-600">
-            Administration
-          </p>
-
-          <h1 className="mt-1 text-4xl font-bold tracking-tight">
-            Dashboard
-          </h1>
-
-          <p className="mt-2 text-slate-600">
-            Manage the Racecourse Fantasy competition.
-          </p>
-        </div>
-
-        {automationMessage && (
-          <div className="mt-6 rounded-xl border border-teal-200 bg-teal-50 p-4 text-teal-700">
-            {automationMessage}
-          </div>
-        )}
-
-        {message && (
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
-            {message}
-          </div>
-        )}
-
-        <section className="mt-8 rounded-2xl bg-slate-900 p-6 text-white shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-wider text-teal-300">
-            Active season
-          </p>
-
-          <p className="mt-2 text-2xl font-bold">
-            {loading ? "Loading..." : activeSeason}
-          </p>
-
-          <Link
-            href="/admin/seasons"
-            className="mt-5 inline-block rounded-lg bg-amber-400 px-4 py-2 text-sm font-bold text-emerald-950 transition hover:bg-amber-300"
-          >
-            Manage seasons
-          </Link>
-        </section>
-
-        <section className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {cards.map((card) => (
-            <Link
-              key={card.title}
-              href={card.href}
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-            >
-              <p className="text-sm font-medium text-slate-500">
-                {card.title}
+        <header className="rounded-2xl bg-slate-950 p-6 text-white shadow-sm md:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.18em] text-teal-300">
+                {data.season.name}
               </p>
 
-              <p className="mt-3 text-4xl font-bold">
-                {loading ? "—" : card.value}
-              </p>
+              <h1 className="mt-2 text-3xl font-black md:text-4xl">
+                Stats Centre
+              </h1>
 
-              <p className="mt-4 text-sm font-semibold text-teal-600">
-                Manage →
+              <p className="mt-3 max-w-2xl text-slate-300">
+                Explore the season's leading horses, managers, ownership
+                trends and biggest price movements.
               </p>
-            </Link>
-          ))}
-        </section>
+            </div>
 
-        <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-teal-600">
-                  Race-day control
+            <div className="w-full lg:w-80">
+              <label
+                htmlFor="stats-season"
+                className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-300"
+              >
+                Season
+              </label>
+
+              <select
+                id="stats-season"
+                value={selectedSeasonId}
+                onChange={(event) =>
+                  void changeSeason(event.target.value)
+                }
+                disabled={seasonLoading || seasons.length === 0}
+                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 font-semibold text-white outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {seasons.length === 0 ? (
+                  <option value="">No seasons available</option>
+                ) : (
+                  seasons.map((season) => (
+                    <option key={season.id} value={season.id}>
+                      {season.name} {season.year}
+                      {season.is_active ? " — Active" : ""}
+                    </option>
+                  ))
+                )}
+              </select>
+
+              {selectedSeason && (
+                <p className="mt-2 text-xs text-slate-400">
+                  Viewing {selectedSeason.name} {selectedSeason.year}
                 </p>
-
-                <h2 className="mt-1 text-2xl font-bold text-slate-950">
-                  Round checklist
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Check that each round is ready before racing and
-                  has completed correctly afterwards.
-                </p>
-              </div>
-
-              {seasonRounds.length > 0 && (
-                <div className="w-full sm:w-80">
-                  <label
-                    htmlFor="checklist-round"
-                    className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500"
-                  >
-                    Round
-                  </label>
-
-                  <select
-                    id="checklist-round"
-                    value={selectedRoundId}
-                    onChange={(event) =>
-                      setSelectedRoundId(event.target.value)
-                    }
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-                  >
-                    {seasonRounds.map((round) => (
-                      <option key={round.id} value={round.id}>
-                        Round {round.round_number}
-                        {round.name ? ` — ${round.name}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               )}
             </div>
+          </div>
+        </header>
 
-            {selectedRound && !checklistLoading && (
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                  {checklistReadyCount}/{checklist.length} ready
-                </span>
+        {seasonLoading && (
+          <div className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-800">
+            Loading season statistics...
+          </div>
+        )}
 
-                {checklistIssueCount > 0 && (
-                  <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">
-                    {checklistIssueCount}{" "}
-                    {checklistIssueCount === 1
-                      ? "issue"
-                      : "issues"}
-                  </span>
-                )}
-
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold capitalize text-slate-700">
-                  {selectedRound.status}
-                </span>
-              </div>
-            )}
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <Flag className="h-5 w-5 text-teal-700" />
+              <p className="text-sm font-bold text-slate-700">
+                Completed Rounds
+              </p>
+            </div>
+            <p className="mt-3 text-3xl font-black text-slate-950">
+              {summary.completed_rounds} / {summary.rounds}
+            </p>
           </div>
 
-          {!activeSeasonId ? (
-            <div className="p-8 text-center text-slate-500">
-              Set an active season to use the round checklist.
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <Trophy className="h-5 w-5 text-teal-700" />
+              <p className="text-sm font-bold text-slate-700">
+                Official Races
+              </p>
             </div>
-          ) : seasonRounds.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              No rounds have been created for the active season.
+            <p className="mt-3 text-3xl font-black text-slate-950">
+              {summary.official_races} / {summary.races}
+            </p>
+          </div>
+
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <Users className="h-5 w-5 text-teal-700" />
+              <p className="text-sm font-bold text-slate-700">
+                Players
+              </p>
             </div>
-          ) : checklistLoading ? (
-            <div className="p-8 text-center text-slate-500">
-              Checking round...
+            <p className="mt-3 text-3xl font-black text-slate-950">
+              {summary.players}
+            </p>
+          </div>
+
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <BarChart3 className="h-5 w-5 text-teal-700" />
+              <p className="text-sm font-bold text-slate-700">
+                Highest Round
+              </p>
             </div>
-          ) : (
-            <div className="grid divide-y divide-slate-200 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-              <div className="divide-y divide-slate-200">
-                {checklist
-                  .slice(0, 4)
-                  .map((item) => (
-                    <div
-                      key={item.label}
-                      className="flex items-start justify-between gap-4 p-5"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-950">
-                          {item.label}
-                        </p>
-
-                        <p className="mt-1 text-sm leading-6 text-slate-500">
-                          {item.detail}
-                        </p>
-
-                        {item.href && (
-                          <Link
-                            href={item.href}
-                            className="mt-2 inline-flex text-sm font-bold text-teal-700 hover:underline"
-                          >
-                            Manage →
-                          </Link>
-                        )}
-                      </div>
-
-                      <StatusBadge status={item.status} />
-                    </div>
-                  ))}
-              </div>
-
-              <div className="divide-y divide-slate-200">
-                {checklist
-                  .slice(4)
-                  .map((item) => (
-                    <div
-                      key={item.label}
-                      className="flex items-start justify-between gap-4 p-5"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-950">
-                          {item.label}
-                        </p>
-
-                        <p className="mt-1 text-sm leading-6 text-slate-500">
-                          {item.detail}
-                        </p>
-
-                        {item.href && (
-                          <Link
-                            href={item.href}
-                            className="mt-2 inline-flex text-sm font-bold text-teal-700 hover:underline"
-                          >
-                            Manage →
-                          </Link>
-                        )}
-                      </div>
-
-                      <StatusBadge status={item.status} />
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
+            <p className="mt-3 text-3xl font-black text-slate-950">
+              {summary.highest_round_score}
+            </p>
+          </div>
         </section>
 
-        <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-6">
-            <p className="text-sm font-semibold text-teal-600">
-              Site display
-            </p>
-
-            <h2 className="mt-1 text-2xl font-bold text-slate-950">
-              Horse silks
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Control whether jockey silks are shown across
-              Racecourse Fantasy. Turning this off does not
-              delete any uploaded silk images.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-bold text-slate-950">
-                Show horse silks
-              </p>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {silksSettingLoading
-                  ? "Loading current setting..."
-                  : showHorseSilks
-                    ? "Silks are currently visible across the website."
-                    : "Silks are currently hidden across the website."}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={showHorseSilks}
-              disabled={
-                silksSettingLoading ||
-                silksSettingSaving
-              }
-              onClick={() => void toggleHorseSilks()}
-              className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition ${
-                showHorseSilks
-                  ? "bg-teal-600"
-                  : "bg-slate-300"
-              } ${
-                silksSettingLoading ||
-                silksSettingSaving
-                  ? "cursor-not-allowed opacity-60"
-                  : "cursor-pointer"
-              }`}
-            >
-              <span
-                className={`inline-block h-6 w-6 rounded-full bg-white shadow-sm transition ${
-                  showHorseSilks
-                    ? "translate-x-7"
-                    : "translate-x-1"
+        <div className="mt-6 overflow-x-auto rounded-xl border bg-white p-2 shadow-sm">
+          <div className="flex min-w-max gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`rounded-lg px-4 py-2.5 text-sm font-bold transition ${
+                  activeTab === tab.id
+                    ? "bg-slate-950 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
                 }`}
-              />
-            </button>
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+        </div>
 
-          {silksSettingMessage && (
-            <div
-              className={`border-t px-6 py-3 text-sm font-semibold ${
-                silksSettingMessage.startsWith(
-                  "Could not"
-                )
-                  ? "border-red-200 bg-red-50 text-red-700"
-                  : "border-teal-200 bg-teal-50 text-teal-700"
-              }`}
-            >
-              {silksSettingMessage}
+        {activeTab === "ownership" && (
+          <section className="mt-5">
+            <div className="mb-5 flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-950">Ownership</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Most selected horses, captain trends and the best low-owned scorer.
+                </p>
+              </div>
+
+              <div className="w-full sm:w-72">
+                <label htmlFor="ownership-round" className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Choose round
+                </label>
+                <select
+                  id="ownership-round"
+                  value={selectedRoundId}
+                  onChange={(event) => void changeOwnershipRound(event.target.value)}
+                  disabled={ownershipLoading || (data.ownership_rounds ?? []).length === 0}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-semibold text-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
+                >
+                  {(data.ownership_rounds ?? []).length === 0 && (
+                    <option value="">No locked rounds available</option>
+                  )}
+                  {(data.ownership_rounds ?? []).map((round) => (
+                    <option key={round.id} value={round.id}>
+                      Round {round.round_number}{round.name ? ` — ${round.name}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          )}
-        </section>
 
-        <section className="mt-8">
-          <h2 className="text-xl font-bold">
-            Quick actions
-          </h2>
+            {ownershipLoading ? (
+              <div className="rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
+                Loading round statistics...
+              </div>
+            ) : !data.selected_round ? (
+              <div className="rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
+                Round statistics become available after a round locks.
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-5 lg:grid-cols-2">
+                  <section className="rounded-2xl border bg-white p-5 shadow-sm">
+                    <h3 className="text-xl font-black text-slate-950">Most Selected</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Percentage of teams that selected each horse.
+                    </p>
+                    <div className="mt-5 space-y-4">
+                      {visibleMostSelected.map((horse, index) => {
+                        const percentage = Number(
+                          horse.ownership_percentage ?? 0
+                        );
+                        const overallIndex =
+                          mostSelectedStart + index;
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Link
-              href="/admin/seasons"
-              className="rounded-xl border border-slate-200 bg-white p-5 font-semibold shadow-sm hover:border-teal-500"
-            >
-              Create a season
-            </Link>
+                        return (
+                          <div key={horse.horse_id}>
+                            <div className="flex items-center justify-between gap-4 text-sm">
+                              <Link
+                                href={`/horses/${horse.horse_id}`}
+                                className="font-bold text-slate-950 hover:text-teal-700"
+                              >
+                                {overallIndex + 1}. {horse.horse_name}
+                              </Link>
 
-            <Link
-              href="/admin/rounds"
-              className="rounded-xl border border-slate-200 bg-white p-5 font-semibold shadow-sm hover:border-teal-500"
-            >
-              Create a round
-            </Link>
+                              <div className="text-right">
+                                <span className="font-black">
+                                  {percentage.toFixed(1)}%
+                                </span>
+                                <span className="ml-2 text-xs text-slate-500">
+                                  ({horse.selection_count ?? 0})
+                                </span>
+                              </div>
+                            </div>
 
-            <Link
-              href="/admin/horses"
-              className="rounded-xl border border-slate-200 bg-white p-5 font-semibold shadow-sm hover:border-teal-500"
-            >
-              Add horses
-            </Link>
-          </div>
-        </section>
+                            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200">
+                              <div
+                                className="h-full rounded-full bg-teal-600"
+                                style={{
+                                  width: `${Math.min(
+                                    100,
+                                    Math.max(0, percentage)
+                                  )}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {mostSelectedRows.length >
+                      MOST_SELECTED_PAGE_SIZE && (
+                      <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMostSelectedPage((current) =>
+                              Math.max(0, current - 1)
+                            )
+                          }
+                          disabled={safeMostSelectedPage === 0}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Previous
+                        </button>
+
+                        <span className="text-xs font-bold text-slate-500">
+                          {mostSelectedStart + 1}–
+                          {Math.min(
+                            mostSelectedStart +
+                              MOST_SELECTED_PAGE_SIZE,
+                            mostSelectedRows.length
+                          )}{" "}
+                          of {mostSelectedRows.length}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMostSelectedPage((current) =>
+                              Math.min(
+                                mostSelectedPageCount - 1,
+                                current + 1
+                              )
+                            )
+                          }
+                          disabled={
+                            safeMostSelectedPage >=
+                            mostSelectedPageCount - 1
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="rounded-2xl border bg-white p-5 shadow-sm">
+                    <h3 className="text-xl font-black text-slate-950">Most Captained</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Percentage of teams that captained each horse.
+                    </p>
+                    <div className="mt-5 space-y-4">
+                      {(data.most_captained ?? []).map((horse, index) => {
+                        const percentage = Number(horse.captain_percentage ?? 0);
+                        return (
+                          <div key={horse.horse_id}>
+                            <div className="flex items-center justify-between gap-4 text-sm">
+                              <Link href={`/horses/${horse.horse_id}`} className="font-bold text-slate-950 hover:text-teal-700">
+                                {index + 1}. {horse.horse_name}
+                              </Link>
+                              <div className="text-right">
+                                <span className="font-black">{percentage.toFixed(1)}%</span>
+                                <span className="ml-2 text-xs text-slate-500">({horse.captain_count ?? 0})</span>
+                              </div>
+                            </div>
+                            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200">
+                              <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                </div>
+
+                <div className="mt-5 max-w-xl">
+                  <SpecialHorseCard
+                    title="Best POD"
+                    description="Highest-scoring horse owned by fewer than 10% of teams."
+                    horse={data.special_stats?.best_pod ?? null}
+                  />
+                </div>
+              </>
+            )}
+          </section>
+        )}
+
+        {activeTab === "performance" && (
+          <section className="mt-5">
+            <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
+              <h2 className="text-xl font-black text-slate-950">Horse Performance</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Most Points, Best Value, Popular Flop and Missed Opportunity.
+              </p>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              <SpecialHorseCard
+                title="Most Points"
+                description="Highest-scoring horse in the selected round."
+                horse={mostPointsHorse}
+              />
+              <SpecialHorseCard
+                title="Best Value"
+                description="Best fantasy return relative to the horse's round price."
+                horse={bestValueHorse}
+              />
+              <SpecialHorseCard
+                title="Popular Flop"
+                description="Lowest-scoring horse owned by at least 25% of teams."
+                horse={data.special_stats?.popular_flop ?? null}
+              />
+              <SpecialHorseCard
+                title="Missed Opportunity"
+                description="Highest-scoring horse that no team selected."
+                horse={data.special_stats?.missed_opportunity ?? null}
+              />
+            </div>
+          </section>
+        )}
+
+        {activeTab === "round" && (
+          <section className="mt-5">
+            <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
+              <h2 className="text-xl font-black text-slate-950">Round Stats</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Average Score, Highest Score, Average Salary Used and Perfect Team.
+              </p>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-3">
+              <MetricCard
+                title="Average Score"
+                value={resolvedRoundStats.average_score == null ? "—" : `${Number(resolvedRoundStats.average_score).toFixed(1)} pts`}
+                subtitle="Average final score across teams."
+              />
+              <MetricCard
+                title="Highest Score"
+                value={resolvedRoundStats.highest_score == null ? "—" : `${resolvedRoundStats.highest_score} pts`}
+                subtitle={resolvedRoundStats.highest_score_player_name ?? "Highest player score for the round."}
+                accent="amber"
+              />
+              <MetricCard
+                title="Average Salary Used"
+                value={resolvedRoundStats.average_salary_used == null ? "—" : formatCurrency(resolvedRoundStats.average_salary_used)}
+                subtitle="Average salary committed by teams."
+                accent="slate"
+              />
+            </div>
+
+            <div className="mt-5">
+              <TeamPanel
+                title="Perfect Team"
+                description="Highest-scoring valid 10-horse combination under the $2.5m salary cap, including an optimised captain who scores double points."
+                team={data.special_stats?.perfect_team ?? null}
+              />
+            </div>
+          </section>
+        )}
+
+        {activeTab === "season" && (
+          <section className="mt-5">
+            <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
+              <h2 className="text-xl font-black text-slate-950">Season Records</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Highest Round Score, Most Round Wins, Best Captain and Biggest Rank Rise.
+              </p>
+            </div>
+
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                title="Highest Round Score"
+                value={highestRoundRecord?.value == null ? "—" : `${highestRoundRecord.value} pts`}
+                subtitle={highestRoundRecord?.display_name ?? "No record yet"}
+                accent="amber"
+              />
+              <MetricCard
+                title="Most Round Wins"
+                value={mostRoundWinsRecord?.value == null ? "—" : `${mostRoundWinsRecord.value}`}
+                subtitle={mostRoundWinsRecord?.display_name ?? "No record yet"}
+              />
+              <MetricCard
+                title="Best Captain"
+                value={
+                  bestCaptainRecord?.value == null
+                    ? "—"
+                    : `${Number(
+                        bestCaptainRecord.value
+                      ).toFixed(1)} pts`
+                }
+                subtitle={
+                  bestCaptainRecord?.display_name
+                    ? `${bestCaptainRecord.display_name} · average captain score${
+                        bestCaptainRecord.rounds
+                          ? ` over ${bestCaptainRecord.rounds} round${
+                              bestCaptainRecord.rounds === 1
+                                ? ""
+                                : "s"
+                            }`
+                          : ""
+                      }`
+                    : "Highest average captain score"
+                }
+              />
+              <MetricCard
+                title="Biggest Rank Rise"
+                value={
+                  data.season_records?.biggest_rank_rise?.value == null
+                    ? "—"
+                    : `+${data.season_records.biggest_rank_rise.value}`
+                }
+                subtitle={data.season_records?.biggest_rank_rise?.display_name ?? "Largest rise between rounds"}
+                accent="slate"
+              />
+            </div>
+          </section>
+        )}
+
       </div>
     </main>
   );
