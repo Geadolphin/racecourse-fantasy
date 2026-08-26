@@ -1184,6 +1184,7 @@ export default function CupDetailPage() {
                   key={stage.id}
                   stage={stage}
                   matches={stageMatches}
+                  groupMembers={cupData.group_members}
                   participantName={participantName}
                   participantUserId={participantUserId}
                   openPlayerProfile={openPlayerProfile}
@@ -1930,6 +1931,7 @@ function ProfileStat({
 function StageCard({
   stage,
   matches,
+  groupMembers,
   participantName,
   participantUserId,
   openPlayerProfile,
@@ -1938,6 +1940,7 @@ function StageCard({
 }: {
   stage: Stage;
   matches: Match[];
+  groupMembers: GroupMember[];
   participantName: (id: string) => string;
   participantUserId: (id: string) => string | null;
   openPlayerProfile: (id: string) => Promise<void>;
@@ -1949,6 +1952,27 @@ function StageCard({
   isMe: (id: string) => boolean;
 }) {
   const [open, setOpen] = useState(false);
+
+  const stageGroupId =
+    matches.find((match) => match.group_id !== null)?.group_id ?? null;
+
+  const playingParticipantIds = new Set(
+    matches.flatMap((match) => [
+      match.participant_1_id,
+      match.participant_2_id,
+    ])
+  );
+
+  const byeParticipants =
+    stageGroupId === null
+      ? []
+      : groupMembers
+          .filter(
+            (member) =>
+              member.group_id === stageGroupId &&
+              !playingParticipantIds.has(member.participant_id)
+          )
+          .map((member) => member.participant_id);
 
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -1973,6 +1997,14 @@ function StageCard({
             <span className="text-xs text-slate-500">
               {matches.length} {matches.length === 1 ? "match" : "matches"}
             </span>
+
+            {byeParticipants.length > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-800">
+                Bye: {byeParticipants
+                  .map((participantId) => participantName(participantId))
+                  .join(", ")}
+              </span>
+            )}
 
             {stage.is_complete && (
               <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-800">
@@ -2000,7 +2032,17 @@ function StageCard({
               Fixtures not yet available.
             </div>
           ) : (
-            <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="p-3">
+              {byeParticipants.length > 0 && (
+                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+                  <span className="font-black uppercase tracking-wide">Bye:</span>{" "}
+                  {byeParticipants
+                    .map((participantId) => participantName(participantId))
+                    .join(", ")}
+                </div>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {matches.map((match) => (
                 <div
                   key={match.id}
@@ -2064,6 +2106,7 @@ function StageCard({
                     )}
                 </div>
               ))}
+              </div>
             </div>
           )}
         </>
