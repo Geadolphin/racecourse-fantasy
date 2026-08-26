@@ -25,6 +25,7 @@ type RoundOption = {
   round_number: number;
   name: string | null;
   round_date: string | null;
+  lockout_at: string | null;
   status: string;
 };
 
@@ -250,6 +251,7 @@ export default function RaceEntriesPage() {
           round_number,
           name,
           round_date,
+          lockout_at,
           status
         `)
         .order("round_number", { ascending: false }),
@@ -790,6 +792,56 @@ export default function RaceEntriesPage() {
     }));
   }
 
+  async function processPreLockoutScratchReplacement(
+    raceId: string
+  ) {
+    const race = races.find((item) => item.id === raceId);
+
+    if (!race) {
+      return;
+    }
+
+    const round = rounds.find(
+      (item) => item.id === race.round_id
+    );
+
+    if (!round?.lockout_at) {
+      return;
+    }
+
+    const lockoutTime = new Date(round.lockout_at).getTime();
+
+    if (
+      !Number.isFinite(lockoutTime) ||
+      Date.now() < lockoutTime
+    ) {
+      return;
+    }
+
+    const { data, error } = await supabase.rpc(
+      "replace_scratched_team_horses",
+      {
+        p_round_id: round.id,
+      }
+    );
+
+    if (error) {
+      console.error(
+        "Retrospective scratch replacement error:",
+        error
+      );
+
+      throw new Error(
+        `Scratch was saved, but team replacements failed: ${error.message}`
+      );
+    }
+
+    console.log(
+      "Retrospective scratch replacement result:",
+      data
+    );
+  }
+
   async function saveEntry(
     event: React.FormEvent<HTMLFormElement>
   ) {
@@ -906,6 +958,26 @@ export default function RaceEntriesPage() {
 
       setSaving(false);
       return;
+    }
+
+    if (
+      editingEntryId &&
+      form.entry_status === "scratched_before_lockout"
+    ) {
+      try {
+        await processPreLockoutScratchReplacement(
+          form.race_id
+        );
+      } catch (replacementError) {
+        console.error(replacementError);
+        setErrorMessage(
+          replacementError instanceof Error
+            ? replacementError.message
+            : "Scratch was saved, but team replacements failed."
+        );
+        setSaving(false);
+        return;
+      }
     }
 
     setSaving(false);
@@ -1055,6 +1127,21 @@ export default function RaceEntriesPage() {
       console.error(error);
       setErrorMessage(error.message);
       return;
+    }
+
+    if (changingToScratched) {
+      try {
+        await processPreLockoutScratchReplacement(
+          entry.race_id
+        );
+      } catch (replacementError) {
+        console.error(replacementError);
+        setErrorMessage(
+          replacementError instanceof Error
+            ? replacementError.message
+            : "Scratch was saved, but team replacements failed."
+        );
+      }
     }
 
     await loadPageData();
