@@ -772,8 +772,16 @@ export default function PrivateLeaguesPage() {
 
         for (let qualifiers = 1; qualifiers <= teamsPerGroup; qualifiers += 1) {
             const knockoutTeams = groupCount * qualifiers;
+            const isTop6LeagueCup =
+                groupCount === 1 &&
+                teamsPerGroup === 9 &&
+                qualifiers === 6;
 
-            if (knockoutTeams === 48 || isPowerOfTwo(knockoutTeams)) {
+            if (
+                knockoutTeams === 48 ||
+                isPowerOfTwo(knockoutTeams) ||
+                isTop6LeagueCup
+            ) {
                 values.push(qualifiers);
             }
         }
@@ -868,7 +876,16 @@ export default function PrivateLeaguesPage() {
             leagueCupForm.groupCount *
             leagueCupForm.automaticQualifiers;
 
-        if (knockoutTeams !== 48 && !isPowerOfTwo(knockoutTeams)) {
+        const isTop6LeagueCup =
+            leagueCupForm.groupCount === 1 &&
+            teamsPerGroup === 9 &&
+            leagueCupForm.automaticQualifiers === 6;
+
+        if (
+            knockoutTeams !== 48 &&
+            !isPowerOfTwo(knockoutTeams) &&
+            !isTop6LeagueCup
+        ) {
             setError("The selected qualifiers do not produce a valid knockout field.");
             return;
         }
