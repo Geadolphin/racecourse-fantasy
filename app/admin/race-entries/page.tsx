@@ -81,6 +81,22 @@ type ProjectionFormRow = {
   finish_position: number | "";
 };
 
+type HorseFormRunRow = {
+  horse_id: string;
+  race_id: string | null;
+  race_date: string | null;
+  form_order: number | null;
+  race_grade: ProjectionGrade;
+  finish_position: number;
+  created_at: string;
+};
+
+type ProjectionFormRuleRow = {
+  race_grade: ProjectionGrade;
+  finish_position: number;
+  form_rating: number;
+};
+
 const emptyEntry: EntryForm = {
   race_id: "",
   horse_id: "",
@@ -157,6 +173,9 @@ export default function RaceEntriesPage() {
   >([]);
   const [bulkErrorMessage, setBulkErrorMessage] = useState("");
   const [bulkSuccessMessage, setBulkSuccessMessage] = useState("");
+
+  const [formRatingsByHorseId, setFormRatingsByHorseId] =
+    useState<Record<string, number | null>>({});
 
   useEffect(() => {
     void loadPageData();
@@ -306,11 +325,61 @@ export default function RaceEntriesPage() {
     const loadedSeasons =
       (seasonsResult.data ?? []) as SeasonOption[];
 
+    const enteredHorseIds = Array.from(
+      new Set(loadedEntries.map((entry) => entry.horse_id))
+    );
+
+    let nextFormRatings: Record<string, number | null> = {};
+
+    if (enteredHorseIds.length > 0) {
+      const [formRunsResult, formRulesResult] = await Promise.all([
+        supabase
+          .from("horse_form_runs")
+          .select(`
+            horse_id,
+            race_id,
+            race_date,
+            form_order,
+            race_grade,
+            finish_position,
+            created_at
+          `)
+          .in("horse_id", enteredHorseIds),
+
+        supabase
+          .from("projection_form_rules")
+          .select("race_grade, finish_position, form_rating"),
+      ]);
+
+      if (formRunsResult.error) {
+        console.error(
+          "Could not load horse form runs:",
+          formRunsResult.error
+        );
+      }
+
+      if (formRulesResult.error) {
+        console.error(
+          "Could not load projection form rules:",
+          formRulesResult.error
+        );
+      }
+
+      if (!formRunsResult.error && !formRulesResult.error) {
+        nextFormRatings = calculateRecentFormRatings(
+          (formRunsResult.data ?? []) as HorseFormRunRow[],
+          (formRulesResult.data ?? []) as ProjectionFormRuleRow[],
+          enteredHorseIds
+        );
+      }
+    }
+
     setEntries(loadedEntries);
     setHorses(loadedHorses);
     setRaces(loadedRaces);
     setRounds(loadedRounds);
     setSeasons(loadedSeasons);
+    setFormRatingsByHorseId(nextFormRatings);
     setSelectedSeasonId((current) => {
       if (
         current &&
@@ -1109,6 +1178,102 @@ export default function RaceEntriesPage() {
     return labels[grade];
   }
 
+  function calculateRecentFormRatings(
+    formRuns: HorseFormRunRow[],
+    formRules: ProjectionFormRuleRow[],
+    horseIds: string[]
+  ) {
+    const ruleMap = new Map<string, number>();
+
+    for (const rule of formRules) {
+      ruleMap.set(
+        `${rule.race_grade}:${rule.finish_position}`,
+        Number(rule.form_rating)
+      );
+    }
+
+    const runsByHorseId = new Map<string, HorseFormRunRow[]>();
+
+    for (const run of formRuns) {
+      const current = runsByHorseId.get(run.horse_id) ?? [];
+      current.push(run);
+      runsByHorseId.set(run.horse_id, current);
+    }
+
+    const ratings: Record<string, number | null> = {};
+
+    for (const horseId of horseIds) {
+      const latestRuns = [...(runsByHorseId.get(horseId) ?? [])]
+        .sort((a, b) => {
+          const aCompetition = a.race_id !== null ? 0 : 1;
+          const bCompetition = b.race_id !== null ? 0 : 1;
+
+          if (aCompetition !== bCompetition) {
+            return aCompetition - bCompetition;
+          }
+
+          const aDate = a.race_date
+            ? new Date(`${a.race_date}T00:00:00`).getTime()
+            : Number.NEGATIVE_INFINITY;
+
+          const bDate = b.race_date
+            ? new Date(`${b.race_date}T00:00:00`).getTime()
+            : Number.NEGATIVE_INFINITY;
+
+          if (aDate !== bDate) {
+            return bDate - aDate;
+          }
+
+          const aOrder = a.form_order ?? 999999;
+          const bOrder = b.form_order ?? 999999;
+
+          if (aOrder !== bOrder) {
+            return aOrder - bOrder;
+          }
+
+          return (
+            new Date(b.created_at).getTime() -
+            new Date(a.created_at).getTime()
+          );
+        })
+        .slice(0, 3);
+
+      const runRatings = latestRuns
+        .map((run) => {
+          const cappedFinish = Math.min(
+            Number(run.finish_position),
+            20
+          );
+
+          return ruleMap.get(
+            `${run.race_grade}:${cappedFinish}`
+          );
+        })
+        .filter(
+          (rating): rating is number =>
+            typeof rating === "number" &&
+            Number.isFinite(rating)
+        );
+
+      if (runRatings.length >= 3) {
+        ratings[horseId] =
+          runRatings[0] * 0.5 +
+          runRatings[1] * 0.3 +
+          runRatings[2] * 0.2;
+      } else if (runRatings.length === 2) {
+        ratings[horseId] =
+          runRatings[0] * 0.625 +
+          runRatings[1] * 0.375;
+      } else if (runRatings.length === 1) {
+        ratings[horseId] = runRatings[0];
+      } else {
+        ratings[horseId] = null;
+      }
+    }
+
+    return ratings;
+  }
+
   const filteredRounds = useMemo(() => {
     if (!selectedSeasonId) {
       return [];
@@ -1657,6 +1822,10 @@ export default function RaceEntriesPage() {
                                           </th>
 
                                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                            Form Rating
+                                          </th>
+
+                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                                             Projected
                                           </th>
 
@@ -1695,6 +1864,21 @@ export default function RaceEntriesPage() {
                                               {entry.starting_odds === null
                                                 ? "—"
                                                 : `$${Number(entry.starting_odds).toFixed(2)}`}
+                                            </td>
+
+                                            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                                              {formRatingsByHorseId[
+                                                entry.horse_id
+                                              ] === null ||
+                                              formRatingsByHorseId[
+                                                entry.horse_id
+                                              ] === undefined
+                                                ? "—"
+                                                : Number(
+                                                    formRatingsByHorseId[
+                                                      entry.horse_id
+                                                    ]
+                                                  ).toFixed(1)}
                                             </td>
 
                                             <td className="px-4 py-4 text-sm font-semibold text-slate-700">
