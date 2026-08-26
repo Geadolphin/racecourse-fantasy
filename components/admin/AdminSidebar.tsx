@@ -14,6 +14,7 @@ const links = [
   { href: "/admin/results", label: "Results" },
   { href: "/admin/rounds", label: "Rounds" },
   { href: "/admin/seasons", label: "Seasons" },
+  { href: "/admin/stats", label: "Stats" },
   { href: "/admin/users", label: "Users" },
 ];
 
