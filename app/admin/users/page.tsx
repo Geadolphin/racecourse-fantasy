@@ -7,6 +7,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Search,
+  Mail,
   Shield,
   ShieldOff,
   Trash2,
@@ -56,6 +57,8 @@ export default function AdminUsersPage() {
   const [updatingUserId, setUpdatingUserId] =
     useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] =
+    useState<string | null>(null);
+  const [editingEmailUserId, setEditingEmailUserId] =
     useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -242,6 +245,99 @@ export default function AdminUsersPage() {
     );
 
     setUpdatingUserId(null);
+  }
+
+  async function editUserEmail(user: AdminUser) {
+    const displayName =
+      user.display_name?.trim() || "this player";
+
+    const newEmail = window.prompt(
+      `Enter the corrected email address for ${displayName}.`
+    );
+
+    if (newEmail === null) {
+      return;
+    }
+
+    const cleanedEmail = newEmail.trim().toLowerCase();
+
+    if (
+      !cleanedEmail ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
+    ) {
+      setErrorMessage("Enter a valid email address.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Change ${displayName}'s login email to:\n\n${cleanedEmail}\n\nTheir existing user ID and Racecourse Fantasy data will be preserved.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setEditingEmailUserId(user.id);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.access_token) {
+      setErrorMessage(
+        sessionError?.message ||
+          "Your session could not be verified. Please sign in again."
+      );
+      setEditingEmailUserId(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/admin/users/${user.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: cleanedEmail,
+          }),
+        }
+      );
+
+      const responseData = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        email?: string;
+        display_name?: string;
+      };
+
+      if (!response.ok || !responseData.success) {
+        throw new Error(
+          responseData.error ||
+            "The user's email could not be updated."
+        );
+      }
+
+      setSuccessMessage(
+        `${responseData.display_name || displayName}'s email was updated to ${responseData.email || cleanedEmail}.`
+      );
+    } catch (error) {
+      console.error("Edit user email error:", error);
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "The user's email could not be updated."
+      );
+    } finally {
+      setEditingEmailUserId(null);
+    }
   }
 
   async function deregisterUser(user: AdminUser) {
@@ -566,9 +662,26 @@ export default function AdminUsersPage() {
 
                             <button
                               type="button"
+                              onClick={() => editUserEmail(user)}
+                              disabled={
+                                editingEmailUserId === user.id ||
+                                deletingUserId === user.id
+                              }
+                              className="inline-flex items-center gap-2 rounded-lg border border-teal-300 px-3 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Mail className="h-4 w-4" />
+
+                              {editingEmailUserId === user.id
+                                ? "Updating Email..."
+                                : "Edit Email"}
+                            </button>
+
+                            <button
+                              type="button"
                               onClick={() => toggleAdmin(user)}
                               disabled={
                                 updatingUserId === user.id ||
+                                editingEmailUserId === user.id ||
                                 (isCurrentUser && user.is_admin)
                               }
                               className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -596,6 +709,7 @@ export default function AdminUsersPage() {
                               disabled={
                                 deletingUserId === user.id ||
                                 updatingUserId === user.id ||
+                                editingEmailUserId === user.id ||
                                 isCurrentUser
                               }
                               className="inline-flex items-center gap-2 rounded-lg border border-red-400 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
