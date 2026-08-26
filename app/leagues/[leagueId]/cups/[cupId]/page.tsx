@@ -27,6 +27,9 @@ type Cup = {
   automatic_qualifiers_per_group: number;
   additional_qualifier_position: number | null;
   additional_qualifier_count: number;
+  bonus_close_loss: boolean;
+  bonus_dominant_win: boolean;
+  bonus_top_three: boolean;
 };
 
 type Participant = {
@@ -88,6 +91,14 @@ type LiveFixtureScore = {
   participant_1_score: number;
   participant_2_score: number;
   is_live: boolean;
+};
+
+type CupRoundRanking = {
+  stage_id: string;
+  round_id: string;
+  participant_id: string;
+  fantasy_score: number;
+  score_rank: number;
 };
 
 type PageData = {
@@ -193,6 +204,8 @@ export default function CupDetailPage() {
 
   const [liveFixtureScores, setLiveFixtureScores] =
     useState<Record<string, LiveFixtureScore>>({});
+  const [cupRoundRankings, setCupRoundRankings] =
+    useState<CupRoundRanking[]>([]);
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -253,6 +266,42 @@ export default function CupDetailPage() {
     }
 
     setLiveFixtureScores(nextScores);
+  }
+
+  async function loadCupRoundRankings() {
+    if (!cupId) {
+      return;
+    }
+
+    const { data: rankingRaw, error: rankingError } =
+      await supabase.rpc(
+        "get_cup_group_round_rankings",
+        {
+          p_cup_id: cupId,
+        }
+      );
+
+    if (rankingError) {
+      console.error(
+        "Cup group round rankings error:",
+        rankingError
+      );
+      setCupRoundRankings([]);
+      return;
+    }
+
+    const rows =
+      ((rankingRaw as any)?.rankings ?? []) as CupRoundRanking[];
+
+    setCupRoundRankings(
+      rows.map((row) => ({
+        stage_id: row.stage_id,
+        round_id: row.round_id,
+        participant_id: row.participant_id,
+        fantasy_score: Number(row.fantasy_score ?? 0),
+        score_rank: Number(row.score_rank ?? 0),
+      }))
+    );
   }
 
   async function loadCup() {
@@ -316,8 +365,17 @@ export default function CupDetailPage() {
 
       if (error) throw error;
 
-      setData(response as unknown as PageData);
+      const loadedCupData =
+        response as unknown as PageData;
+
+      setData(loadedCupData);
       void loadLiveFixtureScores();
+
+      if (loadedCupData.cup.bonus_top_three) {
+        void loadCupRoundRankings();
+      } else {
+        setCupRoundRankings([]);
+      }
     } catch (error) {
       console.error("Cup detail load error:", error);
       setErrorMessage(
@@ -697,6 +755,10 @@ export default function CupDetailPage() {
   const groupStandingsAreLive =
     liveGroupMatches.length > 0;
 
+  const provisionalGroupStageIds = new Set(
+    provisionalGroupMatches.map((match) => match.stage_id)
+  );
+
   function getDisplayGroupMembers(groupId: string) {
     const baseMembers = cupData.group_members
       .filter((member) => member.group_id === groupId)
@@ -756,15 +818,71 @@ export default function CupDetailPage() {
         participant1.wins += 1;
         participant1.group_points += 3;
         participant2.losses += 1;
+
+        if (
+          cupData.cup.bonus_dominant_win &&
+          score1 >= score2 * 1.25
+        ) {
+          participant1.group_points += 0.5;
+        }
+
+        if (
+          cupData.cup.bonus_close_loss &&
+          score2 >= score1 * 0.9
+        ) {
+          participant2.group_points += 0.5;
+        }
       } else if (score2 > score1) {
         participant2.wins += 1;
         participant2.group_points += 3;
         participant1.losses += 1;
+
+        if (
+          cupData.cup.bonus_dominant_win &&
+          score2 >= score1 * 1.25
+        ) {
+          participant2.group_points += 0.5;
+        }
+
+        if (
+          cupData.cup.bonus_close_loss &&
+          score1 >= score2 * 0.9
+        ) {
+          participant1.group_points += 0.5;
+        }
       } else {
         participant1.draws += 1;
         participant2.draws += 1;
         participant1.group_points += 1;
         participant2.group_points += 1;
+      }
+    }
+
+    /*
+     * Top-3 bonus is ranked across every Cup participant in the linked
+     * fantasy round. The RPC includes bye teams and uses RANK(), so ties
+     * at the qualifying cutoff are handled automatically.
+     *
+     * Only add bonuses for stages that are still provisional here.
+     * Finalised stages are already included in stored group_members.
+     */
+    if (cupData.cup.bonus_top_three) {
+      for (const ranking of cupRoundRankings) {
+        if (
+          ranking.score_rank > 3 ||
+          !provisionalGroupStageIds.has(ranking.stage_id)
+        ) {
+          continue;
+        }
+
+        const member =
+          memberByParticipantId.get(
+            ranking.participant_id
+          );
+
+        if (member) {
+          member.group_points += 0.5;
+        }
       }
     }
 
@@ -966,6 +1084,33 @@ export default function CupDetailPage() {
               </div>
             </div>
           </div>
+
+          {(cupData.cup.bonus_close_loss ||
+            cupData.cup.bonus_dominant_win ||
+            cupData.cup.bonus_top_three) && (
+            <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-800">
+                Bonus Points Enabled
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+                {cupData.cup.bonus_close_loss && (
+                  <span className="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-teal-200">
+                    +0.5 close loss (90%+)
+                  </span>
+                )}
+                {cupData.cup.bonus_dominant_win && (
+                  <span className="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-teal-200">
+                    +0.5 dominant win (25%+)
+                  </span>
+                )}
+                {cupData.cup.bonus_top_three && (
+                  <span className="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-teal-200">
+                    +0.5 Top 3 matchday score
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="mb-4 flex flex-wrap gap-2 text-xs font-bold">
             {usesPreliminaryByeFormat ? (
