@@ -856,6 +856,12 @@ export default function CupDetailPage() {
   const usesPreliminaryByeFormat =
     knockoutTeamCount === 48;
 
+  const usesTop6Format =
+    cupData.cup.group_count === 1 &&
+    cupData.cup.teams_per_group === 9 &&
+    cupData.cup.automatic_qualifiers_per_group === 6 &&
+    cupData.cup.additional_qualifier_count === 0;
+
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-7xl">
@@ -905,7 +911,9 @@ export default function CupDetailPage() {
                 from each group qualify for the knockout stage
                 {usesPreliminaryByeFormat
                   ? ". Teams finishing 1st or 2nd earn a bye through the Preliminary Round and advance directly to the Round of 32, while teams finishing 3rd–6th qualify for the Preliminary Round"
-                  : ""}
+                  : usesTop6Format
+                    ? ". Teams finishing 1st or 2nd advance directly to the Semi-finals, while teams finishing 3rd–6th qualify for the Quarter-finals"
+                    : ""}
                 {cupData.cup.additional_qualifier_count > 0 &&
                 cupData.cup.additional_qualifier_position !== null
                   ? `, with the best ${cupData.cup.additional_qualifier_count} ${ordinal(
@@ -968,6 +976,16 @@ export default function CupDetailPage() {
 
                 <span className="rounded-full bg-blue-200 px-2.5 py-1 text-blue-900">
                   3rd–6th — Preliminary Round
+                </span>
+              </>
+            ) : usesTop6Format ? (
+              <>
+                <span className="rounded-full bg-emerald-200 px-2.5 py-1 text-emerald-900">
+                  Top 2 — Semi-final bye
+                </span>
+
+                <span className="rounded-full bg-blue-200 px-2.5 py-1 text-blue-900">
+                  3rd–6th — Quarter-finals
                 </span>
               </>
             ) : (
