@@ -419,6 +419,7 @@ export default function MyTeamPage() {
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
+  const [salaryCap, setSalaryCap] = useState(0);
 
   const [selections, setSelections] = useState<
     TeamSelection[]
@@ -509,6 +510,7 @@ export default function MyTeamPage() {
       setRound(null);
       setSeason(null);
       setTeam(null);
+      setSalaryCap(0);
       setSelections([]);
       setCurrentHorsePrices({});
       setProjectedPointsByEntryId({});
@@ -529,6 +531,7 @@ export default function MyTeamPage() {
       setRound(null);
       setSeason(null);
       setTeam(null);
+      setSalaryCap(0);
       setSelections([]);
       setCurrentHorsePrices({});
       setProjectedPointsByEntryId({});
@@ -546,6 +549,37 @@ export default function MyTeamPage() {
     setRound(teamData.round);
     setSeason(teamData.season);
     setTeam(teamData.team);
+
+    const {
+      data: playerSalaryCap,
+      error: salaryCapError,
+    } = await supabase.rpc("get_my_round_salary_cap", {
+      p_round_id: teamData.round.id,
+    });
+
+    if (!active) {
+      return;
+    }
+
+    if (salaryCapError) {
+      console.error(
+        "My Team salary cap load error:",
+        salaryCapError
+      );
+
+      setSalaryCap(Number(teamData.season.salary_cap ?? 0));
+    } else {
+      const resolvedSalaryCap =
+        playerSalaryCap == null
+          ? Number(teamData.season.salary_cap ?? 0)
+          : Number(playerSalaryCap);
+
+      setSalaryCap(
+        Number.isFinite(resolvedSalaryCap)
+          ? resolvedSalaryCap
+          : Number(teamData.season.salary_cap ?? 0)
+      );
+    }
 
     const loadedSelections = teamData.selections ?? [];
 
@@ -796,9 +830,8 @@ export default function MyTeamPage() {
 
   const liveProjectedScore = rawLiveProjectedScore - autofillPenalty;
 
-  const salaryRemaining = season
-    ? season.salary_cap - salaryUsed
-    : 0;
+  const salaryRemaining =
+    salaryCap - salaryUsed;
 
   const roundIsComplete = round?.status === "completed";
 
@@ -1038,7 +1071,7 @@ export default function MyTeamPage() {
 
             </div>
 
-            <div className="grid grid-cols-2 gap-px border-t border-slate-800 bg-slate-800 lg:grid-cols-4 xl:border-l xl:border-t-0">
+            <div className="grid grid-cols-2 gap-px border-t border-slate-800 bg-slate-800 lg:grid-cols-5 xl:border-l xl:border-t-0">
               <OfficialTeamStat
                 label="Current Score"
                 value={`${totalPoints} pts`}
@@ -1054,6 +1087,11 @@ export default function MyTeamPage() {
               <OfficialTeamStat
                 label="Team Salary"
                 value={formatCurrency(salaryUsed)}
+              />
+
+              <OfficialTeamStat
+                label="Salary Cap"
+                value={formatCurrency(salaryCap)}
               />
 
               <OfficialTeamStat
