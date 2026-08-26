@@ -191,6 +191,7 @@ export default function EditTeamPage() {
   const [raceTypeFilter, setRaceTypeFilter] =
     useState<RaceTypeFilter>("all");
   const [selectedHorseId, setSelectedHorseId] = useState<string | null>(null);
+  const [showScoringModal, setShowScoringModal] = useState(false);
 
   const [raceFilter, setRaceFilter] = useState("all");
   const [maxPriceFilter, setMaxPriceFilter] = useState<number | null>(null);
@@ -1284,6 +1285,13 @@ export default function EditTeamPage() {
                   {selectedProjectedPoints} pts
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowScoringModal(true)}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-teal-500 hover:text-white"
+              >
+                Scoring System
+              </button>
               <Link
                 href="/team"
                 className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold transition hover:bg-slate-900"
@@ -1933,6 +1941,93 @@ export default function EditTeamPage() {
           </div>
         </section>
       </div>
+
+      {showScoringModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="scoring-system-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setShowScoringModal(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-950 px-5 py-4 text-white">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-300">
+                  Racecourse Fantasy
+                </p>
+                <h2 id="scoring-system-title" className="mt-1 text-xl font-black">
+                  Scoring System
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowScoringModal(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 text-xl font-bold text-slate-300 hover:bg-slate-800 hover:text-white"
+                aria-label="Close scoring system"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-5">
+              <p className="mb-4 text-sm text-slate-600">
+                Fantasy points awarded based on finishing position and race grade. Your captain scores double points.
+              </p>
+
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="min-w-full text-center text-sm">
+                  <thead className="bg-slate-100 text-xs font-black uppercase tracking-wide text-slate-600">
+                    <tr>
+                      <th className="px-3 py-3 text-left">Finish</th>
+                      <th className="px-3 py-3">Group 1</th>
+                      <th className="px-3 py-3">Group 2</th>
+                      <th className="px-3 py-3">Group 3</th>
+                      <th className="px-3 py-3">Listed</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
+                    {[
+                      ["1st", 50, 42, 37, 32],
+                      ["2nd", 45, 35, 30, 25],
+                      ["3rd", 35, 30, 25, 20],
+                      ["4th", 30, 25, 20, 18],
+                      ["5th", 25, 20, 18, 16],
+                      ["6th", 20, 18, 16, 14],
+                      ["7th", 18, 16, 14, 12],
+                      ["8th", 16, 14, 12, 10],
+                      ["9th", 14, 12, 10, 8],
+                      ["10th", 12, 10, 8, 6],
+                    ].map(([finish, g1, g2, g3, listed]) => (
+                      <tr key={String(finish)} className="bg-white">
+                        <td className="px-3 py-2.5 text-left font-black text-slate-950">{finish}</td>
+                        <td className="px-3 py-2.5">{g1}</td>
+                        <td className="px-3 py-2.5">{g2}</td>
+                        <td className="px-3 py-2.5">{g3}</td>
+                        <td className="px-3 py-2.5">{listed}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowScoringModal(false)}
+                  className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <HorseProfileModal
         horseId={selectedHorseId}
