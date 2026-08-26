@@ -310,14 +310,33 @@ export default function AdminUsersPage() {
         }
       );
 
-      const responseData = (await response.json()) as {
+      const responseText = await response.text();
+
+      let responseData: {
         success?: boolean;
         error?: string;
         email?: string;
         display_name?: string;
-      };
+      } = {};
 
-      if (!response.ok || !responseData.success) {
+      if (responseText) {
+        try {
+          responseData = JSON.parse(responseText);
+        } catch {
+          throw new Error(
+            `The server returned an invalid response (${response.status}).`
+          );
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          responseData.error ||
+            `The email update failed with status ${response.status}.`
+        );
+      }
+
+      if (!responseData.success) {
         throw new Error(
           responseData.error ||
             "The user's email could not be updated."
@@ -397,13 +416,32 @@ export default function AdminUsersPage() {
         }
       );
 
-      const responseData = (await response.json()) as {
+      const responseText = await response.text();
+
+      let responseData: {
         success?: boolean;
         error?: string;
         display_name?: string;
-      };
+      } = {};
 
-      if (!response.ok || !responseData.success) {
+      if (responseText) {
+        try {
+          responseData = JSON.parse(responseText);
+        } catch {
+          throw new Error(
+            `The server returned an invalid response (${response.status}).`
+          );
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          responseData.error ||
+            `The deregistration request failed with status ${response.status}.`
+        );
+      }
+
+      if (!responseData.success) {
         throw new Error(
           responseData.error ||
             "The user could not be deregistered."
