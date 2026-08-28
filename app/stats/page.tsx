@@ -1170,8 +1170,16 @@ export default function StatsPage() {
             derivedMostPointsLeader.current_price ??
               0
           ),
-          selection_count: 0,
-          ownership_percentage: 0,
+          selection_count: Number(
+            (data.most_selected ?? []).find(
+              (horse) => horse.horse_id === derivedMostPointsLeader.horse_id
+            )?.selection_count ?? 0
+          ),
+          ownership_percentage: Number(
+            (data.most_selected ?? []).find(
+              (horse) => horse.horse_id === derivedMostPointsLeader.horse_id
+            )?.ownership_percentage ?? 0
+          ),
           round_points: Number(
             derivedMostPointsLeader.season_points ??
               0
@@ -1226,8 +1234,16 @@ export default function StatsPage() {
             derivedBestValueLeader.horse
               .current_price ?? 0
           ),
-          selection_count: 0,
-          ownership_percentage: 0,
+          selection_count: Number(
+            (data.most_selected ?? []).find(
+              (horse) => horse.horse_id === derivedBestValueLeader.horse.horse_id
+            )?.selection_count ?? 0
+          ),
+          ownership_percentage: Number(
+            (data.most_selected ?? []).find(
+              (horse) => horse.horse_id === derivedBestValueLeader.horse.horse_id
+            )?.ownership_percentage ?? 0
+          ),
           round_points: Number(
             derivedBestValueLeader.horse
               .season_points ?? 0
