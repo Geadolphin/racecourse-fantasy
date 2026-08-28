@@ -1113,7 +1113,7 @@ export default function CupDetailPage() {
                         : "bg-white text-slate-700 ring-teal-200 hover:bg-teal-100 hover:text-teal-900"
                     }`}
                   >
-                    +0.5 close loss (90%+)
+                    Close Loss
                     <HelpCircle className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -1133,7 +1133,7 @@ export default function CupDetailPage() {
                         : "bg-white text-slate-700 ring-teal-200 hover:bg-teal-100 hover:text-teal-900"
                     }`}
                   >
-                    +0.5 dominant win (25%+)
+                    Big Win
                     <HelpCircle className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -1153,7 +1153,7 @@ export default function CupDetailPage() {
                         : "bg-white text-slate-700 ring-teal-200 hover:bg-teal-100 hover:text-teal-900"
                     }`}
                   >
-                    +0.5 Top 3 matchday score
+                    Top 3
                     <HelpCircle className="h-3.5 w-3.5" />
                   </button>
                 )}
