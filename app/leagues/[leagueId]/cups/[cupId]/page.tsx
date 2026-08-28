@@ -1248,16 +1248,16 @@ export default function CupDetailPage() {
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[500px] text-sm">
+                      <table className="w-full table-fixed text-[11px] sm:table-auto sm:min-w-[500px] sm:text-sm">
                         <thead>
-                          <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-                            <th className="px-4 py-3">Pos</th>
-                            <th className="px-4 py-3">Team</th>
-                            <th className="px-3 py-3 text-center">W</th>
-                            <th className="px-3 py-3 text-center">D</th>
-                            <th className="px-3 py-3 text-center">L</th>
-                            <th className="px-3 py-3 text-center">FP</th>
-                            <th className="px-3 py-3 text-center">Pts</th>
+                          <tr className="text-left text-[9px] uppercase tracking-wide text-slate-400 sm:text-xs">
+                            <th className="w-8 px-1.5 py-2 sm:w-auto sm:px-4 sm:py-3">Pos</th>
+                            <th className="px-1.5 py-2 sm:px-4 sm:py-3">Team</th>
+                            <th className="w-7 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">W</th>
+                            <th className="w-7 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">D</th>
+                            <th className="w-7 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">L</th>
+                            <th className="w-10 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">FP</th>
+                            <th className="w-10 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">Pts</th>
                           </tr>
                         </thead>
 
@@ -1276,10 +1276,10 @@ export default function CupDetailPage() {
                                       : ""
                               }`}
                             >
-                              <td className="px-4 py-3 font-bold">
+                              <td className="px-1.5 py-2 font-bold sm:px-4 sm:py-3">
                                 {member.live_position}
                               </td>
-                              <td className="px-4 py-3 font-semibold text-slate-900">
+                              <td className="min-w-0 px-1.5 py-2 font-semibold text-slate-900 sm:px-4 sm:py-3">
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -1287,21 +1287,21 @@ export default function CupDetailPage() {
                                       member.participant_id
                                     )
                                   }
-                                  className="text-left transition hover:text-teal-700 hover:underline"
+                                  className="block max-w-full truncate text-left transition hover:text-teal-700 hover:underline sm:overflow-visible sm:whitespace-normal"
                                 >
                                   {participantName(member.participant_id)}
                                   {isMe(member.participant_id) && (
-                                    <span className="ml-2 text-xs font-black text-amber-700">
+                                    <span className="ml-1 text-[8px] font-black text-amber-700 sm:ml-2 sm:text-xs">
                                       YOU
                                     </span>
                                   )}
                                 </button>
                               </td>
-                              <td className="px-3 py-3 text-center">{member.wins}</td>
-                              <td className="px-3 py-3 text-center">{member.draws}</td>
-                              <td className="px-3 py-3 text-center">{member.losses}</td>
-                              <td className="px-3 py-3 text-center">{member.fantasy_points_for}</td>
-                              <td className="px-3 py-3 text-center font-bold">{member.group_points}</td>
+                              <td className="px-0.5 py-2 text-center sm:px-3 sm:py-3">{member.wins}</td>
+                              <td className="px-0.5 py-2 text-center sm:px-3 sm:py-3">{member.draws}</td>
+                              <td className="px-0.5 py-2 text-center sm:px-3 sm:py-3">{member.losses}</td>
+                              <td className="px-0.5 py-2 text-center sm:px-3 sm:py-3">{member.fantasy_points_for}</td>
+                              <td className="px-0.5 py-2 text-center font-bold sm:px-3 sm:py-3">{member.group_points}</td>
                             </tr>
                           ))}
                         </tbody>
