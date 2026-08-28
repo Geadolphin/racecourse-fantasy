@@ -117,79 +117,96 @@ export default function LeagueLeaderboardTable({
   return (
     <>
       {/* MOBILE ONLY */}
-      <div className="space-y-2 sm:hidden">
-        {rows.map((row, index) => {
-          const isCurrentUser =
-            row.user_id === currentUserId;
+      <div className="overflow-hidden rounded-xl border bg-white shadow-sm sm:hidden">
+        <table className="w-full table-fixed text-sm">
+          <thead className="bg-slate-50">
+            <tr className="text-left text-[10px] font-black uppercase tracking-wide text-slate-500">
+              <th className="w-12 px-3 py-2.5">
+                Rank
+              </th>
 
-          const memberName =
-            row.member_name?.trim() || "";
+              <th className="px-2 py-2.5">
+                Team
+              </th>
 
-          return (
-            <div
-              key={`mobile-${row.user_id}-${index}`}
-              className={`rounded-xl border px-3 py-3 shadow-sm ${
-                isCurrentUser
-                  ? "border-teal-200 bg-teal-50"
-                  : "border-slate-200 bg-white"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-950 text-sm font-black text-white">
-                  {row.rank}
-                </div>
+              <th className="w-20 px-2 py-2.5 text-right">
+                Overall
+              </th>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Link
-                      href={`/players/${row.user_id}`}
-                      className="truncate font-bold text-teal-700 hover:text-slate-950 hover:underline"
-                    >
-                      {row.team_name}
-                    </Link>
+              <th className="w-16 px-3 py-2.5 text-right">
+                Pts
+              </th>
+            </tr>
+          </thead>
 
-                    {isCurrentUser && (
-                      <span className="shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-800">
-                        You
-                      </span>
-                    )}
-                  </div>
+          <tbody>
+            {rows.map((row, index) => {
+              const isCurrentUser =
+                row.user_id === currentUserId;
 
-                  {memberName && (
-                    <p className="mt-0.5 truncate text-xs text-slate-500">
-                      {memberName}
-                    </p>
-                  )}
+              const memberName =
+                row.member_name?.trim() || "";
 
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                    <span>
-                      Overall{" "}
-                      <span className="font-bold text-slate-700">
+              return (
+                <tr
+                  key={`mobile-${row.user_id}-${index}`}
+                  className={`border-t ${
+                    isCurrentUser
+                      ? "bg-teal-50"
+                      : "bg-white"
+                  }`}
+                >
+                  <td className="px-3 py-3 align-middle font-black text-slate-950">
+                    {row.rank}
+                  </td>
+
+                  <td className="min-w-0 px-2 py-3 align-middle">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <Link
+                          href={`/players/${row.user_id}`}
+                          className="truncate font-bold text-teal-700 hover:text-slate-950 hover:underline"
+                        >
+                          {row.team_name}
+                        </Link>
+
+                        {isCurrentUser && (
+                          <span className="shrink-0 rounded-full bg-teal-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-teal-800">
+                            You
+                          </span>
+                        )}
+                      </div>
+
+                      {memberName && (
+                        <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                          {memberName}
+                        </p>
+                      )}
+                    </div>
+                  </td>
+
+                  <td className="px-2 py-3 text-right align-middle">
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                      <span className="font-semibold text-slate-700">
                         {ordinalRank(row.overall_rank)}
                       </span>
-                    </span>
 
-                    {type === "season" && (
-                      <span className="inline-flex items-center gap-1">
-                        Change
-                        <RankChange value={row.rank_change} />
-                      </span>
-                    )}
-                  </div>
-                </div>
+                      {type === "season" && (
+                        <RankChange
+                          value={row.rank_change}
+                        />
+                      )}
+                    </div>
+                  </td>
 
-                <div className="shrink-0 text-right">
-                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                    Points
-                  </p>
-                  <p className="mt-0.5 text-xl font-black tabular-nums text-slate-950">
+                  <td className="px-3 py-3 text-right align-middle text-base font-black tabular-nums text-slate-950">
                     {row.score}
-                  </p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {/* DESKTOP / TABLET — ORIGINAL TABLE KEPT UNCHANGED */}
