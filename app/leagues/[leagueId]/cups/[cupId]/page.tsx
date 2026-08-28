@@ -655,7 +655,7 @@ export default function CupDetailPage() {
       <main className="min-h-screen bg-slate-100 p-6 md:p-10">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10">
           <Link
-            href="/leagues"
+            href={`/leagues?league=${leagueId}`}
             className="inline-flex items-center gap-2 font-semibold text-teal-700"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -984,7 +984,7 @@ export default function CupDetailPage() {
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-7xl">
         <Link
-          href="/leagues"
+          href={`/leagues?league=${leagueId}`}
           className="inline-flex items-center gap-2 text-sm font-black text-teal-700 transition hover:text-slate-950"
         >
           <ArrowLeft className="h-4 w-4" />
