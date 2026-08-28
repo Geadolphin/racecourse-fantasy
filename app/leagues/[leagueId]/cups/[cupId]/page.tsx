@@ -27,9 +27,6 @@ type Cup = {
   automatic_qualifiers_per_group: number;
   additional_qualifier_position: number | null;
   additional_qualifier_count: number;
-  bonus_close_loss: boolean;
-  bonus_dominant_win: boolean;
-  bonus_top_three: boolean;
 };
 
 type Participant = {
@@ -91,14 +88,6 @@ type LiveFixtureScore = {
   participant_1_score: number;
   participant_2_score: number;
   is_live: boolean;
-};
-
-type CupRoundRanking = {
-  stage_id: string;
-  round_id: string;
-  participant_id: string;
-  fantasy_score: number;
-  score_rank: number;
 };
 
 type PageData = {
@@ -194,9 +183,8 @@ type FixtureCompareData = {
 };
 
 export default function CupDetailPage() {
-  const params = useParams<{ leagueId: string; cupId: string }>();
-  const leagueId = params.leagueId;
-  const cupId = params.cupId;
+  const params = useParams<{ id: string }>();
+  const cupId = params.id;
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PageData | null>(null);
@@ -204,8 +192,6 @@ export default function CupDetailPage() {
 
   const [liveFixtureScores, setLiveFixtureScores] =
     useState<Record<string, LiveFixtureScore>>({});
-  const [cupRoundRankings, setCupRoundRankings] =
-    useState<CupRoundRanking[]>([]);
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -223,8 +209,8 @@ export default function CupDetailPage() {
     useState<FixtureCompareData | null>(null);
 
   useEffect(() => {
-    if (leagueId && cupId) void loadCup();
-  }, [leagueId, cupId]);
+    if (cupId) void loadCup();
+  }, [cupId]);
 
   async function loadLiveFixtureScores() {
     if (!cupId) {
@@ -268,96 +254,11 @@ export default function CupDetailPage() {
     setLiveFixtureScores(nextScores);
   }
 
-  async function loadCupRoundRankings() {
-    if (!cupId) {
-      return;
-    }
-
-    const { data: rankingRaw, error: rankingError } =
-      await supabase.rpc(
-        "get_cup_group_round_rankings",
-        {
-          p_cup_id: cupId,
-        }
-      );
-
-    if (rankingError) {
-      console.error(
-        "Cup group round rankings error:",
-        rankingError
-      );
-      setCupRoundRankings([]);
-      return;
-    }
-
-    const rows =
-      ((rankingRaw as any)?.rankings ?? []) as CupRoundRanking[];
-
-    setCupRoundRankings(
-      rows.map((row) => ({
-        stage_id: row.stage_id,
-        round_id: row.round_id,
-        participant_id: row.participant_id,
-        fantasy_score: Number(row.fantasy_score ?? 0),
-        score_rank: Number(row.score_rank ?? 0),
-      }))
-    );
-  }
-
   async function loadCup() {
     setLoading(true);
     setErrorMessage("");
 
     try {
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError) {
-        throw authError;
-      }
-
-      if (!user) {
-        throw new Error(
-          "You must be signed in to view this League Cup."
-        );
-      }
-
-      /*
-       * get_league_cups already checks that the signed-in user
-       * is a member of this private league. It also gives us the
-       * authoritative Cup IDs belonging to this league.
-       */
-      const {
-        data: leagueCupsRaw,
-        error: leagueCupsError,
-      } = await supabase.rpc("get_league_cups", {
-        p_league_id: leagueId,
-      });
-
-      if (leagueCupsError) {
-        throw leagueCupsError;
-      }
-
-      const leagueCups =
-        ((leagueCupsRaw as any)?.cups ?? []) as {
-          id: string;
-          league_id: string;
-        }[];
-
-      const belongsToLeague = leagueCups.some(
-        (cup) =>
-          cup.id === cupId &&
-          cup.league_id === leagueId
-      );
-
-      if (!belongsToLeague) {
-        throw new Error(
-          "This League Cup does not belong to this private league."
-        );
-      }
-
       const { data: response, error } = await supabase.rpc(
         "get_player_cup_detail",
         { p_cup_id: cupId }
@@ -365,17 +266,8 @@ export default function CupDetailPage() {
 
       if (error) throw error;
 
-      const loadedCupData =
-        response as unknown as PageData;
-
-      setData(loadedCupData);
+      setData(response as unknown as PageData);
       void loadLiveFixtureScores();
-
-      if (loadedCupData.cup.bonus_top_three) {
-        void loadCupRoundRankings();
-      } else {
-        setCupRoundRankings([]);
-      }
     } catch (error) {
       console.error("Cup detail load error:", error);
       setErrorMessage(
@@ -655,11 +547,11 @@ export default function CupDetailPage() {
       <main className="min-h-screen bg-slate-100 p-6 md:p-10">
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10">
           <Link
-            href="/leagues"
+            href="/cups"
             className="inline-flex items-center gap-2 font-semibold text-teal-700"
           >
             <ArrowLeft className="h-4 w-4" />
-            Private Leagues
+            Cups
           </Link>
 
           <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-5 text-red-700">
@@ -755,10 +647,6 @@ export default function CupDetailPage() {
   const groupStandingsAreLive =
     liveGroupMatches.length > 0;
 
-  const provisionalGroupStageIds = new Set(
-    provisionalGroupMatches.map((match) => match.stage_id)
-  );
-
   function getDisplayGroupMembers(groupId: string) {
     const baseMembers = cupData.group_members
       .filter((member) => member.group_id === groupId)
@@ -818,71 +706,15 @@ export default function CupDetailPage() {
         participant1.wins += 1;
         participant1.group_points += 3;
         participant2.losses += 1;
-
-        if (
-          cupData.cup.bonus_dominant_win &&
-          score1 >= score2 * 1.25
-        ) {
-          participant1.group_points += 0.5;
-        }
-
-        if (
-          cupData.cup.bonus_close_loss &&
-          score2 >= score1 * 0.9
-        ) {
-          participant2.group_points += 0.5;
-        }
       } else if (score2 > score1) {
         participant2.wins += 1;
         participant2.group_points += 3;
         participant1.losses += 1;
-
-        if (
-          cupData.cup.bonus_dominant_win &&
-          score2 >= score1 * 1.25
-        ) {
-          participant2.group_points += 0.5;
-        }
-
-        if (
-          cupData.cup.bonus_close_loss &&
-          score1 >= score2 * 0.9
-        ) {
-          participant1.group_points += 0.5;
-        }
       } else {
         participant1.draws += 1;
         participant2.draws += 1;
         participant1.group_points += 1;
         participant2.group_points += 1;
-      }
-    }
-
-    /*
-     * Top-3 bonus is ranked across every Cup participant in the linked
-     * fantasy round. The RPC includes bye teams and uses RANK(), so ties
-     * at the qualifying cutoff are handled automatically.
-     *
-     * Only add bonuses for stages that are still provisional here.
-     * Finalised stages are already included in stored group_members.
-     */
-    if (cupData.cup.bonus_top_three) {
-      for (const ranking of cupRoundRankings) {
-        if (
-          ranking.score_rank > 3 ||
-          !provisionalGroupStageIds.has(ranking.stage_id)
-        ) {
-          continue;
-        }
-
-        const member =
-          memberByParticipantId.get(
-            ranking.participant_id
-          );
-
-        if (member) {
-          member.group_points += 0.5;
-        }
       }
     }
 
@@ -966,29 +798,15 @@ export default function CupDetailPage() {
     }
   }
 
-  const knockoutTeamCount =
-    cupData.cup.group_count *
-      cupData.cup.automatic_qualifiers_per_group +
-    cupData.cup.additional_qualifier_count;
-
-  const usesPreliminaryByeFormat =
-    knockoutTeamCount === 48;
-
-  const usesTop6Format =
-    cupData.cup.group_count === 1 &&
-    cupData.cup.teams_per_group === 9 &&
-    cupData.cup.automatic_qualifiers_per_group === 6 &&
-    cupData.cup.additional_qualifier_count === 0;
-
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-7xl">
         <Link
-          href="/leagues"
+          href="/cups"
           className="inline-flex items-center gap-2 text-sm font-black text-teal-700 transition hover:text-slate-950"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to League
+          Cup Competitions
         </Link>
 
         <header className="mt-5 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white shadow-lg">
@@ -997,7 +815,7 @@ export default function CupDetailPage() {
               <div className="flex items-center gap-2 text-teal-300">
                 <Trophy className="h-5 w-5" />
                 <p className="text-xs font-black uppercase tracking-[0.22em]">
-                  League Cup Competition
+                  Official Cup Competition
                 </p>
               </div>
 
@@ -1026,12 +844,10 @@ export default function CupDetailPage() {
                 {cupData.cup.automatic_qualifiers_per_group === 1
                   ? "team"
                   : "teams"}{" "}
-                from each group qualify for the knockout stage
-                {usesPreliminaryByeFormat
-                  ? ". Teams finishing 1st or 2nd earn a bye through the Preliminary Round and advance directly to the Round of 32, while teams finishing 3rd–6th qualify for the Preliminary Round"
-                  : usesTop6Format
-                    ? ". Teams finishing 1st or 2nd advance directly to the Semi-finals, while teams finishing 3rd–6th qualify for the Quarter-finals"
-                    : ""}
+                from each group qualify for the knockout stage. Teams finishing
+                1st or 2nd earn a bye through the Preliminary Round and advance
+                directly to the Round of 32, while teams finishing 3rd–6th
+                qualify for the Preliminary Round
                 {cupData.cup.additional_qualifier_count > 0 &&
                 cupData.cup.additional_qualifier_position !== null
                   ? `, with the best ${cupData.cup.additional_qualifier_count} ${ordinal(
@@ -1058,7 +874,11 @@ export default function CupDetailPage() {
               <OfficialStat label="Per Group" value={cupData.cup.teams_per_group} />
               <OfficialStat
                 label="Knockout"
-                value={knockoutTeamCount}
+                value={
+                  cupData.cup.group_count *
+                    cupData.cup.automatic_qualifiers_per_group +
+                  cupData.cup.additional_qualifier_count
+                }
               />
             </div>
           </div>
@@ -1085,65 +905,16 @@ export default function CupDetailPage() {
             </div>
           </div>
 
-          {(cupData.cup.bonus_close_loss ||
-            cupData.cup.bonus_dominant_win ||
-            cupData.cup.bonus_top_three) && (
-            <div className="mb-4 rounded-xl border border-teal-200 bg-teal-50 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-800">
-                Bonus Points Enabled
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
-                {cupData.cup.bonus_close_loss && (
-                  <span className="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-teal-200">
-                    +0.5 close loss (90%+)
-                  </span>
-                )}
-                {cupData.cup.bonus_dominant_win && (
-                  <span className="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-teal-200">
-                    +0.5 dominant win (25%+)
-                  </span>
-                )}
-                {cupData.cup.bonus_top_three && (
-                  <span className="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-teal-200">
-                    +0.5 Top 3 matchday score
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
           <div className="mb-4 flex flex-wrap gap-2 text-xs font-bold">
-            {usesPreliminaryByeFormat ? (
-              <>
-                <span className="rounded-full bg-emerald-200 px-2.5 py-1 text-emerald-900">
-                  Top 2 — Round of 32 bye
-                </span>
-
-                <span className="rounded-full bg-blue-200 px-2.5 py-1 text-blue-900">
-                  3rd–6th — Preliminary Round
-                </span>
-              </>
-            ) : usesTop6Format ? (
-              <>
-                <span className="rounded-full bg-emerald-200 px-2.5 py-1 text-emerald-900">
-                  Top 2 — Semi-final bye
-                </span>
-
-                <span className="rounded-full bg-blue-200 px-2.5 py-1 text-blue-900">
-                  3rd–6th — Quarter-finals
-                </span>
-              </>
-            ) : (
-              <span className="rounded-full bg-emerald-200 px-2.5 py-1 text-emerald-900">
-                Top {cupData.cup.automatic_qualifiers_per_group} — Qualify
-              </span>
-            )}
-
-            {cupData.my_participant_id && (
-              <span className="rounded-full bg-amber-200 px-2.5 py-1 text-amber-900">
-                Your team
-              </span>
-            )}
+            <span className="rounded-full bg-emerald-200 px-2.5 py-1 text-emerald-900">
+              Top 2 — Round of 32 bye
+            </span>
+            <span className="rounded-full bg-blue-200 px-2.5 py-1 text-blue-900">
+              3rd–6th — Preliminary Round
+            </span>
+            <span className="rounded-full bg-amber-200 px-2.5 py-1 text-amber-900">
+              Your team
+            </span>
           </div>
 
           {cupData.groups.length === 0 ? (
@@ -2137,17 +1908,6 @@ function StageCard({
           )
           .map((member) => member.participant_id);
 
-  console.log("CUP BYE DEBUG", {
-    stage: stage.stage_name,
-    stageGroupId,
-    matchCount: matches.length,
-    playingParticipantIds: Array.from(playingParticipantIds),
-    groupMembers: groupMembers
-      .filter((member) => member.group_id === stageGroupId)
-      .map((member) => member.participant_id),
-    byeParticipants,
-  });
-
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <button
@@ -2201,22 +1961,21 @@ function StageCard({
 
       {open && (
         <>
+          {byeParticipants.length > 0 && (
+            <div className="mx-3 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+              <span className="font-black uppercase tracking-wide">Bye:</span>{" "}
+              {byeParticipants
+                .map((participantId) => participantName(participantId))
+                .join(", ")}
+            </div>
+          )}
+
           {matches.length === 0 ? (
             <div className="px-4 py-4 text-sm text-slate-500">
               Fixtures not yet available.
             </div>
           ) : (
-            <div className="p-3">
-              {byeParticipants.length > 0 && (
-                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
-                  <span className="font-black uppercase tracking-wide">Bye:</span>{" "}
-                  {byeParticipants
-                    .map((participantId) => participantName(participantId))
-                    .join(", ")}
-                </div>
-              )}
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
               {matches.map((match) => (
                 <div
                   key={match.id}
@@ -2280,7 +2039,6 @@ function StageCard({
                     )}
                 </div>
               ))}
-              </div>
             </div>
           )}
         </>
