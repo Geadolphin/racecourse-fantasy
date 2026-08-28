@@ -11,6 +11,7 @@ import {
   ChevronDown,
   UserRound,
   X,
+  HelpCircle,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -206,6 +207,10 @@ export default function CupDetailPage() {
     useState<Record<string, LiveFixtureScore>>({});
   const [cupRoundRankings, setCupRoundRankings] =
     useState<CupRoundRanking[]>([]);
+
+  const [bonusExplanation, setBonusExplanation] = useState<
+    "close_loss" | "dominant_win" | "top_three" | null
+  >(null);
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -1094,21 +1099,98 @@ export default function CupDetailPage() {
               </p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
                 {cupData.cup.bonus_close_loss && (
-                  <span className="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-teal-200">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBonusExplanation((current) =>
+                        current === "close_loss" ? null : "close_loss"
+                      )
+                    }
+                    aria-expanded={bonusExplanation === "close_loss"}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition ring-1 ${
+                      bonusExplanation === "close_loss"
+                        ? "bg-teal-700 text-white ring-teal-700"
+                        : "bg-white text-slate-700 ring-teal-200 hover:bg-teal-100 hover:text-teal-900"
+                    }`}
+                  >
                     +0.5 close loss (90%+)
-                  </span>
+                    <HelpCircle className="h-3.5 w-3.5" />
+                  </button>
                 )}
+
                 {cupData.cup.bonus_dominant_win && (
-                  <span className="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-teal-200">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBonusExplanation((current) =>
+                        current === "dominant_win" ? null : "dominant_win"
+                      )
+                    }
+                    aria-expanded={bonusExplanation === "dominant_win"}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition ring-1 ${
+                      bonusExplanation === "dominant_win"
+                        ? "bg-teal-700 text-white ring-teal-700"
+                        : "bg-white text-slate-700 ring-teal-200 hover:bg-teal-100 hover:text-teal-900"
+                    }`}
+                  >
                     +0.5 dominant win (25%+)
-                  </span>
+                    <HelpCircle className="h-3.5 w-3.5" />
+                  </button>
                 )}
+
                 {cupData.cup.bonus_top_three && (
-                  <span className="rounded-full bg-white px-2.5 py-1 text-slate-700 ring-1 ring-teal-200">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBonusExplanation((current) =>
+                        current === "top_three" ? null : "top_three"
+                      )
+                    }
+                    aria-expanded={bonusExplanation === "top_three"}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition ring-1 ${
+                      bonusExplanation === "top_three"
+                        ? "bg-teal-700 text-white ring-teal-700"
+                        : "bg-white text-slate-700 ring-teal-200 hover:bg-teal-100 hover:text-teal-900"
+                    }`}
+                  >
                     +0.5 Top 3 matchday score
-                  </span>
+                    <HelpCircle className="h-3.5 w-3.5" />
+                  </button>
                 )}
               </div>
+
+              {bonusExplanation && (
+                <div className="mt-3 rounded-lg border border-teal-200 bg-white p-3 text-sm text-slate-700 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-black text-slate-950">
+                        {bonusExplanation === "close_loss"
+                          ? "Close Loss Bonus"
+                          : bonusExplanation === "dominant_win"
+                            ? "Dominant Win Bonus"
+                            : "Top 3 Matchday Bonus"}
+                      </p>
+
+                      <p className="mt-1 leading-6">
+                        {bonusExplanation === "close_loss"
+                          ? "A losing team earns +0.5 group points when its fantasy score is at least 90% of the winning team's score."
+                          : bonusExplanation === "dominant_win"
+                            ? "A winning team earns +0.5 group points when its fantasy score is at least 25% higher than the losing team's score."
+                            : "A team earns +0.5 group points when it records one of the top three fantasy scores across all Cup participants for that matchday. A team with a bye is still eligible."}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setBonusExplanation(null)}
+                      className="shrink-0 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                      aria-label="Close bonus explanation"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
