@@ -2137,6 +2137,17 @@ function StageCard({
           )
           .map((member) => member.participant_id);
 
+  console.log("CUP BYE DEBUG", {
+    stage: stage.stage_name,
+    stageGroupId,
+    matchCount: matches.length,
+    playingParticipantIds: Array.from(playingParticipantIds),
+    groupMembers: groupMembers
+      .filter((member) => member.group_id === stageGroupId)
+      .map((member) => member.participant_id),
+    byeParticipants,
+  });
+
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <button
