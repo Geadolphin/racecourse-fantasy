@@ -12,6 +12,8 @@ import {
   ShieldOff,
   Trash2,
   UserRound,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -28,6 +30,34 @@ type AdminUsersData = {
   success: boolean;
   current_user_id: string;
   users: AdminUser[];
+};
+
+type AdminRound = {
+  id: string;
+  round_number: number;
+  name: string | null;
+  round_date: string | null;
+  status: string;
+  lockout_at: string | null;
+};
+
+type RoundTeamUser = {
+  user_id: string;
+  display_name: string | null;
+  has_created_team: boolean;
+  team_id: string | null;
+  team_name: string | null;
+  team_status: string | null;
+  team_created_at: string | null;
+};
+
+type AdminRoundTeamStatusData = {
+  success: boolean;
+  selected_round_id: string | null;
+  rounds: AdminRound[];
+  teams_created: number;
+  registered_users: number;
+  users: RoundTeamUser[];
 };
 
 type SortKey = "display_name" | "is_admin" | "created_at";
@@ -47,6 +77,14 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] =
     useState<"all" | "admin" | "player">("all");
+  const [roundTeamFilter, setRoundTeamFilter] =
+    useState<"all" | "created" | "not_created">("all");
+
+  const [rounds, setRounds] = useState<AdminRound[]>([]);
+  const [selectedRoundId, setSelectedRoundId] = useState("");
+  const [roundTeamUsers, setRoundTeamUsers] = useState<RoundTeamUser[]>([]);
+  const [teamsCreated, setTeamsCreated] = useState(0);
+  const [roundStatusLoading, setRoundStatusLoading] = useState(true);
 
   const [sortKey, setSortKey] =
     useState<SortKey>("created_at");
@@ -65,7 +103,14 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     void loadUsers();
+    void loadRoundTeamStatus();
   }, []);
+
+  useEffect(() => {
+    if (selectedRoundId) {
+      void loadRoundTeamStatus(selectedRoundId);
+    }
+  }, [selectedRoundId]);
 
   async function loadUsers() {
     setLoading(true);
@@ -92,6 +137,48 @@ export default function AdminUsersPage() {
     setLoading(false);
   }
 
+  async function loadRoundTeamStatus(roundId?: string) {
+    setRoundStatusLoading(true);
+
+    const { data, error } = await supabase.rpc(
+      "get_admin_round_team_status",
+      {
+        p_round_id: roundId || null,
+      }
+    );
+
+    if (error) {
+      console.error("Admin round team status RPC error:", error);
+      setErrorMessage(
+        error.message || "Round team status could not be loaded."
+      );
+      setRoundStatusLoading(false);
+      return;
+    }
+
+    const loadedData =
+      data as unknown as AdminRoundTeamStatusData;
+
+    setRounds(loadedData.rounds ?? []);
+    setRoundTeamUsers(loadedData.users ?? []);
+    setTeamsCreated(Number(loadedData.teams_created ?? 0));
+
+    const nextRoundId = loadedData.selected_round_id ?? "";
+    if (nextRoundId && nextRoundId !== selectedRoundId) {
+      setSelectedRoundId(nextRoundId);
+    }
+
+    setRoundStatusLoading(false);
+  }
+
+  const roundTeamByUserId = useMemo(
+    () =>
+      new Map(
+        roundTeamUsers.map((user) => [user.user_id, user])
+      ),
+    [roundTeamUsers]
+  );
+
   const filteredUsers = useMemo(() => {
     const normalisedSearch = searchTerm.trim().toLowerCase();
 
@@ -109,7 +196,17 @@ export default function AdminUsersPage() {
           ? user.is_admin
           : !user.is_admin);
 
-      return matchesSearch && matchesRole;
+      const roundTeamStatus = roundTeamByUserId.get(user.id);
+      const hasCreatedTeam =
+        roundTeamStatus?.has_created_team ?? false;
+
+      const matchesRoundTeam =
+        roundTeamFilter === "all" ||
+        (roundTeamFilter === "created"
+          ? hasCreatedTeam
+          : !hasCreatedTeam);
+
+      return matchesSearch && matchesRole && matchesRoundTeam;
     });
 
     return [...filtered].sort((a, b) => {
@@ -147,6 +244,8 @@ export default function AdminUsersPage() {
     });
   }, [
     roleFilter,
+    roundTeamFilter,
+    roundTeamByUserId,
     searchTerm,
     sortDirection,
     sortKey,
@@ -156,6 +255,11 @@ export default function AdminUsersPage() {
   const adminCount = useMemo(
     () => users.filter((user) => user.is_admin).length,
     [users]
+  );
+
+  const selectedRound = useMemo(
+    () => rounds.find((round) => round.id === selectedRoundId) ?? null,
+    [rounds, selectedRoundId]
   );
 
   function changeSort(nextKey: SortKey) {
@@ -509,7 +613,7 @@ export default function AdminUsersPage() {
           </div>
         )}
 
-        <section className="grid gap-4 sm:grid-cols-2">
+        <section className="grid gap-4 sm:grid-cols-3">
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold text-slate-500">
               Registered Players
@@ -529,10 +633,27 @@ export default function AdminUsersPage() {
               {adminCount}
             </p>
           </div>
+
+          <div className="rounded-xl border bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-slate-500">
+              Teams Created
+            </p>
+
+            <p className="mt-2 text-3xl font-bold text-slate-950">
+              {roundStatusLoading ? "—" : `${teamsCreated} / ${users.length}`}
+            </p>
+
+            {selectedRound && (
+              <p className="mt-1 text-xs font-semibold text-teal-700">
+                Round {selectedRound.round_number}
+                {selectedRound.name ? ` — ${selectedRound.name}` : ""}
+              </p>
+            )}
+          </div>
         </section>
 
         <section className="mt-6 rounded-xl border bg-white p-5 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[1fr_240px]">
+          <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px_260px]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
 
@@ -563,6 +684,40 @@ export default function AdminUsersPage() {
               <option value="player">Players</option>
               <option value="admin">Administrators</option>
             </select>
+
+            <select
+              value={roundTeamFilter}
+              onChange={(event) =>
+                setRoundTeamFilter(
+                  event.target.value as
+                    | "all"
+                    | "created"
+                    | "not_created"
+                )
+              }
+              className="rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            >
+              <option value="all">All team statuses</option>
+              <option value="created">Team created</option>
+              <option value="not_created">Team not created</option>
+            </select>
+
+            <select
+              value={selectedRoundId}
+              onChange={(event) =>
+                setSelectedRoundId(event.target.value)
+              }
+              disabled={roundStatusLoading}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:opacity-60"
+            >
+              {rounds.map((round) => (
+                <option key={round.id} value={round.id}>
+                  Round {round.round_number}
+                  {round.name ? ` — ${round.name}` : ""}
+                  {round.status ? ` (${round.status})` : ""}
+                </option>
+              ))}
+            </select>
           </div>
 
           <p className="mt-4 text-sm text-slate-500">
@@ -577,7 +732,7 @@ export default function AdminUsersPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[850px]">
+              <table className="w-full min-w-[1020px]">
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-5 py-4 text-left">
@@ -591,6 +746,10 @@ export default function AdminUsersPage() {
                         Player
                         {sortIcon("display_name")}
                       </button>
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                      Round Team
                     </th>
 
                     <th className="px-5 py-4 text-left">
@@ -659,6 +818,32 @@ export default function AdminUsersPage() {
                               )}
                             </div>
                           </div>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          {roundStatusLoading ? (
+                            <span className="text-sm text-slate-400">
+                              Loading...
+                            </span>
+                          ) : roundTeamByUserId.get(user.id)?.has_created_team ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                                <CheckCircle2 className="h-4 w-4" />
+                                Created
+                              </span>
+
+                              {roundTeamByUserId.get(user.id)?.team_name && (
+                                <p className="mt-1 max-w-[180px] truncate text-xs text-slate-500">
+                                  {roundTeamByUserId.get(user.id)?.team_name}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                              <XCircle className="h-4 w-4" />
+                              Not Created
+                            </span>
+                          )}
                         </td>
 
                         <td className="px-5 py-4">
