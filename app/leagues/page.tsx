@@ -42,6 +42,7 @@ type SelectedLeague = {
 type LeagueMember = {
     user_id: string;
     display_name: string;
+    member_name: string | null;
     joined_at: string;
     is_owner: boolean;
 };
@@ -1525,9 +1526,17 @@ export default function PrivateLeaguesPage() {
                                         >
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="truncate font-semibold text-slate-900">
-                                                        {member.display_name}
-                                                    </span>
+                                                    <div className="min-w-0">
+                                                        <span className="font-semibold text-slate-900">
+                                                            {member.display_name}
+                                                        </span>
+
+                                                        {member.member_name?.trim() && (
+                                                            <span className="ml-2 text-sm font-normal text-slate-500">
+                                                                ({member.member_name.trim()})
+                                                            </span>
+                                                        )}
+                                                    </div>
 
                                                     {member.is_owner && (
                                                         <span title="League owner">
