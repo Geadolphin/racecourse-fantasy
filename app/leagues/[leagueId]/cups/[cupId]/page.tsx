@@ -971,6 +971,17 @@ export default function CupDetailPage() {
     }
   }
 
+  function bonusPoints(member: GroupMember) {
+    const standardPoints =
+      Number(member.wins ?? 0) * 3 +
+      Number(member.draws ?? 0);
+
+    const bonus =
+      Number(member.group_points ?? 0) - standardPoints;
+
+    return Math.max(0, Number(bonus.toFixed(1)));
+  }
+
   const knockoutTeamCount =
     cupData.cup.group_count *
       cupData.cup.automatic_qualifiers_per_group +
@@ -1257,6 +1268,12 @@ export default function CupDetailPage() {
                             <th className="w-7 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">D</th>
                             <th className="w-7 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">L</th>
                             <th className="w-10 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">FP</th>
+                            <th
+                              className="w-9 px-0.5 py-2 text-center text-teal-600 sm:w-auto sm:px-3 sm:py-3"
+                              title="Bonus Points"
+                            >
+                              BP
+                            </th>
                             <th className="w-10 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">Pts</th>
                           </tr>
                         </thead>
@@ -1301,6 +1318,16 @@ export default function CupDetailPage() {
                               <td className="px-0.5 py-2 text-center sm:px-3 sm:py-3">{member.draws}</td>
                               <td className="px-0.5 py-2 text-center sm:px-3 sm:py-3">{member.losses}</td>
                               <td className="px-0.5 py-2 text-center sm:px-3 sm:py-3">{member.fantasy_points_for}</td>
+                              <td
+                                className={`px-0.5 py-2 text-center font-bold sm:px-3 sm:py-3 ${
+                                  bonusPoints(member) > 0
+                                    ? "text-teal-700"
+                                    : "text-slate-400"
+                                }`}
+                                title="Bonus Points"
+                              >
+                                {bonusPoints(member)}
+                              </td>
                               <td className="px-0.5 py-2 text-center font-bold sm:px-3 sm:py-3">{member.group_points}</td>
                             </tr>
                           ))}
@@ -1348,6 +1375,12 @@ export default function CupDetailPage() {
                           <th className="px-3 py-3 text-center">D</th>
                           <th className="px-3 py-3 text-center">L</th>
                           <th className="px-3 py-3 text-center">FP</th>
+                          <th
+                            className="px-3 py-3 text-center text-teal-300"
+                            title="Bonus Points"
+                          >
+                            BP
+                          </th>
                           <th className="px-3 py-3 text-center">Pts</th>
                         </tr>
                       </thead>
@@ -1358,7 +1391,7 @@ export default function CupDetailPage() {
                             <Fragment key={member.participant_id}>
                               {index === additionalQualifierCount && (
                                 <tr>
-                                  <td colSpan={8} className="border-y-2 border-emerald-500 bg-emerald-50 px-4 py-2 text-center">
+                                  <td colSpan={9} className="border-y-2 border-emerald-500 bg-emerald-50 px-4 py-2 text-center">
                                     <span className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-700">
                                       Qualify
                                     </span>
@@ -1390,6 +1423,16 @@ export default function CupDetailPage() {
                                 <td className="px-3 py-3 text-center">{member.draws}</td>
                                 <td className="px-3 py-3 text-center">{member.losses}</td>
                                 <td className="px-3 py-3 text-center">{member.fantasy_points_for}</td>
+                                <td
+                                  className={`px-3 py-3 text-center font-bold ${
+                                    bonusPoints(member) > 0
+                                      ? "text-teal-700"
+                                      : "text-slate-400"
+                                  }`}
+                                  title="Bonus Points"
+                                >
+                                  {bonusPoints(member)}
+                                </td>
                                 <td className="px-3 py-3 text-center font-black">{member.group_points}</td>
                               </tr>
                             </Fragment>
