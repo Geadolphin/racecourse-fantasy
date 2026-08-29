@@ -1544,6 +1544,10 @@ export default function CupDetailPage() {
                   openPlayerProfile={openPlayerProfile}
                   openFixtureCompare={openFixtureCompare}
                   isMe={isMe}
+                  bonusCloseLoss={cupData.cup.bonus_close_loss}
+                  bonusDominantWin={cupData.cup.bonus_dominant_win}
+                  bonusTopThree={cupData.cup.bonus_top_three}
+                  cupRoundRankings={cupRoundRankings}
                 />
               );
             })}
@@ -2291,6 +2295,10 @@ function StageCard({
   openPlayerProfile,
   openFixtureCompare,
   isMe,
+  bonusCloseLoss,
+  bonusDominantWin,
+  bonusTopThree,
+  cupRoundRankings,
 }: {
   stage: Stage;
   matches: Match[];
@@ -2304,6 +2312,10 @@ function StageCard({
     participant2Id: string
   ) => Promise<void>;
   isMe: (id: string) => boolean;
+  bonusCloseLoss: boolean;
+  bonusDominantWin: boolean;
+  bonusTopThree: boolean;
+  cupRoundRankings: CupRoundRanking[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -2327,6 +2339,75 @@ function StageCard({
               !playingParticipantIds.has(member.participant_id)
           )
           .map((member) => member.participant_id);
+
+  function getMatchBonuses(
+    match: Match,
+    participantId: string
+  ) {
+    const bonuses: {
+      code: "CL" | "BW" | "T3";
+      value: number;
+      label: string;
+    }[] = [];
+
+    if (
+      match.participant_1_score === null ||
+      match.participant_2_score === null
+    ) {
+      return bonuses;
+    }
+
+    const score1 = Number(match.participant_1_score);
+    const score2 = Number(match.participant_2_score);
+
+    const isParticipant1 =
+      participantId === match.participant_1_id;
+    const myScore = isParticipant1 ? score1 : score2;
+    const opponentScore = isParticipant1 ? score2 : score1;
+
+    if (
+      myScore > opponentScore &&
+      bonusDominantWin &&
+      myScore >= opponentScore * 1.25
+    ) {
+      bonuses.push({
+        code: "BW",
+        value: 0.5,
+        label: "Big Win bonus",
+      });
+    }
+
+    if (
+      myScore < opponentScore &&
+      bonusCloseLoss &&
+      myScore >= opponentScore * 0.9
+    ) {
+      bonuses.push({
+        code: "CL",
+        value: 0.5,
+        label: "Close Loss bonus",
+      });
+    }
+
+    if (
+      bonusTopThree &&
+      cupRoundRankings.some(
+        (ranking) =>
+          ranking.stage_id === stage.id &&
+          ranking.participant_id === participantId &&
+          ranking.score_rank > 0 &&
+          ranking.score_rank <= 3
+      )
+    ) {
+      bonuses.push({
+        code: "T3",
+        value: 0.5,
+        label: "Top 3 Matchday bonus",
+      });
+    }
+
+    return bonuses;
+  }
 return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <button
@@ -2426,6 +2507,10 @@ return (
                         match.winner_participant_id === match.participant_1_id
                       }
                       mine={isMe(match.participant_1_id)}
+                      bonuses={getMatchBonuses(
+                        match,
+                        match.participant_1_id
+                      )}
                     />
 
                     <MatchTeam
@@ -2437,6 +2522,10 @@ return (
                         match.winner_participant_id === match.participant_2_id
                       }
                       mine={isMe(match.participant_2_id)}
+                      bonuses={getMatchBonuses(
+                        match,
+                        match.participant_2_id
+                      )}
                     />
                   </div>
 
@@ -2475,6 +2564,7 @@ function MatchTeam({
   score,
   winner,
   mine,
+  bonuses = [],
 }: {
   name: string;
   participantId: string;
@@ -2482,6 +2572,11 @@ function MatchTeam({
   score: number | null;
   winner: boolean;
   mine: boolean;
+  bonuses?: {
+    code: "CL" | "BW" | "T3";
+    value: number;
+    label: string;
+  }[];
 }) {
   return (
     <div
@@ -2514,15 +2609,40 @@ function MatchTeam({
         </button>
       </div>
 
-      <span
-        className={`shrink-0 text-base font-bold ${
-          winner
-            ? "text-teal-700"
-            : "text-slate-700"
-        }`}
-      >
-        {score ?? "–"}
-      </span>
+      <div className="shrink-0 text-right">
+        <div className="inline-flex items-center justify-end gap-1.5">
+          <span
+            className={`text-base font-bold ${
+              winner
+                ? "text-teal-700"
+                : "text-slate-700"
+            }`}
+          >
+            {score ?? "–"}
+          </span>
+
+          {bonuses.length > 0 && (
+            <span className="text-[9px] font-bold text-slate-600 sm:text-[10px]">
+              (
+              {bonuses
+                .map(
+                  (bonus) =>
+                    `+${bonus.value.toFixed(1)} ${bonus.code}`
+                )
+                .join(" · ")}
+              )
+            </span>
+          )}
+        </div>
+
+        {bonuses.length > 0 && (
+          <span className="sr-only">
+            {bonuses
+              .map((bonus) => bonus.label)
+              .join(", ")}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
