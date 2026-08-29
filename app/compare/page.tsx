@@ -55,6 +55,8 @@ type ComparisonTeam = {
   status: string;
   salary_used: number;
   salary_cap: number | null;
+  autofilled_horse_count?: number;
+  autofill_penalty?: number;
   score?: TeamScore | null;
   selections?: ComparisonSelection[];
 };
@@ -154,6 +156,62 @@ function getTeamLabel(team: AvailableTeam) {
     team.team_name?.trim() ||
     "Unnamed Team"
   );
+}
+
+async function hydrateAutofillPenalties(
+  data: ComparisonData
+): Promise<ComparisonData> {
+  const teamIds = [
+    data.my_team?.id,
+    data.opponent_team?.id,
+  ].filter(Boolean) as string[];
+
+  if (teamIds.length === 0) {
+    return data;
+  }
+
+  const { data: autofillRows, error: autofillError } =
+    await supabase
+      .from("teams")
+      .select("id, autofilled_horse_count")
+      .in("id", teamIds);
+
+  if (autofillError) {
+    console.error(
+      "Compare teams autofill penalty load error:",
+      autofillError
+    );
+    return data;
+  }
+
+  const autofillByTeamId = new Map(
+    (autofillRows ?? []).map((row: any) => [
+      String(row.id),
+      Math.max(0, Number(row.autofilled_horse_count ?? 0)),
+    ])
+  );
+
+  const hydrateTeam = (
+    team: ComparisonTeam | null
+  ): ComparisonTeam | null => {
+    if (!team) {
+      return null;
+    }
+
+    const count = autofillByTeamId.get(team.id) ?? 0;
+
+    return {
+      ...team,
+      autofilled_horse_count: count,
+      autofill_penalty: count * 3,
+    };
+  };
+
+  return {
+    ...data,
+    my_team: hydrateTeam(data.my_team),
+    opponent_team: hydrateTeam(data.opponent_team),
+  };
 }
 
 export default function CompareTeamsPage() {
@@ -342,7 +400,16 @@ export default function CompareTeamsPage() {
         return;
       }
 
-      setComparisonData(data as ComparisonData);
+      const comparison =
+        await hydrateAutofillPenalties(
+          data as ComparisonData
+        );
+
+      if (!active) {
+        return;
+      }
+
+      setComparisonData(comparison);
       setLoadingComparison(false);
     }
 
@@ -388,7 +455,16 @@ export default function CompareTeamsPage() {
         return;
       }
 
-      setComparisonData(data as ComparisonData);
+      const comparison =
+        await hydrateAutofillPenalties(
+          data as ComparisonData
+        );
+
+      if (!active) {
+        return;
+      }
+
+      setComparisonData(comparison);
       setLoadingComparison(false);
     }
 
@@ -691,6 +767,23 @@ export default function CompareTeamsPage() {
     opponentTeam?.score?.total_points ?? 0
   );
 
+  const myAutofilledHorseCount = Math.max(
+    0,
+    Number(myTeam?.autofilled_horse_count ?? 0)
+  );
+  const opponentAutofilledHorseCount = Math.max(
+    0,
+    Number(opponentTeam?.autofilled_horse_count ?? 0)
+  );
+
+  const myAutofillPenalty =
+    Number(myTeam?.autofill_penalty ?? 0) ||
+    myAutofilledHorseCount * 3;
+
+  const opponentAutofillPenalty =
+    Number(opponentTeam?.autofill_penalty ?? 0) ||
+    opponentAutofilledHorseCount * 3;
+
   function getSelectionDisplay(selection: ComparisonSelection) {
     const data = entryProjectionData[selection.race_entry_id];
     const official = data?.has_official_result ?? false;
@@ -730,6 +823,12 @@ export default function CompareTeamsPage() {
     (total, selection) => total + getLivePoints(selection),
     0
   );
+
+  const myProjectedScoreAfterPenalty =
+    myProjectedScore - myAutofillPenalty;
+
+  const opponentProjectedScoreAfterPenalty =
+    opponentProjectedScore - opponentAutofillPenalty;
 
   const scoreDifference = myScore - opponentScore;
   const salaryDifference =
@@ -1137,6 +1236,11 @@ export default function CompareTeamsPage() {
                     <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">
                       {formatCurrency(myTeam.salary_used)}
                     </span>
+                    {myAutofillPenalty > 0 && (
+                      <span className="rounded-full bg-red-950/70 px-3 py-1 text-xs font-bold text-red-200 ring-1 ring-inset ring-red-800">
+                        Autofill −{myAutofillPenalty} pts
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -1160,8 +1264,26 @@ export default function CompareTeamsPage() {
                       </span>
                     </div>
 
+                    {(myAutofillPenalty > 0 ||
+                      opponentAutofillPenalty > 0) && (
+                      <div className="mt-2 flex items-center justify-center gap-3 text-[10px] font-bold uppercase tracking-wide text-red-300">
+                        <span>
+                          {myAutofillPenalty > 0
+                            ? `−${myAutofillPenalty} autofill`
+                            : "No penalty"}
+                        </span>
+                        <span className="text-slate-600">·</span>
+                        <span>
+                          {opponentAutofillPenalty > 0
+                            ? `−${opponentAutofillPenalty} autofill`
+                            : "No penalty"}
+                        </span>
+                      </div>
+                    )}
+
                     <p className="mt-1.5 text-[11px] font-semibold text-slate-400">
-                      Projected {myProjectedScore} – {opponentProjectedScore}
+                      Projected {myProjectedScoreAfterPenalty} –{" "}
+                      {opponentProjectedScoreAfterPenalty}
                     </p>
                   </div>
                 </div>
@@ -1184,10 +1306,42 @@ export default function CompareTeamsPage() {
                     <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">
                       {formatCurrency(opponentTeam.salary_used)}
                     </span>
+                    {opponentAutofillPenalty > 0 && (
+                      <span className="rounded-full bg-red-950/70 px-3 py-1 text-xs font-bold text-red-200 ring-1 ring-inset ring-red-800">
+                        Autofill −{opponentAutofillPenalty} pts
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             </section>
+
+            {(myAutofillPenalty > 0 ||
+              opponentAutofillPenalty > 0) && (
+              <section className="mt-3 grid overflow-hidden rounded-xl border border-red-200 bg-red-50 shadow-sm sm:grid-cols-2">
+                <div className="border-b border-red-200 p-4 sm:border-b-0 sm:border-r">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-red-700">
+                    Your Autofill Penalty
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-red-900">
+                    {myAutofillPenalty > 0
+                      ? `${myAutofilledHorseCount} × 3 pts = −${myAutofillPenalty} pts`
+                      : "No autofill penalty"}
+                  </p>
+                </div>
+
+                <div className="p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-red-700">
+                    Opponent Autofill Penalty
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-red-900">
+                    {opponentAutofillPenalty > 0
+                      ? `${opponentAutofilledHorseCount} × 3 pts = −${opponentAutofillPenalty} pts`
+                      : "No autofill penalty"}
+                  </p>
+                </div>
+              </section>
+            )}
 
             <section className="mt-3 grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-4">
               <div className="border-b border-slate-200 p-4 sm:border-b-0 sm:border-r">
