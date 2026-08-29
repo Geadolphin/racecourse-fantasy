@@ -121,7 +121,7 @@ export default function LeagueLeaderboardTable({
         <table className="w-full table-fixed text-sm">
           <thead className="bg-slate-50">
             <tr className="text-left text-[10px] font-black uppercase tracking-wide text-slate-500">
-              <th className="w-12 px-3 py-2.5">
+              <th className="w-20 px-3 py-2.5">
                 Rank
               </th>
 
@@ -157,7 +157,15 @@ export default function LeagueLeaderboardTable({
                   }`}
                 >
                   <td className="px-3 py-3 align-middle font-black text-slate-950">
-                    {row.rank}
+                    <div className="inline-flex items-center gap-1.5">
+                      <span>{row.rank}</span>
+
+                      {type === "season" && (
+                        <RankChange
+                          value={row.rank_change}
+                        />
+                      )}
+                    </div>
                   </td>
 
                   <td className="min-w-0 px-2 py-3 align-middle">
@@ -186,17 +194,9 @@ export default function LeagueLeaderboardTable({
                   </td>
 
                   <td className="px-2 py-3 text-right align-middle">
-                    <div className="inline-flex items-center justify-end gap-1.5">
-                      <span className="font-semibold text-slate-700">
-                        {ordinalRank(row.overall_rank)}
-                      </span>
-
-                      {type === "season" && (
-                        <RankChange
-                          value={row.rank_change}
-                        />
-                      )}
-                    </div>
+                    <span className="font-semibold text-slate-700">
+                      {ordinalRank(row.overall_rank)}
+                    </span>
                   </td>
 
                   <td className="px-3 py-3 text-right align-middle text-base font-black tabular-nums text-slate-950">
@@ -209,7 +209,7 @@ export default function LeagueLeaderboardTable({
         </table>
       </div>
 
-      {/* DESKTOP / TABLET — ORIGINAL TABLE KEPT UNCHANGED */}
+      {/* DESKTOP / TABLET */}
       <div className="hidden overflow-x-auto rounded-xl border bg-white shadow-sm sm:block">
         <table className="w-full min-w-[640px]">
           <thead className="bg-slate-50">
@@ -225,12 +225,6 @@ export default function LeagueLeaderboardTable({
               <th className="px-4 py-3 text-right">
                 Overall Rank
               </th>
-
-              {type === "season" && (
-                <th className="px-4 py-3 text-right">
-                  Change
-                </th>
-              )}
 
               <th className="px-4 py-3 text-right">
                 Points
@@ -256,7 +250,15 @@ export default function LeagueLeaderboardTable({
                   }`}
                 >
                   <td className="px-4 py-4 font-bold">
-                    {row.rank}
+                    <div className="inline-flex items-center gap-2">
+                      <span>{row.rank}</span>
+
+                      {type === "season" && (
+                        <RankChange
+                          value={row.rank_change}
+                        />
+                      )}
+                    </div>
                   </td>
 
                   <td className="px-4 py-4">
@@ -285,14 +287,6 @@ export default function LeagueLeaderboardTable({
                   <td className="px-4 py-4 text-right font-semibold text-slate-700">
                     {ordinalRank(row.overall_rank)}
                   </td>
-
-                  {type === "season" && (
-                    <td className="px-4 py-4 text-right">
-                      <RankChange
-                        value={row.rank_change}
-                      />
-                    </td>
-                  )}
 
                   <td className="px-4 py-4 text-right font-bold">
                     {row.score}
