@@ -56,6 +56,9 @@ type GroupMember = {
   losses: number;
   group_points: number;
   fantasy_points_for: number;
+  close_loss_bonus?: number;
+  dominant_win_bonus?: number;
+  top_three_bonus?: number;
 };
 
 type Stage = {
@@ -769,6 +772,15 @@ export default function CupDetailPage() {
       .filter((member) => member.group_id === groupId)
       .map((member) => ({
         ...member,
+        close_loss_bonus: Number(
+          member.close_loss_bonus ?? 0
+        ),
+        dominant_win_bonus: Number(
+          member.dominant_win_bonus ?? 0
+        ),
+        top_three_bonus: Number(
+          member.top_three_bonus ?? 0
+        ),
         live_position: 0,
       }));
 
@@ -829,6 +841,9 @@ export default function CupDetailPage() {
           score1 >= score2 * 1.25
         ) {
           participant1.group_points += 0.5;
+          participant1.dominant_win_bonus =
+            Number(participant1.dominant_win_bonus ?? 0) +
+            0.5;
         }
 
         if (
@@ -836,6 +851,9 @@ export default function CupDetailPage() {
           score2 >= score1 * 0.9
         ) {
           participant2.group_points += 0.5;
+          participant2.close_loss_bonus =
+            Number(participant2.close_loss_bonus ?? 0) +
+            0.5;
         }
       } else if (score2 > score1) {
         participant2.wins += 1;
@@ -847,6 +865,9 @@ export default function CupDetailPage() {
           score2 >= score1 * 1.25
         ) {
           participant2.group_points += 0.5;
+          participant2.dominant_win_bonus =
+            Number(participant2.dominant_win_bonus ?? 0) +
+            0.5;
         }
 
         if (
@@ -854,6 +875,9 @@ export default function CupDetailPage() {
           score1 >= score2 * 0.9
         ) {
           participant1.group_points += 0.5;
+          participant1.close_loss_bonus =
+            Number(participant1.close_loss_bonus ?? 0) +
+            0.5;
         }
       } else {
         participant1.draws += 1;
@@ -887,6 +911,8 @@ export default function CupDetailPage() {
 
         if (member) {
           member.group_points += 0.5;
+          member.top_three_bonus =
+            Number(member.top_three_bonus ?? 0) + 0.5;
         }
       }
     }
@@ -980,6 +1006,52 @@ export default function CupDetailPage() {
       Number(member.group_points ?? 0) - standardPoints;
 
     return Math.max(0, Number(bonus.toFixed(1)));
+  }
+
+  function BonusBreakdown({
+    member,
+  }: {
+    member: GroupMember;
+  }) {
+    const closeLoss = Number(
+      member.close_loss_bonus ?? 0
+    );
+    const dominantWin = Number(
+      member.dominant_win_bonus ?? 0
+    );
+    const topThree = Number(
+      member.top_three_bonus ?? 0
+    );
+
+    if (
+      closeLoss <= 0 &&
+      dominantWin <= 0 &&
+      topThree <= 0
+    ) {
+      return null;
+    }
+
+    return (
+      <div className="mt-0.5 flex flex-wrap justify-center gap-1 text-[8px] font-bold leading-none sm:text-[10px]">
+        {closeLoss > 0 && (
+          <span title="Close Loss bonus">
+            CL +{closeLoss.toFixed(1)}
+          </span>
+        )}
+
+        {dominantWin > 0 && (
+          <span title="Dominant Win bonus">
+            BW +{dominantWin.toFixed(1)}
+          </span>
+        )}
+
+        {topThree > 0 && (
+          <span title="Top 3 Matchday bonus">
+            T3 +{topThree.toFixed(1)}
+          </span>
+        )}
+      </div>
+    );
   }
 
   const knockoutTeamCount =
@@ -1269,7 +1341,7 @@ export default function CupDetailPage() {
                             <th className="w-7 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">L</th>
                             <th className="w-10 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3">FP</th>
                             <th
-                              className="w-9 px-0.5 py-2 text-center text-teal-600 sm:w-auto sm:px-3 sm:py-3"
+                              className="w-9 px-0.5 py-2 text-center sm:w-auto sm:px-3 sm:py-3"
                               title="Bonus Points"
                             >
                               BP
@@ -1319,14 +1391,11 @@ export default function CupDetailPage() {
                               <td className="px-0.5 py-2 text-center sm:px-3 sm:py-3">{member.losses}</td>
                               <td className="px-0.5 py-2 text-center sm:px-3 sm:py-3">{member.fantasy_points_for}</td>
                               <td
-                                className={`px-0.5 py-2 text-center font-bold sm:px-3 sm:py-3 ${
-                                  bonusPoints(member) > 0
-                                    ? "text-teal-700"
-                                    : "text-slate-400"
-                                }`}
+                                className="px-0.5 py-2 text-center font-bold sm:px-3 sm:py-3"
                                 title="Bonus Points"
                               >
-                                {bonusPoints(member)}
+                                <div>{bonusPoints(member)}</div>
+                                <BonusBreakdown member={member} />
                               </td>
                               <td className="px-0.5 py-2 text-center font-bold sm:px-3 sm:py-3">{member.group_points}</td>
                             </tr>
@@ -1376,7 +1445,7 @@ export default function CupDetailPage() {
                           <th className="px-3 py-3 text-center">L</th>
                           <th className="px-3 py-3 text-center">FP</th>
                           <th
-                            className="px-3 py-3 text-center text-teal-300"
+                            className="px-3 py-3 text-center"
                             title="Bonus Points"
                           >
                             BP
@@ -1424,14 +1493,11 @@ export default function CupDetailPage() {
                                 <td className="px-3 py-3 text-center">{member.losses}</td>
                                 <td className="px-3 py-3 text-center">{member.fantasy_points_for}</td>
                                 <td
-                                  className={`px-3 py-3 text-center font-bold ${
-                                    bonusPoints(member) > 0
-                                      ? "text-teal-700"
-                                      : "text-slate-400"
-                                  }`}
+                                  className="px-3 py-3 text-center font-bold"
                                   title="Bonus Points"
                                 >
-                                  {bonusPoints(member)}
+                                  <div>{bonusPoints(member)}</div>
+                                  <BonusBreakdown member={member} />
                                 </td>
                                 <td className="px-3 py-3 text-center font-black">{member.group_points}</td>
                               </tr>
