@@ -320,7 +320,7 @@ function TeamPanel({
 
       {team ? (
         <>
-          <div className="grid grid-cols-2 gap-px bg-slate-200 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-px bg-slate-200">
             <div className="bg-white px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Team Score
@@ -339,14 +339,6 @@ function TeamPanel({
               </p>
             </div>
 
-            <div className="bg-white px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                Combined Own.
-              </p>
-              <p className="mt-1 text-base font-black text-slate-950">
-                {Number(team.combined_ownership_percentage).toFixed(1)}%
-              </p>
-            </div>
           </div>
 
           <div className="divide-y">
@@ -418,6 +410,7 @@ export default function StatsPage() {
   const [seasonLoading, setSeasonLoading] = useState(false);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
   const [mostSelectedPage, setMostSelectedPage] = useState(0);
+  const [teamView, setTeamView] = useState<"perfect" | "template">("perfect");
 
   const [horseSortKey, setHorseSortKey] =
     useState<HorseSortKey>("season_points");
@@ -1669,10 +1662,47 @@ export default function StatsPage() {
             </div>
 
             <div className="mt-5">
+              <div className="mb-4 inline-flex rounded-xl border bg-white p-1 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setTeamView("perfect")}
+                  className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                    teamView === "perfect"
+                      ? "bg-slate-950 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  Perfect Team
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeamView("template")}
+                  className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                    teamView === "template"
+                      ? "bg-slate-950 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  Template Team
+                </button>
+              </div>
+
               <TeamPanel
-                title="Perfect Team"
-                description="Highest-scoring valid 10-horse combination under the $2.5m salary cap, including an optimised captain who scores double points."
-                team={data.special_stats?.perfect_team ?? null}
+                title={
+                  teamView === "perfect"
+                    ? "Perfect Team"
+                    : "Template Team"
+                }
+                description={
+                  teamView === "perfect"
+                    ? "Highest-scoring valid 10-horse combination under the $2.5m salary cap, including an optimised captain who scores double points."
+                    : "Most-owned valid 10-horse combination that fits under the $2.5m salary cap."
+                }
+                team={
+                  teamView === "perfect"
+                    ? data.special_stats?.perfect_team ?? null
+                    : data.special_stats?.template_team ?? null
+                }
               />
             </div>
           </section>

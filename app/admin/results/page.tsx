@@ -988,27 +988,6 @@ export default function ResultsPage() {
       return;
     }
 
-    const { error: liveScoreError } = await supabase.rpc(
-      "refresh_live_round_scores",
-      {
-        p_round_id: selectedRace.round_id,
-      }
-    );
-
-    if (liveScoreError) {
-      console.error(
-        "Live round score refresh error:",
-        liveScoreError
-      );
-
-      setErrorMessage(
-        `The race results were saved, but live team scores could not be refreshed: ${liveScoreError.message}`
-      );
-
-      setSavingResults(false);
-      return;
-    }
-
     const response =
       data as FinaliseRaceResponse | null;
 
@@ -1052,9 +1031,7 @@ export default function ResultsPage() {
     setSuccessMessage(
       `Official results saved. ${
         response?.results_saved ?? entries.length
-      } results and ${
-        response?.horses_updated ?? entries.length
-      } horse records were updated. Live team scores were refreshed.`
+      } results were saved and live team scores were refreshed.`
     );
 
     setSavingResults(false);
