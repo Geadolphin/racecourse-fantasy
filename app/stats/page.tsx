@@ -320,7 +320,7 @@ function TeamPanel({
 
       {team ? (
         <>
-          <div className="grid grid-cols-2 gap-px bg-slate-200">
+          <div className="grid grid-cols-2 gap-px bg-slate-200 sm:grid-cols-3">
             <div className="bg-white px-4 py-3">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Team Score
@@ -339,6 +339,14 @@ function TeamPanel({
               </p>
             </div>
 
+            <div className="bg-white px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                Combined Own.
+              </p>
+              <p className="mt-1 text-base font-black text-slate-950">
+                {Number(team.combined_ownership_percentage).toFixed(1)}%
+              </p>
+            </div>
           </div>
 
           <div className="divide-y">
@@ -410,7 +418,8 @@ export default function StatsPage() {
   const [seasonLoading, setSeasonLoading] = useState(false);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
   const [mostSelectedPage, setMostSelectedPage] = useState(0);
-  const [teamView, setTeamView] = useState<"perfect" | "template">("perfect");
+  const [roundMostPointsHorse, setRoundMostPointsHorse] =
+    useState<RoundSpecialHorse | null>(null);
 
   const [horseSortKey, setHorseSortKey] =
     useState<HorseSortKey>("season_points");
@@ -553,6 +562,183 @@ export default function StatsPage() {
     setSelectedRoundId(loadedData.selected_round_id ?? roundId);
     setOwnershipLoading(false);
   }
+
+  useEffect(() => {
+    if (!selectedRoundId) {
+      setRoundMostPointsHorse(null);
+      return;
+    }
+
+    let active = true;
+
+    async function loadRoundMostPointsHorse() {
+      const { data: raceRows, error: raceError } =
+        await supabase
+          .from("races")
+          .select("id")
+          .eq("round_id", selectedRoundId);
+
+      if (!active) return;
+
+      if (raceError) {
+        console.error(
+          "Stats Centre round races load error:",
+          raceError
+        );
+        setRoundMostPointsHorse(null);
+        return;
+      }
+
+      const raceIds = (raceRows ?? []).map((row) =>
+        String(row.id)
+      );
+
+      if (raceIds.length === 0) {
+        setRoundMostPointsHorse(null);
+        return;
+      }
+
+      const { data: entryRows, error: entryError } =
+        await supabase
+          .from("race_entries")
+          .select(
+            `
+              id,
+              horse_id,
+              price_at_entry,
+              horse:horses (
+                id,
+                name
+              )
+            `
+          )
+          .in("race_id", raceIds);
+
+      if (!active) return;
+
+      if (entryError) {
+        console.error(
+          "Stats Centre round entries load error:",
+          entryError
+        );
+        setRoundMostPointsHorse(null);
+        return;
+      }
+
+      const entryIds = (entryRows ?? []).map((row) =>
+        String(row.id)
+      );
+
+      if (entryIds.length === 0) {
+        setRoundMostPointsHorse(null);
+        return;
+      }
+
+      const { data: resultRows, error: resultError } =
+        await supabase
+          .from("race_results")
+          .select("race_entry_id, fantasy_points")
+          .eq("is_official", true)
+          .in("race_entry_id", entryIds);
+
+      if (!active) return;
+
+      if (resultError) {
+        console.error(
+          "Stats Centre round results load error:",
+          resultError
+        );
+        setRoundMostPointsHorse(null);
+        return;
+      }
+
+      const entryById = new Map(
+        (entryRows ?? []).map((row: any) => [
+          String(row.id),
+          row,
+        ])
+      );
+
+      const totalsByHorse = new Map<
+        string,
+        {
+          horse_id: string;
+          horse_name: string;
+          price: number;
+          round_points: number;
+        }
+      >();
+
+      for (const result of resultRows ?? []) {
+        const entry = entryById.get(
+          String(result.race_entry_id)
+        );
+
+        if (!entry?.horse_id) {
+          continue;
+        }
+
+        const horseId = String(entry.horse_id);
+        const horseRelation = Array.isArray(entry.horse)
+          ? entry.horse[0]
+          : entry.horse;
+
+        const current =
+          totalsByHorse.get(horseId) ?? {
+            horse_id: horseId,
+            horse_name:
+              horseRelation?.name ?? "Unknown Horse",
+            price: Number(entry.price_at_entry ?? 0),
+            round_points: 0,
+          };
+
+        current.round_points += Number(
+          result.fantasy_points ?? 0
+        );
+
+        totalsByHorse.set(horseId, current);
+      }
+
+      const leader =
+        [...totalsByHorse.values()].sort(
+          (a, b) =>
+            b.round_points - a.round_points ||
+            a.horse_name.localeCompare(b.horse_name)
+        )[0] ?? null;
+
+      if (!active) return;
+
+      if (!leader) {
+        setRoundMostPointsHorse(null);
+        return;
+      }
+
+      const ownershipRow = (
+        data?.most_selected ?? []
+      ).find(
+        (horse) => horse.horse_id === leader.horse_id
+      );
+
+      setRoundMostPointsHorse({
+        horse_id: leader.horse_id,
+        horse_name: leader.horse_name,
+        price: leader.price,
+        selection_count: Number(
+          ownershipRow?.selection_count ?? 0
+        ),
+        ownership_percentage: Number(
+          ownershipRow?.ownership_percentage ?? 0
+        ),
+        round_points: leader.round_points,
+      });
+    }
+
+    void loadRoundMostPointsHorse();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedRoundId, data?.most_selected]);
 
   const sortedHorseLeaders = useMemo(() => {
     const rows = [...(data?.horse_leaders ?? [])];
@@ -1139,46 +1325,12 @@ export default function StatsPage() {
         }
       : null);
 
-  const derivedMostPointsLeader =
-    [...(data.horse_leaders ?? [])].sort(
-      (a, b) =>
-        Number(b.season_points ?? 0) -
-          Number(a.season_points ?? 0) ||
-        a.horse_name.localeCompare(
-          b.horse_name
-        )
-    )[0] ?? null;
-
   const mostPointsHorse:
     | RoundSpecialHorse
     | null =
+    roundMostPointsHorse ??
     data.horse_performance?.most_points ??
-    (derivedMostPointsLeader
-      ? {
-          horse_id:
-            derivedMostPointsLeader.horse_id,
-          horse_name:
-            derivedMostPointsLeader.horse_name,
-          price: Number(
-            derivedMostPointsLeader.current_price ??
-              0
-          ),
-          selection_count: Number(
-            (data.most_selected ?? []).find(
-              (horse) => horse.horse_id === derivedMostPointsLeader.horse_id
-            )?.selection_count ?? 0
-          ),
-          ownership_percentage: Number(
-            (data.most_selected ?? []).find(
-              (horse) => horse.horse_id === derivedMostPointsLeader.horse_id
-            )?.ownership_percentage ?? 0
-          ),
-          round_points: Number(
-            derivedMostPointsLeader.season_points ??
-              0
-          ),
-        }
-      : null);
+    null;
 
   const derivedBestValueLeader =
     (data.horse_leaders ?? [])
@@ -1227,16 +1379,8 @@ export default function StatsPage() {
             derivedBestValueLeader.horse
               .current_price ?? 0
           ),
-          selection_count: Number(
-            (data.most_selected ?? []).find(
-              (horse) => horse.horse_id === derivedBestValueLeader.horse.horse_id
-            )?.selection_count ?? 0
-          ),
-          ownership_percentage: Number(
-            (data.most_selected ?? []).find(
-              (horse) => horse.horse_id === derivedBestValueLeader.horse.horse_id
-            )?.ownership_percentage ?? 0
-          ),
+          selection_count: 0,
+          ownership_percentage: 0,
           round_points: Number(
             derivedBestValueLeader.horse
               .season_points ?? 0
@@ -1662,47 +1806,10 @@ export default function StatsPage() {
             </div>
 
             <div className="mt-5">
-              <div className="mb-4 inline-flex rounded-xl border bg-white p-1 shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setTeamView("perfect")}
-                  className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
-                    teamView === "perfect"
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  Perfect Team
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTeamView("template")}
-                  className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
-                    teamView === "template"
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  Template Team
-                </button>
-              </div>
-
               <TeamPanel
-                title={
-                  teamView === "perfect"
-                    ? "Perfect Team"
-                    : "Template Team"
-                }
-                description={
-                  teamView === "perfect"
-                    ? "Highest-scoring valid 10-horse combination under the $2.5m salary cap, including an optimised captain who scores double points."
-                    : "Most-owned valid 10-horse combination that fits under the $2.5m salary cap."
-                }
-                team={
-                  teamView === "perfect"
-                    ? data.special_stats?.perfect_team ?? null
-                    : data.special_stats?.template_team ?? null
-                }
+                title="Perfect Team"
+                description="Highest-scoring valid 10-horse combination under the $2.5m salary cap, including an optimised captain who scores double points."
+                team={data.special_stats?.perfect_team ?? null}
               />
             </div>
           </section>
