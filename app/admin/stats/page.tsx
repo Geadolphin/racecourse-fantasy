@@ -242,7 +242,8 @@ export default function AdminStatsPage() {
         await supabase
           .from("team_selections")
           .select("team_id, race_entry_id, is_captain")
-          .in("team_id", teamIds);
+          .in("team_id", teamIds)
+          .range(0, 4999);
 
       if (!active) return;
 
@@ -288,7 +289,8 @@ export default function AdminStatsPage() {
               )
             `
           )
-          .in("id", entryIds);
+          .in("id", entryIds)
+          .range(0, 4999);
 
       if (!active) return;
 
