@@ -1385,6 +1385,54 @@ export default function StatsPage() {
         }
       : null);
 
+  const resolvedTemplateTeam = useMemo<RoundSpecialTeam | null>(() => {
+    const templateTeam = data?.special_stats?.template_team ?? null;
+
+    if (!templateTeam) {
+      return null;
+    }
+
+    const mostCaptainedHorseId =
+      data?.most_captained?.[0]?.horse_id ?? null;
+
+    const captainHorse =
+      templateTeam.horses.find(
+        (horse) => horse.horse_id === mostCaptainedHorseId
+      ) ?? null;
+
+    const horses = templateTeam.horses.map((horse) => ({
+      ...horse,
+      is_captain:
+        captainHorse != null &&
+        horse.horse_id === captainHorse.horse_id,
+    }));
+
+    const basePoints = horses.reduce(
+      (sum, horse) => sum + Number(horse.round_points ?? 0),
+      0
+    );
+
+    const captainPoints = captainHorse
+      ? Number(captainHorse.round_points ?? 0)
+      : 0;
+
+    return {
+      ...templateTeam,
+      horses,
+      base_points: basePoints,
+      captain_points: captainPoints,
+      total_points: basePoints + captainPoints,
+      captain: captainHorse
+        ? {
+            horse_id: captainHorse.horse_id,
+            horse_name: captainHorse.horse_name,
+            round_points: captainPoints,
+            doubled_points: captainPoints * 2,
+          }
+        : null,
+    };
+  }, [data?.special_stats?.template_team, data?.most_captained]);
+
   const resolvedRoundStats: RoundSummaryStats = {
     average_score:
       data.round_stats?.average_score ??
@@ -1836,12 +1884,12 @@ export default function StatsPage() {
                 description={
                   teamView === "perfect"
                     ? "Highest-scoring valid 10-horse combination under the $2.5m salary cap, including an optimised captain who scores double points."
-                    : "Most-owned valid 10-horse combination that fits under the $2.5m salary cap."
+                    : "Most-owned valid 10-horse combination that fits under the $2.5m salary cap, with the round's most-captained horse as captain."
                 }
                 team={
                   teamView === "perfect"
                     ? data.special_stats?.perfect_team ?? null
-                    : data.special_stats?.template_team ?? null
+                    : resolvedTemplateTeam
                 }
               />
             </div>
