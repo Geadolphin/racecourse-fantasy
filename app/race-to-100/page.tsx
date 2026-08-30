@@ -678,23 +678,23 @@ export default function RaceTo100Page() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 sm:min-w-[130px] sm:px-4 sm:py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Team Rating
+                {(!hardMode || gameComplete) && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 sm:min-w-[130px] sm:px-4 sm:py-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Team Rating
+                    </div>
+                    <div className="mt-1 text-xl font-black">
+                      {selectedHorses.length
+                        ? (
+                            selectedHorses.reduce(
+                              (sum, runner) => sum + runner.horse.rating,
+                              0
+                            ) / selectedHorses.length
+                          ).toFixed(1)
+                        : "—"}
+                    </div>
                   </div>
-                  <div className="mt-1 text-xl font-black">
-                    {hardMode && !gameComplete
-                      ? "???"
-                      : selectedHorses.length
-                      ? (
-                          selectedHorses.reduce(
-                            (sum, runner) => sum + runner.horse.rating,
-                            0
-                          ) / selectedHorses.length
-                        ).toFixed(1)
-                      : "—"}
-                  </div>
-                </div>
+                )}
 
                 {gameComplete && (
                   <div className="col-span-2 rounded-xl border border-amber-400/30 bg-slate-900 px-3 py-2.5 sm:col-span-1 sm:min-w-[130px] sm:px-4 sm:py-3">
@@ -847,11 +847,11 @@ export default function RaceTo100Page() {
                                   <div className="mt-1 max-w-full truncate px-1 text-[11px] font-black text-white sm:text-sm">
                                     {selectedRunner.horse.name}
                                   </div>
-                                  <div className="mt-0.5 text-[11px] font-bold text-slate-500 sm:text-xs">
-                                    {hardMode && !gameComplete
-                                      ? "Rating hidden"
-                                      : `Rating ${selectedRunner.horse.rating}`}
-                                  </div>
+                                  {(!hardMode || gameComplete) && (
+                                    <div className="mt-0.5 text-[11px] font-bold text-slate-500 sm:text-xs">
+                                      Rating {selectedRunner.horse.rating}
+                                    </div>
+                                  )}
 
 
                                 </>
@@ -1064,7 +1064,12 @@ export default function RaceTo100Page() {
                 <div className="p-3 sm:p-4">
                   <h3 className="text-base font-black sm:text-lg">Select one horse</h3>
                   <div className="mt-3 grid grid-cols-1 gap-2">
-                    {currentRunners.map((runner) => {
+                    {(hardMode
+                      ? [...currentRunners].sort((a, b) =>
+                          a.horse.name.localeCompare(b.horse.name)
+                        )
+                      : currentRunners
+                    ).map((runner) => {
                       const alreadySelected = selectedSet.has(runner.horse.id);
                     const selectableNow = canSelectRunner(runner);
                     const unavailableNow = !alreadySelected && !selectableNow;
@@ -1095,14 +1100,16 @@ export default function RaceTo100Page() {
                               </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-3">
-                              <div className="min-w-[46px] text-right">
-                                <div className="text-lg font-black sm:text-xl">
-                                  {hardMode ? "??" : runner.horse.rating}
+                              {!hardMode && (
+                                <div className="min-w-[46px] text-right">
+                                  <div className="text-lg font-black sm:text-xl">
+                                    {runner.horse.rating}
+                                  </div>
+                                  <div className="text-[10px] font-bold uppercase text-slate-500">
+                                    Rating
+                                  </div>
                                 </div>
-                                <div className="text-[10px] font-bold uppercase text-slate-500">
-                                  {hardMode ? "Hidden" : "Rating"}
-                                </div>
-                              </div>
+                              )}
 
                               <button
                                 type="button"
