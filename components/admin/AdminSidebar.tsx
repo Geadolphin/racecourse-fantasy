@@ -9,6 +9,7 @@ const links = [
   { href: "/admin/horses", label: "Horses" },
   { href: "/admin/leagues", label: "Leagues" },
   { href: "/admin/race-entries", label: "Race Entries" },
+  { href: "/admin/race-to-100", label: "Race to 100" },
   { href: "/admin/racecourses", label: "Racecourses" },
   { href: "/admin/races", label: "Races" },
   { href: "/admin/results", label: "Results" },
