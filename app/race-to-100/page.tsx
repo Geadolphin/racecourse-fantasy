@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-const teamRows = [
+const formationRows = [
   {
     label: "Sprinters",
     positions: ["Sprinter 1", "Sprinter 2", "Sprinter 3"],
@@ -20,7 +20,7 @@ const teamRows = [
     label: "Wildcard",
     positions: ["Wildcard"],
   },
-];
+] as const;
 
 const slotOrder = [
   "Sprinter 1",
@@ -92,6 +92,7 @@ type Horse = {
   sprinter: boolean;
   middle_distance: boolean;
   stayer: boolean;
+  silks_url: string | null;
 };
 
 type Race = {
@@ -107,7 +108,6 @@ type RunnerRow = {
   id: number;
   race_id: string;
   horse_id: string;
-  silks_url: string | null;
 };
 
 type Runner = RunnerRow & { horse: Horse };
@@ -146,6 +146,10 @@ export default function RaceTo100Page() {
   const [currentRunners, setCurrentRunners] = useState<Runner[]>([]);
   const [usedRaceIds, setUsedRaceIds] = useState<string[]>([]);
   const [selectedHorses, setSelectedHorses] = useState<Runner[]>([]);
+  const [manualLineup, setManualLineup] = useState<Map<SlotName, Runner>>(
+    () => new Map()
+  );
+  const [movingHorseId, setMovingHorseId] = useState<string | null>(null);
   const [respinAvailable, setRespinAvailable] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -155,9 +159,84 @@ export default function RaceTo100Page() {
   );
 
   const selectedLineup = useMemo(
-    () => solveSelectedTeam(selectedHorses),
+    () => manualLineup,
+    [manualLineup]
+  );
+
+  const gameComplete = selectedHorses.length === 10;
+
+  const finalChallengeScore = useMemo(
+    () =>
+      selectedHorses.reduce(
+        (total, runner) => total + challengePoints(runner.horse.rating),
+        0
+      ),
     [selectedHorses]
   );
+
+  const finalTeamRating = useMemo(() => {
+    if (!gameComplete) return null;
+
+    const total = selectedHorses.reduce(
+      (sum, runner) => sum + runner.horse.rating,
+      0
+    );
+
+    return total / selectedHorses.length;
+  }, [gameComplete, selectedHorses]);
+
+  function moveHorseToSlot(targetSlot: SlotName) {
+    if (!movingHorseId || !selectedLineup) return;
+
+    const sourceEntry = Array.from(selectedLineup.entries()).find(
+      ([, runner]) => runner.horse.id === movingHorseId
+    );
+
+    if (!sourceEntry) {
+      setMovingHorseId(null);
+      return;
+    }
+
+    const [sourceSlot, movingRunner] = sourceEntry;
+    if (sourceSlot === targetSlot) {
+      setMovingHorseId(null);
+      return;
+    }
+
+    if (!canHorseFillSlot(movingRunner.horse, targetSlot)) return;
+
+    const targetRunner = selectedLineup.get(targetSlot) ?? null;
+
+    // If the target is occupied, the two horses swap places.
+    if (
+      targetRunner &&
+      !canHorseFillSlot(targetRunner.horse, sourceSlot)
+    ) {
+      return;
+    }
+
+    const next = new Map(selectedLineup);
+    next.delete(sourceSlot);
+
+    if (targetRunner) {
+      next.set(sourceSlot, targetRunner);
+    }
+
+    next.set(targetSlot, movingRunner);
+    setManualLineup(next);
+    setMovingHorseId(null);
+    setError(null);
+  }
+
+  function canSelectRunner(runner: Runner) {
+    if (selectedSet.has(runner.horse.id)) return false;
+
+    return slotOrder.some(
+      (slot) =>
+        !manualLineup.has(slot) &&
+        canHorseFillSlot(runner.horse, slot)
+    );
+  }
 
   async function getRandomRace() {
     setLoading(true);
@@ -184,7 +263,7 @@ export default function RaceTo100Page() {
       for (const race of shuffled) {
         const { data: runnerRows, error: runnerError } = await supabase
           .from("race_to_100_runners")
-          .select("id,race_id,horse_id,silks_url")
+          .select("id,race_id,horse_id")
           .eq("race_id", race.id);
 
         if (runnerError) throw runnerError;
@@ -196,7 +275,7 @@ export default function RaceTo100Page() {
 
         const { data: horses, error: horseError } = await supabase
           .from("race_to_100_horses")
-          .select("id,name,rating,sprinter,middle_distance,stayer")
+          .select("id,name,rating,sprinter,middle_distance,stayer,silks_url")
           .in("id", horseIds);
 
         if (horseError) throw horseError;
@@ -213,8 +292,8 @@ export default function RaceTo100Page() {
           .filter((runner): runner is Runner => runner !== null)
           .sort((a, b) => b.horse.rating - a.horse.rating);
 
-        const hasAvailableHorse = combined.some(
-          (runner) => !selectedSet.has(runner.horse.id)
+        const hasAvailableHorse = combined.some((runner) =>
+          canSelectRunner(runner)
         );
 
         if (!hasAvailableHorse) continue;
@@ -245,6 +324,18 @@ export default function RaceTo100Page() {
     setCurrentRace(null);
     setCurrentRunners([]);
     await getRandomRace();
+  }
+
+  function restartGame() {
+    setCurrentRace(null);
+    setCurrentRunners([]);
+    setUsedRaceIds([]);
+    setSelectedHorses([]);
+    setManualLineup(new Map());
+    setMovingHorseId(null);
+    setRespinAvailable(true);
+    setError(null);
+    setStarted(false);
   }
 
   return (
@@ -333,18 +424,49 @@ export default function RaceTo100Page() {
 
               <div className="flex flex-wrap gap-3">
                 <div className="min-w-[110px] rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Horses</div>
-                  <div className="mt-1 text-xl font-black">{selectedHorses.length} / 10</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Horses
+                  </div>
+                  <div className="mt-1 text-xl font-black">
+                    {selectedHorses.length} / 10
+                  </div>
                 </div>
+
                 <div className="min-w-[130px] rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Team Rating</div>
-                  <div className="mt-1 text-xl font-black">—</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Team Rating
+                  </div>
+                  <div className="mt-1 text-xl font-black">
+                    {selectedHorses.length
+                      ? (
+                          selectedHorses.reduce(
+                            (sum, runner) => sum + runner.horse.rating,
+                            0
+                          ) / selectedHorses.length
+                        ).toFixed(1)
+                      : "—"}
+                  </div>
                 </div>
-                <div className="min-w-[130px] rounded-xl border border-amber-400/30 bg-slate-900 px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-amber-400">Challenge</div>
-                  <div className="mt-1 text-xl font-black">0 / 100</div>
-                </div>
+
+                {gameComplete && (
+                  <div className="min-w-[130px] rounded-xl border border-amber-400/30 bg-slate-900 px-4 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-400">
+                      Challenge
+                    </div>
+                    <div className="mt-1 text-xl font-black">
+                      {finalChallengeScore} / 100
+                    </div>
+                  </div>
+                )}
               </div>
+
+              <button
+                type="button"
+                onClick={restartGame}
+                className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-black text-slate-300 transition hover:border-amber-400 hover:text-white"
+              >
+                RESTART
+              </button>
             </div>
 
             {error && (
@@ -353,40 +475,223 @@ export default function RaceTo100Page() {
               </div>
             )}
 
-            {!currentRace ? (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center sm:p-12">
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-                  Race {selectedHorses.length + 1} of 10
-                </div>
-                <h2 className="mt-3 text-2xl font-black">
-                  {selectedHorses.length ? "Generate your next race" : "Generate your first race"}
-                </h2>
-                <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">
-                  A random historical Australian race will be generated from your Supabase data.
-                </p>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={getRandomRace}
-                  className="mt-6 rounded-xl bg-amber-400 px-12 py-4 text-xl font-black text-slate-950 transition hover:bg-amber-300 disabled:opacity-50"
-                >
-                  {loading ? "LOADING..." : "SPIN"}
-                </button>
-                <div className="mt-4 text-sm font-semibold text-slate-500">
-                  Respin available: {respinAvailable ? 1 : 0}
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
+              <div className="min-w-0 lg:sticky lg:top-6">
+            <div className="min-w-0">
+              <div className="mb-4 flex items-end justify-between gap-4">
+                <h2 className="text-xl font-black">Your Team</h2>
+
+                <div className="text-sm font-semibold text-slate-500">
+                  {selectedHorses.length} / 10
                 </div>
               </div>
+
+              <div className="mb-3 text-xs font-semibold text-slate-500">
+                {movingHorseId
+                  ? "Click a highlighted position to move the horse, or click the horse again to cancel."
+                  : selectedHorses.length > 0
+                  ? "Click a horse to change its position."
+                  : ""}
+              </div>
+
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-3 py-6 sm:px-5 sm:py-8">
+                <div className="flex flex-col gap-8 sm:gap-10">
+                  {formationRows.map((row, rowIndex) => (
+                    <div
+                      key={row.label}
+                      className="grid grid-cols-[78px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[110px_minmax(0,1fr)] sm:gap-5"
+                    >
+                      <div className="text-right text-[11px] font-black uppercase tracking-wide text-slate-500 sm:text-sm">
+                        {row.label}
+                      </div>
+
+                      <div
+                        className={`grid items-start justify-items-center gap-4 ${
+                          row.positions.length === 1
+                            ? "grid-cols-1"
+                            : "grid-cols-3"
+                        }`}
+                      >
+                        {row.positions.map((position) => {
+                          const selectedRunner =
+                            selectedLineup?.get(position as SlotName) ?? null;
+
+                          const movingRunner = movingHorseId
+                            ? selectedHorses.find(
+                                (runner) => runner.horse.id === movingHorseId
+                              ) ?? null
+                            : null;
+
+                          const sourceEntry =
+                            movingHorseId && selectedLineup
+                              ? Array.from(selectedLineup.entries()).find(
+                                  ([, runner]) =>
+                                    runner.horse.id === movingHorseId
+                                )
+                              : null;
+
+                          const sourceSlot = sourceEntry?.[0] ?? null;
+                          const targetRunner = selectedRunner;
+
+                          const canMoveHere =
+                            !!movingRunner &&
+                            !!sourceSlot &&
+                            (position as SlotName) !== sourceSlot &&
+                            canHorseFillSlot(
+                              movingRunner.horse,
+                              position as SlotName
+                            ) &&
+                            (!targetRunner ||
+                              canHorseFillSlot(
+                                targetRunner.horse,
+                                sourceSlot
+                              ));
+
+                          const isMovingThisHorse =
+                            selectedRunner?.horse.id === movingHorseId;
+
+                          return (
+                            <div
+                              key={position}
+                              className={`flex min-h-[128px] w-full max-w-[160px] flex-col items-center justify-start rounded-xl p-2 text-center transition sm:min-h-[148px] sm:max-w-[190px] ${
+                                canMoveHere
+                                  ? "cursor-pointer border border-amber-400/60 bg-amber-400/5"
+                                  : isMovingThisHorse
+                                  ? "cursor-pointer border border-amber-400 bg-slate-950/60"
+                                  : selectedRunner
+                                  ? "cursor-pointer border border-transparent hover:border-slate-700"
+                                  : "border border-transparent"
+                              }`}
+                              onClick={() => {
+                                if (canMoveHere) {
+                                  moveHorseToSlot(position as SlotName);
+                                  return;
+                                }
+
+                                if (selectedRunner) {
+                                  setMovingHorseId((current) =>
+                                    current === selectedRunner.horse.id
+                                      ? null
+                                      : selectedRunner.horse.id
+                                  );
+                                }
+                              }}
+                            >
+                              {selectedRunner ? (
+                                <>
+                                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden sm:h-24 sm:w-24">
+                                    {selectedRunner.horse.silks_url ? (
+                                      <img
+                                        src={selectedRunner.horse.silks_url}
+                                        alt={`${selectedRunner.horse.name} silks`}
+                                        className="h-full w-full object-contain"
+                                      />
+                                    ) : (
+                                      <div className="h-16 w-16 rounded-xl border border-dashed border-slate-700 sm:h-20 sm:w-20" />
+                                    )}
+                                  </div>
+
+                                  <div className="mt-2 max-w-full truncate text-xs font-black text-white sm:text-sm">
+                                    {selectedRunner.horse.name}
+                                  </div>
+                                  <div className="mt-1 text-[11px] font-bold text-slate-500 sm:text-xs">
+                                    Rating {selectedRunner.horse.rating}
+                                  </div>
+
+
+                                </>
+                              ) : (
+                                <>
+                                  <div className="h-20 w-20 rounded-xl border border-dashed border-slate-800 bg-slate-950/40 sm:h-24 sm:w-24" />
+                                  <div className="mt-2 text-xs font-bold text-slate-700">
+                                    {canMoveHere ? "Move Here" : "Empty"}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+              </div>
+
+              <div className="min-w-0">
+            {!currentRace ? (
+              gameComplete ? (
+                <div className="rounded-2xl border border-amber-400/30 bg-slate-900 p-5 text-center sm:p-6">
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
+                    Final Result
+                  </div>
+
+                  <h2 className="mt-3 text-3xl font-black">
+                    {finalChallengeScore >= 100 ? "100 CLUB" : "Team Complete"}
+                  </h2>
+
+                  <div className="mx-auto mt-8 grid max-w-lg gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-800 bg-slate-950 px-5 py-5">
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Team Rating
+                      </div>
+                      <div className="mt-2 text-3xl font-black">
+                        {finalTeamRating?.toFixed(1)}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-400/30 bg-slate-950 px-5 py-5">
+                      <div className="text-xs font-bold uppercase tracking-wide text-amber-400">
+                        Challenge Score
+                      </div>
+                      <div className="mt-2 text-3xl font-black">
+                        {finalChallengeScore}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 text-center sm:p-6">
+                  <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
+                    Race {selectedHorses.length + 1} of 10
+                  </div>
+
+                  <h2 className="mt-3 text-2xl font-black">
+                    {selectedHorses.length
+                      ? "Generate your next race"
+                      : "Generate your first race"}
+                  </h2>
+
+                  <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">
+                    A random historical Australian race will be generated from your Supabase data.
+                  </p>
+
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={getRandomRace}
+                    className="mt-5 rounded-xl bg-amber-400 px-8 py-3 text-lg font-black text-slate-950 transition hover:bg-amber-300 disabled:opacity-50"
+                  >
+                    {loading ? "LOADING..." : "SPIN"}
+                  </button>
+
+                  <div className="mt-4 text-sm font-semibold text-slate-500">
+                    Respin available: {respinAvailable ? 1 : 0}
+                  </div>
+                </div>
+              )
             ) : (
               <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
-                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 p-5 sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 p-4">
                   <div>
                     <div className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400">
                       Race {selectedHorses.length + 1} of 10
                     </div>
-                    <h2 className="mt-2 text-2xl font-black sm:text-3xl">
+                    <h2 className="mt-1 text-xl font-black sm:text-2xl">
                       {currentRace.race_name}
                     </h2>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-400">
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold text-slate-400">
                       <span>{currentRace.year}</span>
                       <span>{currentRace.track}</span>
                       <span>{currentRace.distance}m</span>
@@ -403,24 +708,26 @@ export default function RaceTo100Page() {
                   </button>
                 </div>
 
-                <div className="p-4 sm:p-6">
+                <div className="p-4">
                   <h3 className="text-lg font-black">Select one horse</h3>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="mt-3 grid grid-cols-1 gap-2">
                     {currentRunners.map((runner) => {
                       const alreadySelected = selectedSet.has(runner.horse.id);
+                    const selectableNow = canSelectRunner(runner);
+                    const unavailableNow = !alreadySelected && !selectableNow;
                       const labels = classificationLabels(runner.horse);
                       return (
                         <div
                           key={runner.id}
-                          className={`rounded-xl border border-slate-800 bg-slate-950 p-4 ${
+                          className={`rounded-xl border border-slate-800 bg-slate-950 p-3 ${
                             alreadySelected ? "opacity-50" : ""
                           }`}
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
-                              {runner.silks_url ? (
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+                              {runner.horse.silks_url ? (
                                 <img
-                                  src={runner.silks_url}
+                                  src={runner.horse.silks_url}
                                   alt={`${runner.horse.name} silks`}
                                   className="h-full w-full object-contain"
                                 />
@@ -433,38 +740,61 @@ export default function RaceTo100Page() {
                               <div className="mt-1 text-xs text-slate-500">
                                 {labels.join(" · ")}
                               </div>
-                              <div className="mt-2 text-xs font-semibold text-amber-400">
-                                {challengePoints(runner.horse.rating)} Challenge Points
-                              </div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-2xl font-black">{runner.horse.rating}</div>
-                              <div className="text-[10px] font-bold uppercase text-slate-500">Rating</div>
+                            <div className="flex shrink-0 items-center gap-3">
+                              <div className="text-right">
+                                <div className="text-xl font-black">{runner.horse.rating}</div>
+                                <div className="text-[10px] font-bold uppercase text-slate-500">Rating</div>
+                              </div>
+
+                              <button
+                                type="button"
+                                disabled={alreadySelected || unavailableNow}
+                                aria-label={
+                                  alreadySelected
+                                    ? `${runner.horse.name} already selected`
+                                    : unavailableNow
+                                    ? `${runner.horse.name} has no empty eligible position`
+                                    : `Select ${runner.horse.name}`
+                                }
+                                title={
+                                  alreadySelected
+                                    ? "Already selected"
+                                    : unavailableNow
+                                    ? "No empty eligible position"
+                                    : "Select horse"
+                                }
+                                onClick={() => {
+                                  const emptyEligibleSlot = slotOrder.find(
+                                    (slot) =>
+                                      !manualLineup.has(slot) &&
+                                      canHorseFillSlot(runner.horse, slot)
+                                  );
+
+                                  if (!emptyEligibleSlot) {
+                                    setError(
+                                      "That horse does not currently have an empty eligible position. Use CHANGE POSITION to rearrange your team first."
+                                    );
+                                    return;
+                                  }
+
+                                  const nextSelected = [...selectedHorses, runner];
+                                  const nextLineup = new Map(manualLineup);
+                                  nextLineup.set(emptyEligibleSlot, runner);
+
+                                  setSelectedHorses(nextSelected);
+                                  setManualLineup(nextLineup);
+                                  setMovingHorseId(null);
+                                  setCurrentRace(null);
+                                  setCurrentRunners([]);
+                                  setError(null);
+                                }}
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-400 text-lg font-black text-slate-950 transition hover:bg-amber-300 disabled:bg-slate-800 disabled:text-slate-500"
+                              >
+                                ✓
+                              </button>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            disabled={alreadySelected}
-                            onClick={() => {
-                              const nextSelected = [...selectedHorses, runner];
-                              const validLineup = solveSelectedTeam(nextSelected);
-
-                              if (!validLineup) {
-                                setError(
-                                  "That horse cannot be added while keeping a valid 3 Sprinter, 3 Middle Distance, 3 Stayer and Wildcard team."
-                                );
-                                return;
-                              }
-
-                              setSelectedHorses(nextSelected);
-                              setCurrentRace(null);
-                              setCurrentRunners([]);
-                              setError(null);
-                            }}
-                            className="mt-4 w-full rounded-lg bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 hover:bg-amber-300 disabled:bg-slate-800 disabled:text-slate-500"
-                          >
-                            {alreadySelected ? "ALREADY SELECTED" : "SELECT HORSE"}
-                          </button>
                         </div>
                       );
                     })}
@@ -473,77 +803,6 @@ export default function RaceTo100Page() {
               </div>
             )}
 
-            <div className="mt-10">
-              <div className="mb-4 flex items-end justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-black">Your Team</h2>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Selected horses are automatically arranged into a valid team.
-                  </p>
-                </div>
-                <div className="hidden text-sm font-semibold text-slate-500 sm:block">
-                  {selectedHorses.length} / 10 filled
-                </div>
-              </div>
-
-              <div className="space-y-5">
-                {teamRows.map((row) => (
-                  <div key={row.label}>
-                    <div className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                      {row.label}
-                    </div>
-
-                    <div
-                      className={`grid gap-3 ${
-                        row.positions.length === 1
-                          ? "grid-cols-1"
-                          : "grid-cols-1 sm:grid-cols-3"
-                      }`}
-                    >
-                      {row.positions.map((position) => {
-                        const selectedRunner =
-                          selectedLineup?.get(position as SlotName) ?? null;
-
-                        return (
-                          <div
-                            key={position}
-                            className={`flex min-h-[92px] items-center rounded-xl border border-slate-800 bg-slate-900 px-4 py-4 ${
-                              row.positions.length === 1
-                                ? "sm:max-w-[calc(33.333%-0.5rem)]"
-                                : ""
-                            }`}
-                          >
-                            {selectedRunner ? (
-                              <div className="flex min-w-0 items-center gap-3">
-                                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
-                                  {selectedRunner.silks_url ? (
-                                    <img
-                                      src={selectedRunner.silks_url}
-                                      alt={`${selectedRunner.horse.name} silks`}
-                                      className="h-full w-full object-contain"
-                                    />
-                                  ) : (
-                                    <span className="text-[9px] font-bold uppercase text-slate-600">
-                                      Silks
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="truncate font-black text-white">
-                                  {selectedRunner.horse.name}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-sm font-semibold text-slate-600">
-                                Empty
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </section>
