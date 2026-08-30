@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, ClipboardEvent, DragEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Race = {
@@ -72,6 +72,7 @@ export default function RaceTo100AdminPage() {
   const [loadingRunners, setLoadingRunners] = useState(false);
   const [workingHorseId, setWorkingHorseId] = useState<string | null>(null);
   const [uploadingHorseId, setUploadingHorseId] = useState<string | null>(null);
+  const [pasteHorseId, setPasteHorseId] = useState<string | null>(null);
 
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -310,13 +311,14 @@ export default function RaceTo100AdminPage() {
 
     try {
       const extension = file.name.split(".").pop()?.toLowerCase() || "png";
-      const path = `horses/${safeFileName(horse.name)}-${horse.id}.${extension}`;
+      const uploadId = `${Date.now()}-${crypto.randomUUID()}`;
+      const path = `horses/${safeFileName(horse.name)}-${horse.id}-${uploadId}.${extension}`;
 
       const { error: uploadError } = await supabase.storage
         .from(SILKS_BUCKET)
         .upload(path, file, {
           cacheControl: "3600",
-          upsert: true,
+          upsert: false,
         });
 
       if (uploadError) throw uploadError;
@@ -325,10 +327,14 @@ export default function RaceTo100AdminPage() {
         .from(SILKS_BUCKET)
         .getPublicUrl(path);
 
+      // The unique path already avoids CDN collisions, and the query string
+      // gives the browser an additional cache-busting URL.
+      const freshSilksUrl = `${publicUrlData.publicUrl}?v=${encodeURIComponent(uploadId)}`;
+
       const { error: updateError } = await supabase
         .from("race_to_100_horses")
         .update({
-          silks_url: publicUrlData.publicUrl,
+          silks_url: freshSilksUrl,
         })
         .eq("id", horse.id);
 
@@ -337,7 +343,7 @@ export default function RaceTo100AdminPage() {
       setHorses((current) =>
         current.map((item) =>
           item.id === horse.id
-            ? { ...item, silks_url: publicUrlData.publicUrl }
+            ? { ...item, silks_url: freshSilksUrl }
             : item,
         ),
       );
@@ -349,7 +355,7 @@ export default function RaceTo100AdminPage() {
                 ...runner,
                 horse: {
                   ...runner.horse,
-                  silks_url: publicUrlData.publicUrl,
+                  silks_url: freshSilksUrl,
                 },
               }
             : runner,
@@ -381,17 +387,198 @@ export default function RaceTo100AdminPage() {
     event.target.value = "";
   }
 
-  function handleHorseDrop(
+  async function uploadHorseSilksFromUrl(horse: Horse, imageUrl: string) {
+    setUploadingHorseId(horse.id);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch(imageUrl);
+
+      if (!response.ok) {
+        throw new Error(`Could not download the dragged image (${response.status}).`);
+      }
+
+      const blob = await response.blob();
+
+      if (!blob.type.startsWith("image/")) {
+        throw new Error("The dragged item was not an image.");
+      }
+
+      const urlWithoutQuery = imageUrl.split("?")[0];
+      const urlExtension =
+        urlWithoutQuery.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") ||
+        "";
+
+      const typeExtension =
+        blob.type === "image/jpeg"
+          ? "jpg"
+          : blob.type === "image/png"
+            ? "png"
+            : blob.type === "image/webp"
+              ? "webp"
+              : blob.type === "image/gif"
+                ? "gif"
+                : "";
+
+      const extension = typeExtension || urlExtension || "png";
+      const file = new File(
+        [blob],
+        `${safeFileName(horse.name)}-silks.${extension}`,
+        { type: blob.type || `image/${extension}` },
+      );
+
+      await uploadHorseSilks(horse, file);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `${err.message} Try saving the image to your computer first if the source website blocks direct image access.`
+          : "Could not import the dragged image.",
+      );
+      setUploadingHorseId(null);
+    }
+  }
+
+  function extractFirstHttpUrl(value: string) {
+    if (!value) return null;
+
+    const htmlImageMatch = value.match(
+      /<img[^>]+src=["']([^"']+)["']/i,
+    );
+
+    if (
+      htmlImageMatch?.[1]?.startsWith("http://") ||
+      htmlImageMatch?.[1]?.startsWith("https://")
+    ) {
+      return htmlImageMatch[1];
+    }
+
+    const cssUrlMatch = value.match(
+      /url\(["']?(https?:\/\/[^"')\s]+)["']?\)/i,
+    );
+
+    if (cssUrlMatch?.[1]) {
+      return cssUrlMatch[1];
+    }
+
+    const urlMatch = value.match(/https?:\/\/[^\s"'<>]+/i);
+
+    return urlMatch?.[0] ?? null;
+  }
+
+  function readDataTransferItem(item: DataTransferItem) {
+    return new Promise<string>((resolve) => {
+      item.getAsString((value) => resolve(value || ""));
+    });
+  }
+
+  async function getDraggedImageUrl(event: DragEvent<HTMLLabelElement>) {
+    const preferredTypes = [
+      "text/uri-list",
+      "text/x-moz-url",
+      "text/x-moz-url-data",
+      "text/html",
+      "text/plain",
+    ];
+
+    for (const type of preferredTypes) {
+      try {
+        const value = event.dataTransfer.getData(type);
+        const url = extractFirstHttpUrl(value);
+
+        if (url) return url;
+      } catch {
+        // Keep trying the remaining drag formats.
+      }
+    }
+
+    const stringItems = Array.from(event.dataTransfer.items ?? []).filter(
+      (item) => item.kind === "string",
+    );
+
+    for (const item of stringItems) {
+      try {
+        const value = await readDataTransferItem(item);
+        const url = extractFirstHttpUrl(value);
+
+        if (url) return url;
+      } catch {
+        // Keep trying the remaining drag items.
+      }
+    }
+
+    return null;
+  }
+
+  async function handleHorseDrop(
     horse: Horse,
     event: DragEvent<HTMLLabelElement>,
   ) {
     event.preventDefault();
+    event.stopPropagation();
 
     const file = event.dataTransfer.files?.[0];
 
     if (file) {
-      uploadHorseSilks(horse, file);
+      await uploadHorseSilks(horse, file);
+      return;
     }
+
+    const imageUrl = await getDraggedImageUrl(event);
+
+    if (imageUrl) {
+      await uploadHorseSilksFromUrl(horse, imageUrl);
+      return;
+    }
+
+    setError(
+      "The browser did not expose an image file or image URL for that drag. Try dragging the actual image from its full-size image page, or right-click it and save the image first.",
+    );
+  }
+
+  async function handleHorsePaste(
+    horse: Horse,
+    event: ClipboardEvent<HTMLLabelElement>,
+  ) {
+    const items = Array.from(event.clipboardData.items ?? []);
+    const imageItem = items.find(
+      (item) => item.kind === "file" && item.type.startsWith("image/"),
+    );
+
+    if (!imageItem) {
+      setError(
+        "No image was found on the clipboard. Right-click the silk image, choose Copy image, click this horse's silk box, then press Ctrl+V.",
+      );
+      return;
+    }
+
+    const file = imageItem.getAsFile();
+
+    if (!file) {
+      setError("The clipboard image could not be read.");
+      return;
+    }
+
+    event.preventDefault();
+
+    const extension =
+      file.type === "image/jpeg"
+        ? "jpg"
+        : file.type === "image/png"
+          ? "png"
+          : file.type === "image/webp"
+            ? "webp"
+            : file.type === "image/gif"
+              ? "gif"
+              : "png";
+
+    const namedFile = new File(
+      [file],
+      `${safeFileName(horse.name)}-silks.${extension}`,
+      { type: file.type || `image/${extension}` },
+    );
+
+    await uploadHorseSilks(horse, namedFile);
   }
 
   if (loadingPage) {
@@ -705,7 +892,7 @@ export default function RaceTo100AdminPage() {
               <h2 className="text-xl font-black">Add Horses</h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Upload a horse's permanent silks here, then add the horse to the selected historical race.
+                For website images: right-click the silk and choose Copy image, click the horse's silk box, then press Ctrl+V. You can also drop a file from your computer or click the box to choose one.
               </p>
 
               <input
@@ -738,27 +925,49 @@ export default function RaceTo100AdminPage() {
                       key={horse.id}
                       className="rounded-xl border border-slate-800 bg-slate-950 p-3"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="grid gap-3 sm:grid-cols-[96px_minmax(0,1fr)_auto_auto] sm:items-center">
                         <label
-                          onDragOver={(event) => event.preventDefault()}
+                          tabIndex={0}
+                          onFocus={() => setPasteHorseId(horse.id)}
+                          onBlur={() =>
+                            setPasteHorseId((current) =>
+                              current === horse.id ? null : current,
+                            )
+                          }
+                          onPaste={(event) => handleHorsePaste(horse, event)}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "copy";
+                          }}
                           onDrop={(event) => handleHorseDrop(horse, event)}
-                          className="group flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-700 bg-slate-900 transition hover:border-amber-400"
-                          title="Drop silks here or click to upload"
+                          className={`group flex h-24 w-24 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed bg-slate-900 outline-none transition ${
+                            pasteHorseId === horse.id
+                              ? "border-amber-400 ring-2 ring-amber-400/30"
+                              : "border-slate-700 hover:border-amber-400"
+                          }`}
+                          title="Click here, then press Ctrl+V to paste copied silks. You can also drop or choose a file."
                         >
                           {uploadingHorseId === horse.id ? (
-                            <span className="px-1 text-center text-[9px] font-black uppercase text-slate-500">
-                              Uploading
+                            <span className="px-2 text-center text-[10px] font-black uppercase text-slate-400">
+                              Uploading...
                             </span>
                           ) : horse.silks_url ? (
                             <img
                               src={horse.silks_url}
                               alt={`${horse.name} silks`}
-                              className="h-full w-full object-contain"
+                              draggable={false}
+                              onDragStart={(event) => event.preventDefault()}
+                              className="h-full w-full object-contain p-1"
                             />
                           ) : (
-                            <span className="px-1 text-center text-[9px] font-black uppercase leading-3 text-slate-500 group-hover:text-amber-400">
-                              Drop Silks
-                            </span>
+                            <>
+                              <span className="px-2 text-center text-[10px] font-black uppercase leading-4 text-slate-400 group-hover:text-amber-400">
+                                Add Silks
+                              </span>
+                              <span className="mt-1 px-1 text-center text-[9px] font-semibold leading-3 text-slate-600">
+                                click / drop / paste
+                              </span>
+                            </>
                           )}
 
                           <input
@@ -772,15 +981,25 @@ export default function RaceTo100AdminPage() {
                           />
                         </label>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-black">{horse.name}</div>
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-black">
+                            {horse.name}
+                          </div>
 
                           <div className="mt-1 text-xs font-semibold text-slate-500">
                             {horseCategories(horse)}
                           </div>
 
-                          <div className="mt-2 text-[10px] font-bold uppercase tracking-wide text-slate-600">
-                            {horse.silks_url ? "Silks saved" : "Drop or click to add silks"}
+                          <div
+                            className={`mt-2 text-[10px] font-black uppercase tracking-wide ${
+                              horse.silks_url
+                                ? "text-emerald-400"
+                                : "text-slate-600"
+                            }`}
+                          >
+                            {horse.silks_url
+                              ? "Silks saved to horse"
+                              : "Add permanent silks here"}
                           </div>
                         </div>
 
@@ -799,7 +1018,7 @@ export default function RaceTo100AdminPage() {
                             uploadingHorseId === horse.id
                           }
                           onClick={() => addHorse(horse)}
-                          className="shrink-0 rounded-lg bg-amber-400 px-4 py-2 text-xs font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="min-h-11 shrink-0 rounded-lg bg-amber-400 px-4 py-2 text-xs font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {workingHorseId === horse.id ? "ADDING..." : "ADD"}
                         </button>
