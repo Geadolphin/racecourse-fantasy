@@ -1385,53 +1385,52 @@ export default function StatsPage() {
         }
       : null);
 
-  const resolvedTemplateTeam = useMemo<RoundSpecialTeam | null>(() => {
-    const templateTeam = data?.special_stats?.template_team ?? null;
+  const templateTeam = data.special_stats?.template_team ?? null;
+  const mostCaptainedHorseId =
+    data.most_captained?.[0]?.horse_id ?? null;
 
-    if (!templateTeam) {
-      return null;
-    }
+  const templateCaptainHorse =
+    templateTeam?.horses.find(
+      (horse) => horse.horse_id === mostCaptainedHorseId
+    ) ?? null;
 
-    const mostCaptainedHorseId =
-      data?.most_captained?.[0]?.horse_id ?? null;
+  const resolvedTemplateTeam: RoundSpecialTeam | null =
+    templateTeam
+      ? (() => {
+          const horses = templateTeam.horses.map((horse) => ({
+            ...horse,
+            is_captain:
+              templateCaptainHorse != null &&
+              horse.horse_id === templateCaptainHorse.horse_id,
+          }));
 
-    const captainHorse =
-      templateTeam.horses.find(
-        (horse) => horse.horse_id === mostCaptainedHorseId
-      ) ?? null;
+          const basePoints = horses.reduce(
+            (sum, horse) =>
+              sum + Number(horse.round_points ?? 0),
+            0
+          );
 
-    const horses = templateTeam.horses.map((horse) => ({
-      ...horse,
-      is_captain:
-        captainHorse != null &&
-        horse.horse_id === captainHorse.horse_id,
-    }));
+          const captainPoints = templateCaptainHorse
+            ? Number(templateCaptainHorse.round_points ?? 0)
+            : 0;
 
-    const basePoints = horses.reduce(
-      (sum, horse) => sum + Number(horse.round_points ?? 0),
-      0
-    );
-
-    const captainPoints = captainHorse
-      ? Number(captainHorse.round_points ?? 0)
-      : 0;
-
-    return {
-      ...templateTeam,
-      horses,
-      base_points: basePoints,
-      captain_points: captainPoints,
-      total_points: basePoints + captainPoints,
-      captain: captainHorse
-        ? {
-            horse_id: captainHorse.horse_id,
-            horse_name: captainHorse.horse_name,
-            round_points: captainPoints,
-            doubled_points: captainPoints * 2,
-          }
-        : null,
-    };
-  }, [data?.special_stats?.template_team, data?.most_captained]);
+          return {
+            ...templateTeam,
+            horses,
+            base_points: basePoints,
+            captain_points: captainPoints,
+            total_points: basePoints + captainPoints,
+            captain: templateCaptainHorse
+              ? {
+                  horse_id: templateCaptainHorse.horse_id,
+                  horse_name: templateCaptainHorse.horse_name,
+                  round_points: captainPoints,
+                  doubled_points: captainPoints * 2,
+                }
+              : null,
+          };
+        })()
+      : null;
 
   const resolvedRoundStats: RoundSummaryStats = {
     average_score:
