@@ -369,7 +369,7 @@ export default function HistoryPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [showHorseSilks, setShowHorseSilks] = useState(true);
   const [activeGraph, setActiveGraph] = useState<
-    "score" | "rank" | "salary" | null
+    "score" | "rank" | "roundRank" | "salary" | null
   >(null);
   const [overallRankHistory, setOverallRankHistory] = useState<
     Record<number, number>
@@ -1062,6 +1062,20 @@ export default function HistoryPage() {
       .filter((point): point is ProgressPoint => point !== null);
   }, [progressRounds, overallRankHistory]);
 
+  const roundRankProgress = useMemo(() => {
+    return progressRounds
+      .map((round) =>
+        round.round_rank == null
+          ? null
+          : {
+              round_number: round.round_number,
+              label: `Round ${round.round_number}`,
+              value: Number(round.round_rank),
+            }
+      )
+      .filter((point): point is ProgressPoint => point !== null);
+  }, [progressRounds]);
+
   const salaryProgress = useMemo(() => {
     return progressRounds.map((round) => ({
       round_number: round.round_number,
@@ -1282,9 +1296,21 @@ export default function HistoryPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">
-              Rounds Played
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-medium text-slate-500">
+                Rounds Played
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setActiveGraph("roundRank")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900"
+                aria-label="View round rank graph"
+                title="View round rank graph"
+              >
+                <LineChart className="h-5 w-5" />
+              </button>
+            </div>
 
             <p className="mt-2 text-4xl font-bold text-slate-900">
               {seasonScore?.rounds_played ?? rounds.length}
@@ -1708,7 +1734,9 @@ export default function HistoryPage() {
                   ? "Season Score graph"
                   : activeGraph === "rank"
                     ? "Overall Rank graph"
-                    : "Current Salary graph"
+                    : activeGraph === "roundRank"
+                      ? "Round Rank graph"
+                      : "Current Salary graph"
               }
             >
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
@@ -1721,7 +1749,9 @@ export default function HistoryPage() {
                       ? "Season Score"
                       : activeGraph === "rank"
                         ? "Overall Rank"
-                        : "Current Salary"}
+                        : activeGraph === "roundRank"
+                          ? "Round Rank"
+                          : "Current Salary"}
                   </h2>
                 </div>
 
@@ -1750,6 +1780,18 @@ export default function HistoryPage() {
                     title="Overall Rank"
                     description="Your overall season position after each completed round. Moving upward means improving toward #1."
                     points={overallRankProgress}
+                    formatValue={(value) =>
+                      `#${Math.max(1, Math.round(value))}`
+                    }
+                    invert
+                  />
+                )}
+
+                {activeGraph === "roundRank" && (
+                  <ProgressChart
+                    title="Round Rank"
+                    description="Your finishing rank in each completed round. Moving upward means a better round result toward #1."
+                    points={roundRankProgress}
                     formatValue={(value) =>
                       `#${Math.max(1, Math.round(value))}`
                     }
