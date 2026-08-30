@@ -208,6 +208,7 @@ function hiddenAdjustedRating(runner: Runner) {
 
 export default function RaceTo100Page() {
   const [started, setStarted] = useState(false);
+  const [hardMode, setHardMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentRace, setCurrentRace] = useState<Race | null>(null);
   const [spinningRace, setSpinningRace] = useState<Race | null>(null);
@@ -452,7 +453,7 @@ export default function RaceTo100Page() {
       .join("\n");
 
     const shareText = [
-      "Race to 100",
+      hardMode ? "Race to 100 — HARD MODE" : "Race to 100",
       `Challenge Score: ${finalChallengeScore}/100`,
       `Team Rating: ${finalTeamRating?.toFixed(1) ?? "—"}`,
       "",
@@ -497,6 +498,7 @@ export default function RaceTo100Page() {
     setRespinAvailable(true);
     setError(null);
     setShareMessage(null);
+    setHardMode(false);
     setStarted(false);
   }
 
@@ -526,22 +528,64 @@ export default function RaceTo100Page() {
                     your hidden Challenge Score is revealed.
                   </p>
 
+                  <div className="mt-6 sm:mt-8">
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                      Choose mode
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:max-w-md">
+                      <button
+                        type="button"
+                        onClick={() => setHardMode(false)}
+                        className={`min-h-[72px] rounded-xl border px-3 py-3 text-left transition ${
+                          !hardMode
+                            ? "border-amber-400 bg-amber-400/10"
+                            : "border-slate-700 bg-slate-950 hover:border-slate-600"
+                        }`}
+                      >
+                        <div className={`text-sm font-black ${!hardMode ? "text-amber-400" : "text-white"}`}>
+                          NORMAL
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-slate-500">
+                          Ratings visible
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setHardMode(true)}
+                        className={`min-h-[72px] rounded-xl border px-3 py-3 text-left transition ${
+                          hardMode
+                            ? "border-amber-400 bg-amber-400/10"
+                            : "border-slate-700 bg-slate-950 hover:border-slate-600"
+                        }`}
+                      >
+                        <div className={`text-sm font-black ${hardMode ? "text-amber-400" : "text-white"}`}>
+                          HARD MODE
+                        </div>
+                        <div className="mt-1 text-xs leading-5 text-slate-500">
+                          Ratings hidden until the end
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setStarted(true)}
-                    className="mt-6 w-full rounded-xl bg-amber-400 px-6 py-4 text-base font-black text-slate-950 transition hover:bg-amber-300 sm:mt-8 sm:w-auto sm:px-8 sm:text-lg"
+                    className="mt-5 w-full rounded-xl bg-amber-400 px-6 py-4 text-base font-black text-slate-950 transition hover:bg-amber-300 sm:w-auto sm:px-8 sm:text-lg"
                   >
                     SPIN YOUR FIRST RACE
                   </button>
 
                   <div className="mt-6 grid grid-cols-3 gap-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 sm:mt-8 sm:flex sm:flex-wrap sm:text-xs">
-                    <span className="rounded-full border border-slate-700 bg-slate-950 px-2 py-2 text-center sm:px-3">
+                    <span className="flex min-h-[38px] items-center justify-center rounded-full border border-slate-700 bg-slate-950 px-2 py-2 text-center leading-tight sm:min-h-0 sm:px-3">
                       10 horses
                     </span>
-                    <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2">
+                    <span className="flex min-h-[38px] items-center justify-center rounded-full border border-slate-700 bg-slate-950 px-2 py-2 text-center leading-tight sm:min-h-0 sm:px-3">
                       1 respin
                     </span>
-                    <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2">
+                    <span className="flex min-h-[38px] items-center justify-center rounded-full border border-slate-700 bg-slate-950 px-2 py-2 text-center leading-tight sm:min-h-0 sm:px-3">
                       100 point target
                     </span>
                   </div>
@@ -609,9 +653,18 @@ export default function RaceTo100Page() {
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-400">
                   Racecourse Fantasy
                 </p>
-                <h1 className="mt-1 text-2xl font-black sm:text-4xl">Race to 100</h1>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-black sm:text-4xl">Race to 100</h1>
+                  {hardMode && (
+                    <span className="inline-flex items-center justify-center rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-400">
+                      Hard Mode
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 text-sm text-slate-400">
-                  Spin a race. Pick a horse. Build your ten.
+                  {hardMode
+                    ? "Ratings are hidden until your team is complete."
+                    : "Spin a race. Pick a horse. Build your ten."}
                 </p>
               </div>
 
@@ -630,7 +683,9 @@ export default function RaceTo100Page() {
                     Team Rating
                   </div>
                   <div className="mt-1 text-xl font-black">
-                    {selectedHorses.length
+                    {hardMode && !gameComplete
+                      ? "???"
+                      : selectedHorses.length
                       ? (
                           selectedHorses.reduce(
                             (sum, runner) => sum + runner.horse.rating,
@@ -793,7 +848,9 @@ export default function RaceTo100Page() {
                                     {selectedRunner.horse.name}
                                   </div>
                                   <div className="mt-0.5 text-[11px] font-bold text-slate-500 sm:text-xs">
-                                    Rating {selectedRunner.horse.rating}
+                                    {hardMode && !gameComplete
+                                      ? "Rating hidden"
+                                      : `Rating ${selectedRunner.horse.rating}`}
                                   </div>
 
 
@@ -822,7 +879,7 @@ export default function RaceTo100Page() {
               gameComplete ? (
                 <div className="rounded-2xl border border-amber-400/30 bg-slate-900 p-5 text-center sm:p-6">
                   <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
-                    Final Result
+                    {hardMode ? "Hard Mode · Final Result" : "Final Result"}
                   </div>
 
                   <h2 className="mt-3 text-3xl font-black">
@@ -1038,9 +1095,13 @@ export default function RaceTo100Page() {
                               </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-3">
-                              <div className="text-right">
-                                <div className="text-lg font-black sm:text-xl">{runner.horse.rating}</div>
-                                <div className="text-[10px] font-bold uppercase text-slate-500">Rating</div>
+                              <div className="min-w-[46px] text-right">
+                                <div className="text-lg font-black sm:text-xl">
+                                  {hardMode ? "??" : runner.horse.rating}
+                                </div>
+                                <div className="text-[10px] font-bold uppercase text-slate-500">
+                                  {hardMode ? "Hidden" : "Rating"}
+                                </div>
                               </div>
 
                               <button
