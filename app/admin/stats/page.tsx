@@ -203,22 +203,39 @@ export default function AdminStatsPage() {
 
       // Intentionally NO status filter here.
       // Admin pre-lockout stats must include draft teams.
-      const { data: teamsData, error: teamsError } =
-        await supabase
-          .from("teams")
-          .select("id, user_id, status")
-          .eq("round_id", selectedRoundId);
+      // Fetch in pages because Supabase/PostgREST may enforce
+      // a server-side maximum row count per request.
+      const teams: Team[] = [];
+      const teamPageSize = 100;
+      let teamFrom = 0;
 
-      if (!active) return;
+      while (true) {
+        const { data: teamPage, error: teamsError } =
+          await supabase
+            .from("teams")
+            .select("id, user_id, status")
+            .eq("round_id", selectedRoundId)
+            .range(teamFrom, teamFrom + teamPageSize - 1);
 
-      if (teamsError) {
-        console.error("Admin stats teams load error:", teamsError);
-        setErrorMessage(teamsError.message);
-        setStatsLoading(false);
-        return;
+        if (!active) return;
+
+        if (teamsError) {
+          console.error("Admin stats teams load error:", teamsError);
+          setErrorMessage(teamsError.message);
+          setStatsLoading(false);
+          return;
+        }
+
+        const page = (teamPage ?? []) as Team[];
+        teams.push(...page);
+
+        if (page.length < teamPageSize) {
+          break;
+        }
+
+        teamFrom += teamPageSize;
       }
 
-      const teams = (teamsData ?? []) as Team[];
       const teamIds = teams.map((team) => team.id);
 
       setTotalTeams(teams.length);
@@ -238,26 +255,42 @@ export default function AdminStatsPage() {
         return;
       }
 
-      const { data: selectionsData, error: selectionsError } =
-        await supabase
-          .from("team_selections")
-          .select("team_id, race_entry_id, is_captain")
-          .in("team_id", teamIds)
-          .range(0, 4999);
+      const selections: Selection[] = [];
+      const selectionPageSize = 100;
+      let selectionFrom = 0;
 
-      if (!active) return;
+      while (true) {
+        const { data: selectionPage, error: selectionsError } =
+          await supabase
+            .from("team_selections")
+            .select("team_id, race_entry_id, is_captain")
+            .in("team_id", teamIds)
+            .range(
+              selectionFrom,
+              selectionFrom + selectionPageSize - 1
+            );
 
-      if (selectionsError) {
-        console.error(
-          "Admin stats selections load error:",
-          selectionsError
-        );
-        setErrorMessage(selectionsError.message);
-        setStatsLoading(false);
-        return;
+        if (!active) return;
+
+        if (selectionsError) {
+          console.error(
+            "Admin stats selections load error:",
+            selectionsError
+          );
+          setErrorMessage(selectionsError.message);
+          setStatsLoading(false);
+          return;
+        }
+
+        const page = (selectionPage ?? []) as Selection[];
+        selections.push(...page);
+
+        if (page.length < selectionPageSize) {
+          break;
+        }
+
+        selectionFrom += selectionPageSize;
       }
-
-      const selections = (selectionsData ?? []) as Selection[];
       const selectedTeamIds = new Set(
         selections.map((selection) => selection.team_id)
       );
@@ -275,36 +308,49 @@ export default function AdminStatsPage() {
         return;
       }
 
-      const { data: entriesData, error: entriesError } =
-        await supabase
-          .from("race_entries")
-          .select(
-            `
-              id,
-              horse_id,
-              entry_status,
-              horse:horses (
+      const entries: Entry[] = [];
+      const entryPageSize = 100;
+      let entryFrom = 0;
+
+      while (true) {
+        const { data: entryPage, error: entriesError } =
+          await supabase
+            .from("race_entries")
+            .select(
+              `
                 id,
-                name
-              )
-            `
-          )
-          .in("id", entryIds)
-          .range(0, 4999);
+                horse_id,
+                entry_status,
+                horse:horses (
+                  id,
+                  name
+                )
+              `
+            )
+            .in("id", entryIds)
+            .range(entryFrom, entryFrom + entryPageSize - 1);
 
-      if (!active) return;
+        if (!active) return;
 
-      if (entriesError) {
-        console.error(
-          "Admin stats race entry load error:",
-          entriesError
-        );
-        setErrorMessage(entriesError.message);
-        setStatsLoading(false);
-        return;
+        if (entriesError) {
+          console.error(
+            "Admin stats race entry load error:",
+            entriesError
+          );
+          setErrorMessage(entriesError.message);
+          setStatsLoading(false);
+          return;
+        }
+
+        const page = (entryPage ?? []) as Entry[];
+        entries.push(...page);
+
+        if (page.length < entryPageSize) {
+          break;
+        }
+
+        entryFrom += entryPageSize;
       }
-
-      const entries = (entriesData ?? []) as Entry[];
       const entryById = new Map(
         entries.map((entry) => [entry.id, entry])
       );
