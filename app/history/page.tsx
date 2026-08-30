@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { LineChart, X } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 
@@ -179,6 +180,181 @@ function getFinishClasses(selection: HistorySelection) {
   return "bg-slate-100 text-slate-700";
 }
 
+
+type ProgressPoint = {
+  round_number: number;
+  label: string;
+  value: number;
+};
+
+function ProgressChart({
+  title,
+  description,
+  points,
+  formatValue,
+  invert = false,
+}: {
+  title: string;
+  description: string;
+  points: ProgressPoint[];
+  formatValue: (value: number) => string;
+  invert?: boolean;
+}) {
+  const width = 640;
+  const height = 230;
+  const left = 58;
+  const right = 18;
+  const top = 20;
+  const bottom = 42;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+
+  if (points.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+        <p className="mt-1 text-sm text-slate-500">{description}</p>
+        <p className="mt-8 text-sm text-slate-400">
+          No completed round data yet.
+        </p>
+      </div>
+    );
+  }
+
+  const values = points.map((point) => point.value);
+  let minValue = Math.min(...values);
+  let maxValue = Math.max(...values);
+
+  if (minValue === maxValue) {
+    const padding = Math.max(Math.abs(minValue) * 0.08, 1);
+    minValue -= padding;
+    maxValue += padding;
+  } else {
+    const padding = (maxValue - minValue) * 0.12;
+    minValue -= padding;
+    maxValue += padding;
+  }
+
+  if (!invert && minValue > 0) {
+    minValue = Math.max(0, minValue);
+  }
+
+  const xFor = (index: number) =>
+    points.length === 1
+      ? left + plotWidth / 2
+      : left + (index / (points.length - 1)) * plotWidth;
+
+  const yFor = (value: number) => {
+    const ratio = (value - minValue) / (maxValue - minValue);
+    const visualRatio = invert ? ratio : 1 - ratio;
+    return top + visualRatio * plotHeight;
+  };
+
+  const polyline = points
+    .map(
+      (point, index) =>
+        `${xFor(index)},${yFor(point.value)}`
+    )
+    .join(" ");
+
+  const yTicks = Array.from({ length: 4 }, (_, index) => {
+    const ratio = index / 3;
+    const value = invert
+      ? minValue + ratio * (maxValue - minValue)
+      : maxValue - ratio * (maxValue - minValue);
+
+    return {
+      y: top + ratio * plotHeight,
+      value,
+    };
+  });
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm text-slate-500">{description}</p>
+
+      <div className="mt-4 overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="h-auto min-w-[520px] w-full"
+          role="img"
+          aria-label={title}
+        >
+          {yTicks.map((tick, index) => (
+            <g key={index}>
+              <line
+                x1={left}
+                x2={width - right}
+                y1={tick.y}
+                y2={tick.y}
+                stroke="currentColor"
+                className="text-slate-200"
+                strokeWidth="1"
+              />
+              <text
+                x={left - 10}
+                y={tick.y + 4}
+                textAnchor="end"
+                className="fill-slate-500 text-[11px]"
+              >
+                {formatValue(Math.round(tick.value))}
+              </text>
+            </g>
+          ))}
+
+          <polyline
+            points={polyline}
+            fill="none"
+            stroke="currentColor"
+            className="text-teal-700"
+            strokeWidth="3"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+
+          {points.map((point, index) => {
+            const x = xFor(index);
+            const y = yFor(point.value);
+
+            return (
+              <g key={`${point.round_number}-${point.value}`}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="5"
+                  fill="currentColor"
+                  className="text-teal-700"
+                >
+                  <title>
+                    {point.label}: {formatValue(point.value)}
+                  </title>
+                </circle>
+
+                <text
+                  x={x}
+                  y={height - 14}
+                  textAnchor="middle"
+                  className="fill-slate-500 text-[11px] font-semibold"
+                >
+                  R{point.round_number}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+        <span>Round 1</span>
+        <span className="font-semibold text-slate-700">
+          Latest: {formatValue(points[points.length - 1].value)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
@@ -192,6 +368,12 @@ export default function HistoryPage() {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [showHorseSilks, setShowHorseSilks] = useState(true);
+  const [activeGraph, setActiveGraph] = useState<
+    "score" | "rank" | "salary" | null
+  >(null);
+  const [overallRankHistory, setOverallRankHistory] = useState<
+    Record<number, number>
+  >({});
 
   useEffect(() => {
     let active = true;
@@ -669,6 +851,159 @@ export default function HistoryPage() {
     setLoading(false);
   }
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadOverallRankHistory() {
+      const seasonRounds = historyData?.rounds ?? [];
+
+      if (!selectedSeasonId || seasonRounds.length === 0) {
+        setOverallRankHistory({});
+        return;
+      }
+
+      const orderedRounds = [...seasonRounds].sort(
+        (a, b) => a.round_number - b.round_number
+      );
+      const roundIds = orderedRounds.map((round) => round.round_id);
+      const ownTeamIds = new Set(
+        orderedRounds.map((round) => round.team_id)
+      );
+
+      const allTeams: Array<{
+        id: string;
+        user_id: string;
+        round_id: string;
+      }> = [];
+      const pageSize = 100;
+      let from = 0;
+
+      while (true) {
+        const { data: page, error } = await supabase
+          .from("teams")
+          .select("id, user_id, round_id")
+          .in("round_id", roundIds)
+          .range(from, from + pageSize - 1);
+
+        if (!active) return;
+
+        if (error) {
+          console.error("My Season rank history teams error:", error);
+          setOverallRankHistory({});
+          return;
+        }
+
+        const rows = (page ?? []).map((team: any) => ({
+          id: String(team.id),
+          user_id: String(team.user_id),
+          round_id: String(team.round_id),
+        }));
+
+        allTeams.push(...rows);
+
+        if (rows.length < pageSize) break;
+        from += pageSize;
+      }
+
+      const ownTeam = allTeams.find((team) =>
+        ownTeamIds.has(team.id)
+      );
+
+      if (!ownTeam || allTeams.length === 0) {
+        setOverallRankHistory({});
+        return;
+      }
+
+      const teamById = new Map(
+        allTeams.map((team) => [team.id, team])
+      );
+      const teamIds = allTeams.map((team) => team.id);
+
+      const allScores: Array<{
+        team_id: string;
+        total_points: number;
+      }> = [];
+      from = 0;
+
+      while (true) {
+        const { data: page, error } = await supabase
+          .from("player_round_scores")
+          .select("team_id, total_points")
+          .in("team_id", teamIds)
+          .range(from, from + pageSize - 1);
+
+        if (!active) return;
+
+        if (error) {
+          console.error("My Season rank history scores error:", error);
+          setOverallRankHistory({});
+          return;
+        }
+
+        const rows = (page ?? []).map((score: any) => ({
+          team_id: String(score.team_id),
+          total_points: Number(score.total_points ?? 0),
+        }));
+
+        allScores.push(...rows);
+
+        if (rows.length < pageSize) break;
+        from += pageSize;
+      }
+
+      const scoreByTeamId = new Map(
+        allScores.map((score) => [
+          score.team_id,
+          score.total_points,
+        ])
+      );
+
+      const cumulativeByUser = new Map<string, number>();
+      const rankHistory: Record<number, number> = {};
+
+      for (const round of orderedRounds) {
+        const teamsThisRound = allTeams.filter(
+          (team) => team.round_id === round.round_id
+        );
+
+        for (const team of teamsThisRound) {
+          const roundPoints = scoreByTeamId.get(team.id);
+
+          if (roundPoints == null) continue;
+
+          cumulativeByUser.set(
+            team.user_id,
+            (cumulativeByUser.get(team.user_id) ?? 0) +
+              roundPoints
+          );
+        }
+
+        const standings = [...cumulativeByUser.entries()].sort(
+          (a, b) => b[1] - a[1]
+        );
+
+        const ownPoints = cumulativeByUser.get(ownTeam.user_id);
+
+        if (ownPoints == null) continue;
+
+        const betterScores = standings.filter(
+          ([, points]) => points > ownPoints
+        ).length;
+
+        rankHistory[round.round_number] = betterScores + 1;
+      }
+
+      if (!active) return;
+      setOverallRankHistory(rankHistory);
+    }
+
+    void loadOverallRankHistory();
+
+    return () => {
+      active = false;
+    };
+  }, [historyData, selectedSeasonId]);
+
   const selectedSeason = useMemo(() => {
     return seasons.find(
       (season) =>
@@ -690,6 +1025,54 @@ export default function HistoryPage() {
       0
     );
   }, [rounds]);
+
+  const progressRounds = useMemo(() => {
+    return [...rounds].sort(
+      (a, b) => a.round_number - b.round_number
+    );
+  }, [rounds]);
+
+  const seasonScoreProgress = useMemo(() => {
+    let cumulative = 0;
+
+    return progressRounds.map((round) => {
+      cumulative += Number(round.round_score ?? 0);
+
+      return {
+        round_number: round.round_number,
+        label: `Round ${round.round_number}`,
+        value: cumulative,
+      };
+    });
+  }, [progressRounds]);
+
+  const overallRankProgress = useMemo(() => {
+    return progressRounds
+      .map((round) => {
+        const rank = overallRankHistory[round.round_number];
+
+        return rank == null
+          ? null
+          : {
+              round_number: round.round_number,
+              label: `Round ${round.round_number}`,
+              value: rank,
+            };
+      })
+      .filter((point): point is ProgressPoint => point !== null);
+  }, [progressRounds, overallRankHistory]);
+
+  const salaryProgress = useMemo(() => {
+    return progressRounds.map((round) => ({
+      round_number: round.round_number,
+      label: `After Round ${round.round_number}`,
+      value: Number(
+        round.next_round_salary_cap ??
+          round.salary_cap ??
+          0
+      ),
+    }));
+  }, [progressRounds]);
 
   function toggleRound(roundId: string) {
     setExpandedRoundIds((current) => {
@@ -847,9 +1230,21 @@ export default function HistoryPage() {
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl bg-teal-700 p-5 text-white shadow-sm">
-            <p className="text-sm font-medium text-teal-100">
-              Season Score
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-medium text-teal-100">
+                Season Score
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setActiveGraph("score")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/20"
+                aria-label="View season score graph"
+                title="View graph"
+              >
+                <LineChart className="h-5 w-5" />
+              </button>
+            </div>
 
             <p className="mt-2 text-4xl font-bold">
               {seasonScore?.total_points ?? 0}
@@ -861,9 +1256,21 @@ export default function HistoryPage() {
           </div>
 
           <div className="rounded-2xl bg-slate-900 p-5 text-white shadow-sm">
-            <p className="text-sm font-medium text-slate-300">
-              Overall Rank
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-medium text-slate-300">
+                Overall Rank
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setActiveGraph("rank")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/20"
+                aria-label="View overall rank graph"
+                title="View graph"
+              >
+                <LineChart className="h-5 w-5" />
+              </button>
+            </div>
 
             <p className="mt-2 text-4xl font-bold">
               {getRankDisplay(seasonScore?.overall_rank ?? null)}
@@ -943,9 +1350,21 @@ export default function HistoryPage() {
           </div>
 
           <div className="rounded-xl border bg-white p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Current salary
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Current salary
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setActiveGraph("salary")}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900"
+                aria-label="View current salary graph"
+                title="View graph"
+              >
+                <LineChart className="h-4 w-4" />
+              </button>
+            </div>
 
             <p className="mt-2 text-2xl font-bold text-slate-900">
               {formatCurrency(
@@ -1273,6 +1692,86 @@ export default function HistoryPage() {
               </article>
             );
           })}
+        {activeGraph && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            onClick={() => setActiveGraph(null)}
+            role="presentation"
+          >
+            <div
+              className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label={
+                activeGraph === "score"
+                  ? "Season Score graph"
+                  : activeGraph === "rank"
+                    ? "Overall Rank graph"
+                    : "Current Salary graph"
+              }
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-700">
+                    Season Progress
+                  </p>
+                  <h2 className="mt-1 text-xl font-bold text-slate-900">
+                    {activeGraph === "score"
+                      ? "Season Score"
+                      : activeGraph === "rank"
+                        ? "Overall Rank"
+                        : "Current Salary"}
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveGraph(null)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 hover:text-slate-900"
+                  aria-label="Close graph"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="p-4 sm:p-6">
+                {activeGraph === "score" && (
+                  <ProgressChart
+                    title="Season Score"
+                    description="Your cumulative fantasy points after each completed round."
+                    points={seasonScoreProgress}
+                    formatValue={(value) => `${Math.round(value)} pts`}
+                  />
+                )}
+
+                {activeGraph === "rank" && (
+                  <ProgressChart
+                    title="Overall Rank"
+                    description="Your overall season position after each completed round. Moving upward means improving toward #1."
+                    points={overallRankProgress}
+                    formatValue={(value) =>
+                      `#${Math.max(1, Math.round(value))}`
+                    }
+                    invert
+                  />
+                )}
+
+                {activeGraph === "salary" && (
+                  <ProgressChart
+                    title="Current Salary"
+                    description="Your available salary cap after each completed round."
+                    points={salaryProgress}
+                    formatValue={(value) =>
+                      formatCurrency(Math.round(value))
+                    }
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         </div>
       </div>
     </main>
