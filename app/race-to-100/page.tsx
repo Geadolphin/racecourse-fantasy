@@ -502,25 +502,25 @@ export default function RaceTo100Page() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
         {!started ? (
-          <section className="mx-auto max-w-5xl py-10 sm:py-16">
+          <section className="mx-auto max-w-5xl py-4 sm:py-16">
             <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">
               <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
-                <div className="p-6 sm:p-10 lg:p-12">
+                <div className="p-5 sm:p-10 lg:p-12">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-400">
                     Racecourse Fantasy
                   </p>
 
-                  <h1 className="mt-3 text-5xl font-black tracking-tight sm:text-7xl">
+                  <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-7xl">
                     Race to 100
                   </h1>
 
-                  <p className="mt-5 max-w-xl text-xl font-bold leading-8 text-slate-200 sm:text-2xl">
+                  <p className="mt-4 max-w-xl text-lg font-bold leading-7 text-slate-200 sm:mt-5 sm:text-2xl sm:leading-8">
                     Spin a real race. Draft one horse. Build the best 10-horse team you can.
                   </p>
 
-                  <p className="mt-5 max-w-2xl text-base leading-7 text-slate-400 sm:text-lg">
+                  <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:mt-5 sm:text-lg sm:leading-7">
                     Every spin gives you a random historical Australian race. You must take
                     one horse from the field and fit it into your team. Once you reach 10,
                     your hidden Challenge Score is revealed.
@@ -529,13 +529,13 @@ export default function RaceTo100Page() {
                   <button
                     type="button"
                     onClick={() => setStarted(true)}
-                    className="mt-8 rounded-xl bg-amber-400 px-8 py-4 text-lg font-black text-slate-950 transition hover:bg-amber-300"
+                    className="mt-6 w-full rounded-xl bg-amber-400 px-6 py-4 text-base font-black text-slate-950 transition hover:bg-amber-300 sm:mt-8 sm:w-auto sm:px-8 sm:text-lg"
                   >
                     SPIN YOUR FIRST RACE
                   </button>
 
-                  <div className="mt-8 flex flex-wrap gap-2 text-xs font-bold uppercase tracking-wide text-slate-400">
-                    <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2">
+                  <div className="mt-6 grid grid-cols-3 gap-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 sm:mt-8 sm:flex sm:flex-wrap sm:text-xs">
+                    <span className="rounded-full border border-slate-700 bg-slate-950 px-2 py-2 text-center sm:px-3">
                       10 horses
                     </span>
                     <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2">
@@ -557,7 +557,7 @@ export default function RaceTo100Page() {
                   </div>
                 </div>
 
-                <div className="border-t border-slate-800 bg-slate-950/50 p-6 sm:p-8 lg:border-l lg:border-t-0">
+                <div className="border-t border-slate-800 bg-slate-950/50 p-5 sm:p-8 lg:border-l lg:border-t-0">
                   <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
                     Build your team
                   </div>
@@ -604,19 +604,19 @@ export default function RaceTo100Page() {
           </section>
         ) : (
           <section>
-            <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div className="mb-5 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-400">
                   Racecourse Fantasy
                 </p>
-                <h1 className="mt-1 text-3xl font-black sm:text-4xl">Race to 100</h1>
+                <h1 className="mt-1 text-2xl font-black sm:text-4xl">Race to 100</h1>
                 <p className="mt-1 text-sm text-slate-400">
                   Spin a race. Pick a horse. Build your ten.
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-3">
-                <div className="min-w-[110px] rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:gap-3">
+                <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 sm:min-w-[110px] sm:px-4 sm:py-3">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Horses
                   </div>
@@ -625,7 +625,7 @@ export default function RaceTo100Page() {
                   </div>
                 </div>
 
-                <div className="min-w-[130px] rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
+                <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5 sm:min-w-[130px] sm:px-4 sm:py-3">
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Team Rating
                   </div>
@@ -642,7 +642,7 @@ export default function RaceTo100Page() {
                 </div>
 
                 {gameComplete && (
-                  <div className="min-w-[130px] rounded-xl border border-amber-400/30 bg-slate-900 px-4 py-3">
+                  <div className="col-span-2 rounded-xl border border-amber-400/30 bg-slate-900 px-3 py-2.5 sm:col-span-1 sm:min-w-[130px] sm:px-4 sm:py-3">
                     <div className="text-xs font-semibold uppercase tracking-wide text-amber-400">
                       Challenge
                     </div>
@@ -656,7 +656,7 @@ export default function RaceTo100Page() {
               <button
                 type="button"
                 onClick={restartGame}
-                className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-black text-slate-300 transition hover:border-amber-400 hover:text-white"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-black text-slate-300 transition hover:border-amber-400 hover:text-white sm:w-auto"
               >
                 RESTART
               </button>
@@ -668,7 +668,7 @@ export default function RaceTo100Page() {
               </div>
             )}
 
-            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
+            <div className="grid items-start gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
               <div className="min-w-0 lg:sticky lg:top-6">
             <div className="min-w-0">
               <div className="mb-4 flex items-end justify-between gap-4">
@@ -687,19 +687,19 @@ export default function RaceTo100Page() {
                   : ""}
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-3 py-5 sm:px-5 sm:py-6">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-2 py-4 sm:px-5 sm:py-6">
                 <div className="flex flex-col gap-5 sm:gap-6">
                   {formationRows.map((row, rowIndex) => (
                     <div
                       key={row.label}
-                      className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-4"
+                      className="grid grid-cols-1 gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center sm:gap-4"
                     >
-                      <div className="text-right text-[11px] font-black uppercase tracking-wide text-slate-500 sm:text-sm">
+                      <div className="px-1 text-left text-[10px] font-black uppercase tracking-wide text-slate-500 sm:px-0 sm:text-right sm:text-sm">
                         {row.label}
                       </div>
 
                       <div
-                        className={`grid items-start justify-items-center gap-2 sm:gap-3 ${
+                        className={`grid items-start justify-items-stretch gap-2 sm:justify-items-center sm:gap-3 ${
                           row.positions.length === 1
                             ? "grid-cols-1"
                             : "grid-cols-3"
@@ -746,7 +746,7 @@ export default function RaceTo100Page() {
                           return (
                             <div
                               key={position}
-                              className={`flex min-h-[106px] w-full max-w-[150px] flex-col items-center justify-start rounded-xl p-1.5 text-center transition sm:min-h-[118px] sm:max-w-[170px] ${
+                              className={`flex min-h-[94px] w-full max-w-none flex-col items-center justify-start rounded-xl p-1 text-center transition sm:min-h-[118px] sm:max-w-[170px] sm:p-1.5 ${
                                 canMoveHere
                                   ? "cursor-pointer border border-amber-400/60 bg-amber-400/5"
                                   : isMovingThisHorse
@@ -772,7 +772,7 @@ export default function RaceTo100Page() {
                             >
                               {selectedRunner ? (
                                 <>
-                                  <div className="flex h-16 w-16 items-center justify-center overflow-hidden sm:h-20 sm:w-20">
+                                  <div className="flex h-14 w-14 items-center justify-center overflow-hidden sm:h-20 sm:w-20">
                                     {selectedRunner.horse.silks_url ? (
                                       <img
                                         src={selectedRunner.horse.silks_url}
@@ -789,7 +789,7 @@ export default function RaceTo100Page() {
                                     )}
                                   </div>
 
-                                  <div className="mt-1 max-w-full truncate text-xs font-black text-white sm:text-sm">
+                                  <div className="mt-1 max-w-full truncate px-1 text-[11px] font-black text-white sm:text-sm">
                                     {selectedRunner.horse.name}
                                   </div>
                                   <div className="mt-0.5 text-[11px] font-bold text-slate-500 sm:text-xs">
@@ -800,7 +800,7 @@ export default function RaceTo100Page() {
                                 </>
                               ) : (
                                 <>
-                                  <div className="h-16 w-16 rounded-xl border border-dashed border-slate-800 bg-slate-950/40 sm:h-20 sm:w-20" />
+                                  <div className="h-14 w-14 rounded-xl border border-dashed border-slate-800 bg-slate-950/40 sm:h-20 sm:w-20" />
                                   <div className="mt-1 text-xs font-bold text-slate-700">
                                     {canMoveHere ? "Move Here" : "Empty"}
                                   </div>
@@ -979,7 +979,7 @@ export default function RaceTo100Page() {
               )
             ) : (
               <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
-                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 p-4">
+                <div className="flex flex-col gap-3 border-b border-slate-800 p-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:p-4">
                   <div>
                     <div className="text-xs font-bold uppercase tracking-[0.2em] text-amber-400">
                       Race {selectedHorses.length + 1} of 10
@@ -998,14 +998,14 @@ export default function RaceTo100Page() {
                     type="button"
                     disabled={!respinAvailable || loading}
                     onClick={handleRespin}
-                    className="rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm font-bold transition hover:border-amber-400 disabled:opacity-40"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-bold transition hover:border-amber-400 disabled:opacity-40 sm:w-auto sm:py-2"
                   >
                     RESPIN
                   </button>
                 </div>
 
-                <div className="p-4">
-                  <h3 className="text-lg font-black">Select one horse</h3>
+                <div className="p-3 sm:p-4">
+                  <h3 className="text-base font-black sm:text-lg">Select one horse</h3>
                   <div className="mt-3 grid grid-cols-1 gap-2">
                     {currentRunners.map((runner) => {
                       const alreadySelected = selectedSet.has(runner.horse.id);
@@ -1015,12 +1015,12 @@ export default function RaceTo100Page() {
                       return (
                         <div
                           key={runner.id}
-                          className={`rounded-xl border border-slate-800 bg-slate-950 p-3 ${
+                          className={`rounded-xl border border-slate-800 bg-slate-950 p-2.5 sm:p-3 ${
                             alreadySelected ? "opacity-50" : ""
                           }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+                          <div className="flex items-center gap-2.5 sm:gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900 sm:h-12 sm:w-12">
                               {runner.horse.silks_url ? (
                                 <img
                                   src={runner.horse.silks_url}
@@ -1039,7 +1039,7 @@ export default function RaceTo100Page() {
                             </div>
                             <div className="flex shrink-0 items-center gap-3">
                               <div className="text-right">
-                                <div className="text-xl font-black">{runner.horse.rating}</div>
+                                <div className="text-lg font-black sm:text-xl">{runner.horse.rating}</div>
                                 <div className="text-[10px] font-bold uppercase text-slate-500">Rating</div>
                               </div>
 
@@ -1085,7 +1085,7 @@ export default function RaceTo100Page() {
                                   setCurrentRunners([]);
                                   setError(null);
                                 }}
-                                className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-400 text-lg font-black text-slate-950 transition hover:bg-amber-300 disabled:bg-slate-800 disabled:text-slate-500"
+                                className="flex h-11 w-11 items-center justify-center rounded-full bg-amber-400 text-lg font-black text-slate-950 transition hover:bg-amber-300 disabled:bg-slate-800 disabled:text-slate-500 sm:h-8 sm:w-8"
                               >
                                 ✓
                               </button>
