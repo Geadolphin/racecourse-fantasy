@@ -108,9 +108,15 @@ type RunnerRow = {
   id: number;
   race_id: string;
   horse_id: string;
+  finishing_position: number | null;
 };
 
-type Runner = RunnerRow & { horse: Horse };
+type Runner = RunnerRow & {
+  horse: Horse;
+  source_race_name: string;
+  source_race_year: number;
+  source_race_grade: string | null;
+};
 
 function classificationLabels(horse: Horse) {
   const labels: string[] = [];
@@ -139,10 +145,72 @@ function challengePoints(rating: number) {
   return 0;
 }
 
+function hiddenFinishBonus(
+  finishingPosition: number | null,
+  raceGrade: string | null
+) {
+  if (!finishingPosition || !raceGrade) return 0;
+
+  const normalizedGrade = raceGrade.trim().toUpperCase();
+
+  const isGroup1 =
+    normalizedGrade === "G1" ||
+    normalizedGrade === "GROUP 1" ||
+    normalizedGrade === "GROUP1";
+
+  const isGroup2 =
+    normalizedGrade === "G2" ||
+    normalizedGrade === "GROUP 2" ||
+    normalizedGrade === "GROUP2";
+
+  const isGroup3 =
+    normalizedGrade === "G3" ||
+    normalizedGrade === "GROUP 3" ||
+    normalizedGrade === "GROUP3";
+
+  if (isGroup1) {
+    if (finishingPosition === 1) return 3;
+    if (finishingPosition === 2) return 2;
+    if (finishingPosition === 3) return 1;
+    return 0;
+  }
+
+  if (isGroup2) {
+    if (finishingPosition === 1) return 2;
+    if (finishingPosition === 2) return 1;
+    return 0;
+  }
+
+  if (isGroup3) {
+    if (finishingPosition === 1) return 1;
+    return 0;
+  }
+
+  return 0;
+}
+
+function hiddenAdjustedRating(runner: Runner) {
+  const baseRating = runner.horse.rating;
+
+  // Horses rated 97+ receive no finishing bonus.
+  if (baseRating >= 97) {
+    return baseRating;
+  }
+
+  const bonus = hiddenFinishBonus(
+    runner.finishing_position,
+    runner.source_race_grade
+  );
+
+  // Finishing bonuses cannot increase a horse above 97.
+  return Math.min(97, baseRating + bonus);
+}
+
 export default function RaceTo100Page() {
   const [started, setStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentRace, setCurrentRace] = useState<Race | null>(null);
+  const [spinningRace, setSpinningRace] = useState<Race | null>(null);
   const [currentRunners, setCurrentRunners] = useState<Runner[]>([]);
   const [usedRaceIds, setUsedRaceIds] = useState<string[]>([]);
   const [selectedHorses, setSelectedHorses] = useState<Runner[]>([]);
@@ -152,6 +220,7 @@ export default function RaceTo100Page() {
   const [movingHorseId, setMovingHorseId] = useState<string | null>(null);
   const [respinAvailable, setRespinAvailable] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   const selectedSet = useMemo(
     () => new Set(selectedHorses.map((runner) => runner.horse.id)),
@@ -168,7 +237,8 @@ export default function RaceTo100Page() {
   const finalChallengeScore = useMemo(
     () =>
       selectedHorses.reduce(
-        (total, runner) => total + challengePoints(runner.horse.rating),
+        (total, runner) =>
+          total + challengePoints(hiddenAdjustedRating(runner)),
         0
       ),
     [selectedHorses]
@@ -238,9 +308,40 @@ export default function RaceTo100Page() {
     );
   }
 
+  function wait(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function animateRaceSpin(races: Race[], finalRace: Race) {
+    const animationPool = races.length ? races : [finalRace];
+
+    // Rapidly cycle through races, then progressively slow down.
+    const delays = [
+      70, 70, 80, 80, 90, 100, 110, 120, 135, 150,
+      170, 190, 220, 250, 290, 340, 400,
+    ];
+
+    let previousId: string | null = null;
+
+    for (const delay of delays) {
+      const choices = animationPool.filter((race) => race.id !== previousId);
+      const pool = choices.length ? choices : animationPool;
+      const race = pool[Math.floor(Math.random() * pool.length)];
+
+      setSpinningRace(race);
+      previousId = race.id;
+      await wait(delay);
+    }
+
+    // Finish by visibly landing on the race that was actually selected.
+    setSpinningRace(finalRace);
+    await wait(550);
+  }
+
   async function getRandomRace() {
     setLoading(true);
     setError(null);
+    setSpinningRace(null);
 
     try {
       const { data: races, error: raceError } = await supabase
@@ -263,7 +364,7 @@ export default function RaceTo100Page() {
       for (const race of shuffled) {
         const { data: runnerRows, error: runnerError } = await supabase
           .from("race_to_100_runners")
-          .select("id,race_id,horse_id")
+          .select("id,race_id,horse_id,finishing_position")
           .eq("race_id", race.id);
 
         if (runnerError) throw runnerError;
@@ -287,7 +388,15 @@ export default function RaceTo100Page() {
         const combined: Runner[] = rows
           .map((row) => {
             const horse = horseMap.get(row.horse_id);
-            return horse ? { ...row, horse } : null;
+            return horse
+              ? {
+                  ...row,
+                  horse,
+                  source_race_name: race.race_name,
+                  source_race_year: race.year,
+                  source_race_grade: race.race_grade,
+                }
+              : null;
           })
           .filter((runner): runner is Runner => runner !== null)
           .sort((a, b) => b.horse.rating - a.horse.rating);
@@ -298,9 +407,12 @@ export default function RaceTo100Page() {
 
         if (!hasAvailableHorse) continue;
 
+        await animateRaceSpin(available, race);
+
         setCurrentRace(race);
         setCurrentRunners(combined);
         setUsedRaceIds((previous) => [...previous, race.id]);
+        setSpinningRace(null);
         return;
       }
 
@@ -309,6 +421,7 @@ export default function RaceTo100Page() {
       );
     } catch (err) {
       setCurrentRace(null);
+      setSpinningRace(null);
       setCurrentRunners([]);
       setError(
         err instanceof Error ? err.message : "Could not generate a race."
@@ -326,8 +439,56 @@ export default function RaceTo100Page() {
     await getRandomRace();
   }
 
+  async function shareTeam() {
+    if (!gameComplete) return;
+
+    const lineupLines = slotOrder
+      .map((slot) => {
+        const runner = selectedLineup.get(slot);
+        return runner
+          ? `${slot}: ${runner.horse.name} (${runner.horse.rating})`
+          : `${slot}: —`;
+      })
+      .join("\n");
+
+    const shareText = [
+      "Race to 100",
+      `Challenge Score: ${finalChallengeScore}/100`,
+      `Team Rating: ${finalTeamRating?.toFixed(1) ?? "—"}`,
+      "",
+      lineupLines,
+    ].join("\n");
+
+    const shareUrl = window.location.href;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "My Race to 100 Team",
+          text: shareText,
+          url: shareUrl,
+        });
+        setShareMessage(null);
+        return;
+      }
+
+      await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
+      setShareMessage("Team copied to clipboard.");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
+        setShareMessage("Team copied to clipboard.");
+      } catch {
+        setShareMessage("Could not share this team on this browser.");
+      }
+    }
+  }
+
   function restartGame() {
     setCurrentRace(null);
+    setSpinningRace(null);
     setCurrentRunners([]);
     setUsedRaceIds([]);
     setSelectedHorses([]);
@@ -335,6 +496,7 @@ export default function RaceTo100Page() {
     setMovingHorseId(null);
     setRespinAvailable(true);
     setError(null);
+    setShareMessage(null);
     setStarted(false);
   }
 
@@ -342,72 +504,103 @@ export default function RaceTo100Page() {
     <main className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-6xl px-4 py-8">
         {!started ? (
-          <section className="mx-auto max-w-2xl py-20 text-center">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-amber-400">
-              Racecourse Fantasy
-            </p>
+          <section className="mx-auto max-w-5xl py-10 sm:py-16">
+            <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900">
+              <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="p-6 sm:p-10 lg:p-12">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-400">
+                    Racecourse Fantasy
+                  </p>
 
-            <h1 className="text-4xl font-black sm:text-6xl">Race to 100</h1>
+                  <h1 className="mt-3 text-5xl font-black tracking-tight sm:text-7xl">
+                    Race to 100
+                  </h1>
 
-            <p className="mt-4 text-xl font-semibold text-slate-200">
-              Spin a race. Pick a horse. Build your ten.
-            </p>
+                  <p className="mt-5 max-w-xl text-xl font-bold leading-8 text-slate-200 sm:text-2xl">
+                    Spin a real race. Draft one horse. Build the best 10-horse team you can.
+                  </p>
 
-            <p className="mt-5 text-base leading-7 text-slate-400 sm:text-lg">
-              Build a team of 10 horses from randomly generated historical
-              Australian races and try to reach 100 Challenge Points.
-            </p>
+                  <p className="mt-5 max-w-2xl text-base leading-7 text-slate-400 sm:text-lg">
+                    Every spin gives you a random historical Australian race. You must take
+                    one horse from the field and fit it into your team. Once you reach 10,
+                    your hidden Challenge Score is revealed.
+                  </p>
 
-            <div className="mt-10 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-left">
-              {[
-                ["Team size", "10 horses"],
-                ["Sprinters", "3"],
-                ["Middle Distance", "3"],
-                ["Stayers", "3"],
-                ["Wildcard", "1"],
-                ["Challenge target", "100 points"],
-                ["Respin", "1 per game"],
-                ["Login required", "No"],
-              ].map(([label, value], index, all) => (
-                <div
-                  key={label}
-                  className={`flex items-center justify-between gap-4 px-5 py-4 ${
-                    index < all.length - 1 ? "border-b border-slate-800" : ""
-                  }`}
-                >
-                  <span className="text-slate-400">{label}</span>
-                  <strong
-                    className={
-                      label === "Challenge target" ? "text-amber-400" : ""
-                    }
+                  <button
+                    type="button"
+                    onClick={() => setStarted(true)}
+                    className="mt-8 rounded-xl bg-amber-400 px-8 py-4 text-lg font-black text-slate-950 transition hover:bg-amber-300"
                   >
-                    {value}
-                  </strong>
+                    SPIN YOUR FIRST RACE
+                  </button>
+
+                  <div className="mt-8 flex flex-wrap gap-2 text-xs font-bold uppercase tracking-wide text-slate-400">
+                    <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2">
+                      10 horses
+                    </span>
+                    <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2">
+                      1 respin
+                    </span>
+                    <span className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2">
+                      100 point target
+                    </span>
+                  </div>
+
+                  <div className="mt-5 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3">
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-400">
+                      Hidden placement bonus
+                    </div>
+                    <p className="mt-1 text-sm leading-6 text-slate-400">
+                      Horses that placed highly in the race you spin can earn bonus Challenge Points.
+                      The bonus stays hidden while you build your team.
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
 
-            <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/60 p-5 text-left">
-              <div className="text-sm font-bold uppercase tracking-wide text-slate-300">
-                How it works
-              </div>
-              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-400 sm:text-base">
-                <p>1. Generate a random historical Australian race.</p>
-                <p>2. Select one horse from the field.</p>
-                <p>3. Assign it to Sprinter, Middle Distance, Stayer or Wildcard.</p>
-                <p>4. Horses with multiple classifications can fill any category they are eligible for.</p>
-                <p>5. Rearrange your team throughout the game as new horses are selected.</p>
-                <p>6. Reach 100 Challenge Points to join the <strong className="text-white">100 Club</strong>.</p>
-              </div>
-            </div>
+                <div className="border-t border-slate-800 bg-slate-950/50 p-6 sm:p-8 lg:border-l lg:border-t-0">
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
+                    Build your team
+                  </div>
 
-            <button
-              type="button"
-              onClick={() => setStarted(true)}
-              className="mt-8 rounded-xl bg-amber-400 px-10 py-4 text-lg font-black text-slate-950 transition hover:bg-amber-300"
-            >
-              START RACE TO 100
-            </button>
+                  <div className="mt-4 space-y-3">
+                    {[
+                      ["Sprinters", "3", "1000–1400m"],
+                      ["Middle Distance", "3", "1500–2200m"],
+                      ["Stayers", "3", "2300m+"],
+                      ["Wildcard", "1", "Any horse"],
+                    ].map(([label, count, detail]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900 px-4 py-4"
+                      >
+                        <div>
+                          <div className="font-black text-white">{label}</div>
+                          <div className="mt-0.5 text-xs font-semibold text-slate-500">
+                            {detail}
+                          </div>
+                        </div>
+
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-400 text-lg font-black text-slate-950">
+                          {count}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 rounded-xl border border-amber-400/20 bg-amber-400/5 p-4">
+                    <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-400">
+                      The challenge
+                    </div>
+                    <div className="mt-2 text-3xl font-black text-white">Reach 100</div>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      Horse ratings convert into Challenge Points. Your score stays hidden
+                      until all 10 positions are filled.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
           </section>
         ) : (
           <section>
@@ -494,19 +687,19 @@ export default function RaceTo100Page() {
                   : ""}
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-3 py-6 sm:px-5 sm:py-8">
-                <div className="flex flex-col gap-8 sm:gap-10">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-3 py-5 sm:px-5 sm:py-6">
+                <div className="flex flex-col gap-5 sm:gap-6">
                   {formationRows.map((row, rowIndex) => (
                     <div
                       key={row.label}
-                      className="grid grid-cols-[78px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[110px_minmax(0,1fr)] sm:gap-5"
+                      className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-4"
                     >
                       <div className="text-right text-[11px] font-black uppercase tracking-wide text-slate-500 sm:text-sm">
                         {row.label}
                       </div>
 
                       <div
-                        className={`grid items-start justify-items-center gap-4 ${
+                        className={`grid items-start justify-items-center gap-2 sm:gap-3 ${
                           row.positions.length === 1
                             ? "grid-cols-1"
                             : "grid-cols-3"
@@ -553,7 +746,7 @@ export default function RaceTo100Page() {
                           return (
                             <div
                               key={position}
-                              className={`flex min-h-[128px] w-full max-w-[160px] flex-col items-center justify-start rounded-xl p-2 text-center transition sm:min-h-[148px] sm:max-w-[190px] ${
+                              className={`flex min-h-[106px] w-full max-w-[150px] flex-col items-center justify-start rounded-xl p-1.5 text-center transition sm:min-h-[118px] sm:max-w-[170px] ${
                                 canMoveHere
                                   ? "cursor-pointer border border-amber-400/60 bg-amber-400/5"
                                   : isMovingThisHorse
@@ -579,22 +772,27 @@ export default function RaceTo100Page() {
                             >
                               {selectedRunner ? (
                                 <>
-                                  <div className="flex h-20 w-20 items-center justify-center overflow-hidden sm:h-24 sm:w-24">
+                                  <div className="flex h-16 w-16 items-center justify-center overflow-hidden sm:h-20 sm:w-20">
                                     {selectedRunner.horse.silks_url ? (
                                       <img
                                         src={selectedRunner.horse.silks_url}
                                         alt={`${selectedRunner.horse.name} silks`}
-                                        className="h-full w-full object-contain"
+                                        className="h-auto w-auto max-h-full max-w-full object-contain"
+                                        draggable={false}
+                                        style={{
+                                          imageRendering: "auto",
+                                          transform: "translateZ(0)",
+                                        }}
                                       />
                                     ) : (
                                       <div className="h-16 w-16 rounded-xl border border-dashed border-slate-700 sm:h-20 sm:w-20" />
                                     )}
                                   </div>
 
-                                  <div className="mt-2 max-w-full truncate text-xs font-black text-white sm:text-sm">
+                                  <div className="mt-1 max-w-full truncate text-xs font-black text-white sm:text-sm">
                                     {selectedRunner.horse.name}
                                   </div>
-                                  <div className="mt-1 text-[11px] font-bold text-slate-500 sm:text-xs">
+                                  <div className="mt-0.5 text-[11px] font-bold text-slate-500 sm:text-xs">
                                     Rating {selectedRunner.horse.rating}
                                   </div>
 
@@ -602,8 +800,8 @@ export default function RaceTo100Page() {
                                 </>
                               ) : (
                                 <>
-                                  <div className="h-20 w-20 rounded-xl border border-dashed border-slate-800 bg-slate-950/40 sm:h-24 sm:w-24" />
-                                  <div className="mt-2 text-xs font-bold text-slate-700">
+                                  <div className="h-16 w-16 rounded-xl border border-dashed border-slate-800 bg-slate-950/40 sm:h-20 sm:w-20" />
+                                  <div className="mt-1 text-xs font-bold text-slate-700">
                                     {canMoveHere ? "Move Here" : "Empty"}
                                   </div>
                                 </>
@@ -650,35 +848,133 @@ export default function RaceTo100Page() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="mt-6 text-left">
+                    <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                      Your 10 Horses
+                    </div>
+
+                    <div className="space-y-2">
+                      {slotOrder.map((slot) => {
+                        const runner = selectedLineup.get(slot);
+
+                        if (!runner) return null;
+
+                        return (
+                          <div
+                            key={slot}
+                            className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-[10px] font-black uppercase tracking-wide text-slate-600">
+                                  {slot}
+                                </div>
+
+                                <div className="mt-1 font-black text-white">
+                                  {runner.horse.name}
+                                </div>
+
+                                <div className="mt-1 text-xs font-semibold text-slate-500">
+                                  {runner.source_race_year} {runner.source_race_name}
+                                  {runner.source_race_grade
+                                    ? ` · ${runner.source_race_grade}`
+                                    : ""}
+                                </div>
+                              </div>
+
+                              <div className="shrink-0 rounded-lg border border-slate-800 px-3 py-2 text-center">
+                                <div className="text-base font-black">
+                                  {runner.horse.rating}
+                                </div>
+                                <div className="text-[9px] font-bold uppercase text-slate-500">
+                                  Rating
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={shareTeam}
+                    className="mt-6 rounded-xl bg-amber-400 px-8 py-3 text-base font-black text-slate-950 transition hover:bg-amber-300"
+                  >
+                    SHARE TEAM
+                  </button>
+
+                  {shareMessage && (
+                    <div className="mt-3 text-sm font-semibold text-slate-400">
+                      {shareMessage}
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 text-center sm:p-6">
+                <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 p-5 text-center sm:p-6">
                   <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
                     Race {selectedHorses.length + 1} of 10
                   </div>
 
-                  <h2 className="mt-3 text-2xl font-black">
-                    {selectedHorses.length
-                      ? "Generate your next race"
-                      : "Generate your first race"}
-                  </h2>
+                  {loading ? (
+                    <div className="py-4">
+                      <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
+                        Spinning...
+                      </div>
 
-                  <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">
-                    A random historical Australian race will be generated from your Supabase data.
-                  </p>
+                      <div className="mx-auto mt-4 flex min-h-[112px] max-w-xl items-center justify-center overflow-hidden rounded-2xl border border-amber-400/30 bg-slate-950 px-5 py-6">
+                        <div
+                          key={spinningRace?.id ?? "starting-spin"}
+                          className="w-full animate-pulse"
+                        >
+                          <div className="text-2xl font-black sm:text-3xl">
+                            {spinningRace?.race_name ?? "Selecting a race..."}
+                          </div>
 
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={getRandomRace}
-                    className="mt-5 rounded-xl bg-amber-400 px-8 py-3 text-lg font-black text-slate-950 transition hover:bg-amber-300 disabled:opacity-50"
-                  >
-                    {loading ? "LOADING..." : "SPIN"}
-                  </button>
+                          {spinningRace && (
+                            <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-400">
+                              <span>{spinningRace.year}</span>
+                              <span>{spinningRace.track}</span>
+                              <span>{spinningRace.distance}m</span>
+                              {spinningRace.race_grade && (
+                                <span>{spinningRace.race_grade}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="mt-4 text-sm font-semibold text-slate-500">
-                    Respin available: {respinAvailable ? 1 : 0}
-                  </div>
+                      <div className="mt-4 text-sm font-semibold text-slate-500">
+                        Finding your race...
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <h2 className="mt-3 text-2xl font-black">
+                        {selectedHorses.length
+                          ? "Spin your next race"
+                          : "Spin your first race"}
+                      </h2>
+
+                      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">
+                        The race wheel will cycle through historical races before landing on your draw.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={getRandomRace}
+                        className="mt-5 rounded-xl bg-amber-400 px-8 py-3 text-lg font-black text-slate-950 transition hover:bg-amber-300"
+                      >
+                        SPIN
+                      </button>
+
+                      <div className="mt-4 text-sm font-semibold text-slate-500">
+                        Respin available: {respinAvailable ? 1 : 0}
+                      </div>
+                    </>
+                  )}
                 </div>
               )
             ) : (
@@ -773,7 +1069,7 @@ export default function RaceTo100Page() {
 
                                   if (!emptyEligibleSlot) {
                                     setError(
-                                      "That horse does not currently have an empty eligible position. Use CHANGE POSITION to rearrange your team first."
+                                      "That horse does not currently have an empty eligible position. Rearrange your team by clicking a selected horse first."
                                     );
                                     return;
                                   }
