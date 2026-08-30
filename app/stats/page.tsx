@@ -431,6 +431,9 @@ export default function StatsPage() {
   const [bestCaptainFallback, setBestCaptainFallback] =
     useState<SeasonRecordStat | null>(null);
 
+  const [biggestRankRiseFallback, setBiggestRankRiseFallback] =
+    useState<SeasonRecordStat | null>(null);
+
   const [teamView, setTeamView] =
     useState<"perfect" | "template">("perfect");
 
@@ -1174,6 +1177,245 @@ export default function StatsPage() {
     };
   }, [selectedSeasonId]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadBiggestRankRiseFallback() {
+      if (!selectedSeasonId) {
+        setBiggestRankRiseFallback(null);
+        return;
+      }
+
+      const { data: roundRows, error: roundsError } =
+        await supabase
+          .from("rounds")
+          .select("id, round_number, status")
+          .eq("season_id", selectedSeasonId)
+          .eq("status", "completed")
+          .order("round_number", { ascending: true });
+
+      if (!active) return;
+
+      if (roundsError) {
+        console.error(
+          "Biggest rank rise rounds load error:",
+          roundsError
+        );
+        setBiggestRankRiseFallback(null);
+        return;
+      }
+
+      const completedRounds = (roundRows ?? []).map((round: any) => ({
+        id: String(round.id),
+        round_number: Number(round.round_number ?? 0),
+      }));
+
+      if (completedRounds.length < 2) {
+        setBiggestRankRiseFallback(null);
+        return;
+      }
+
+      const roundIds = completedRounds.map((round) => round.id);
+
+      // Fetch teams in pages because the project's Supabase API
+      // can cap a single response at 100 rows.
+      const teams: Array<{
+        id: string;
+        user_id: string;
+        round_id: string;
+      }> = [];
+      const teamPageSize = 100;
+      let teamFrom = 0;
+
+      while (true) {
+        const { data: teamPage, error: teamsError } =
+          await supabase
+            .from("teams")
+            .select("id, user_id, round_id")
+            .in("round_id", roundIds)
+            .range(teamFrom, teamFrom + teamPageSize - 1);
+
+        if (!active) return;
+
+        if (teamsError) {
+          console.error(
+            "Biggest rank rise teams load error:",
+            teamsError
+          );
+          setBiggestRankRiseFallback(null);
+          return;
+        }
+
+        const page = (teamPage ?? []).map((team: any) => ({
+          id: String(team.id),
+          user_id: String(team.user_id),
+          round_id: String(team.round_id),
+        }));
+
+        teams.push(...page);
+
+        if (page.length < teamPageSize) break;
+        teamFrom += teamPageSize;
+      }
+
+      if (teams.length === 0) {
+        setBiggestRankRiseFallback(null);
+        return;
+      }
+
+      const teamById = new Map(
+        teams.map((team) => [team.id, team])
+      );
+      const teamIds = teams.map((team) => team.id);
+
+      const scores: Array<{
+        team_id: string;
+        round_rank: number;
+      }> = [];
+      const scorePageSize = 100;
+      let scoreFrom = 0;
+
+      while (true) {
+        const { data: scorePage, error: scoresError } =
+          await supabase
+            .from("player_round_scores")
+            .select("team_id, round_rank")
+            .in("team_id", teamIds)
+            .not("round_rank", "is", null)
+            .range(scoreFrom, scoreFrom + scorePageSize - 1);
+
+        if (!active) return;
+
+        if (scoresError) {
+          console.error(
+            "Biggest rank rise scores load error:",
+            scoresError
+          );
+          setBiggestRankRiseFallback(null);
+          return;
+        }
+
+        const page = (scorePage ?? []).map((score: any) => ({
+          team_id: String(score.team_id),
+          round_rank: Number(score.round_rank),
+        }));
+
+        scores.push(...page);
+
+        if (page.length < scorePageSize) break;
+        scoreFrom += scorePageSize;
+      }
+
+      const rankByUserAndRound = new Map<string, number>();
+
+      for (const score of scores) {
+        const team = teamById.get(score.team_id);
+
+        if (
+          !team ||
+          !Number.isFinite(score.round_rank) ||
+          score.round_rank <= 0
+        ) {
+          continue;
+        }
+
+        rankByUserAndRound.set(
+          `${team.user_id}:${team.round_id}`,
+          score.round_rank
+        );
+      }
+
+      let best:
+        | {
+            user_id: string;
+            rise: number;
+            from_rank: number;
+            to_rank: number;
+          }
+        | null = null;
+
+      const userIds = Array.from(
+        new Set(teams.map((team) => team.user_id))
+      );
+
+      for (const userId of userIds) {
+        for (let index = 1; index < completedRounds.length; index += 1) {
+          const previousRound = completedRounds[index - 1];
+          const currentRound = completedRounds[index];
+
+          const previousRank = rankByUserAndRound.get(
+            `${userId}:${previousRound.id}`
+          );
+          const currentRank = rankByUserAndRound.get(
+            `${userId}:${currentRound.id}`
+          );
+
+          if (
+            previousRank == null ||
+            currentRank == null
+          ) {
+            continue;
+          }
+
+          const rise = previousRank - currentRank;
+
+          if (
+            rise > 0 &&
+            (
+              best == null ||
+              rise > best.rise ||
+              (
+                rise === best.rise &&
+                currentRank < best.to_rank
+              )
+            )
+          ) {
+            best = {
+              user_id: userId,
+              rise,
+              from_rank: previousRank,
+              to_rank: currentRank,
+            };
+          }
+        }
+      }
+
+      if (!best) {
+        setBiggestRankRiseFallback(null);
+        return;
+      }
+
+      const { data: profileData, error: profileError } =
+        await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("id", best.user_id)
+          .maybeSingle();
+
+      if (!active) return;
+
+      if (profileError) {
+        console.error(
+          "Biggest rank rise profile load error:",
+          profileError
+        );
+      }
+
+      setBiggestRankRiseFallback({
+        user_id: best.user_id,
+        display_name:
+          profileData?.display_name ?? "Player",
+        value: best.rise,
+      });
+    }
+
+    void loadBiggestRankRiseFallback();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedSeasonId]);
+
   function changeHorseSort(nextKey: HorseSortKey) {
     if (horseSortKey === nextKey) {
       setHorseSortDirection((current) =>
@@ -1309,6 +1551,10 @@ export default function StatsPage() {
   const bestCaptainRecord =
     data.season_records?.best_captain ??
     bestCaptainFallback;
+
+  const biggestRankRiseRecord =
+    data.season_records?.biggest_rank_rise ??
+    biggestRankRiseFallback;
 
   const mostRoundWinsRecord =
     data.season_records?.most_round_wins ??
@@ -1942,11 +2188,14 @@ export default function StatsPage() {
               <MetricCard
                 title="Biggest Rank Rise"
                 value={
-                  data.season_records?.biggest_rank_rise?.value == null
+                  biggestRankRiseRecord?.value == null
                     ? "—"
-                    : `+${data.season_records.biggest_rank_rise.value}`
+                    : `+${biggestRankRiseRecord.value}`
                 }
-                subtitle={data.season_records?.biggest_rank_rise?.display_name ?? "Largest rise between rounds"}
+                subtitle={
+                  biggestRankRiseRecord?.display_name ??
+                  "Largest rise between rounds"
+                }
                 accent="slate"
               />
             </div>
