@@ -211,7 +211,6 @@ export default function RaceTo100Page() {
   const [hardMode, setHardMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currentRace, setCurrentRace] = useState<Race | null>(null);
-  const [spinningRace, setSpinningRace] = useState<Race | null>(null);
   const [currentRunners, setCurrentRunners] = useState<Runner[]>([]);
   const [usedRaceIds, setUsedRaceIds] = useState<string[]>([]);
   const [selectedHorses, setSelectedHorses] = useState<Runner[]>([]);
@@ -219,7 +218,6 @@ export default function RaceTo100Page() {
     () => new Map()
   );
   const [movingHorseId, setMovingHorseId] = useState<string | null>(null);
-  const [respinAvailable, setRespinAvailable] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
 
@@ -309,40 +307,9 @@ export default function RaceTo100Page() {
     );
   }
 
-  function wait(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  async function animateRaceSpin(races: Race[], finalRace: Race) {
-    const animationPool = races.length ? races : [finalRace];
-
-    // Rapidly cycle through races, then progressively slow down.
-    const delays = [
-      70, 70, 80, 80, 90, 100, 110, 120, 135, 150,
-      170, 190, 220, 250, 290, 340, 400,
-    ];
-
-    let previousId: string | null = null;
-
-    for (const delay of delays) {
-      const choices = animationPool.filter((race) => race.id !== previousId);
-      const pool = choices.length ? choices : animationPool;
-      const race = pool[Math.floor(Math.random() * pool.length)];
-
-      setSpinningRace(race);
-      previousId = race.id;
-      await wait(delay);
-    }
-
-    // Finish by visibly landing on the race that was actually selected.
-    setSpinningRace(finalRace);
-    await wait(550);
-  }
-
   async function getRandomRace() {
     setLoading(true);
     setError(null);
-    setSpinningRace(null);
 
     try {
       const { data: races, error: raceError } = await supabase
@@ -408,13 +375,10 @@ export default function RaceTo100Page() {
 
         if (!hasAvailableHorse) continue;
 
-        await animateRaceSpin(available, race);
-
         setCurrentRace(race);
         setCurrentRunners(combined);
         setUsedRaceIds((previous) => [...previous, race.id]);
-        setSpinningRace(null);
-        return;
+            return;
       }
 
       throw new Error(
@@ -422,8 +386,7 @@ export default function RaceTo100Page() {
       );
     } catch (err) {
       setCurrentRace(null);
-      setSpinningRace(null);
-      setCurrentRunners([]);
+        setCurrentRunners([]);
       setError(
         err instanceof Error ? err.message : "Could not generate a race."
       );
@@ -432,70 +395,178 @@ export default function RaceTo100Page() {
     }
   }
 
-  async function handleRespin() {
-    if (!respinAvailable || !currentRace || loading) return;
-    setRespinAvailable(false);
-    setCurrentRace(null);
-    setCurrentRunners([]);
-    await getRandomRace();
-  }
 
   async function shareTeam() {
     if (!gameComplete) return;
 
-    const lineupLines = slotOrder
-      .map((slot) => {
-        const runner = selectedLineup.get(slot);
-        return runner
-          ? `${slot}: ${runner.horse.name} (${runner.horse.rating})`
-          : `${slot}: —`;
-      })
-      .join("\n");
-
-    const shareText = [
-      hardMode ? "Race to 100 — HARD MODE" : "Race to 100",
-      `Challenge Score: ${finalChallengeScore}/100`,
-      `Team Rating: ${finalTeamRating?.toFixed(1) ?? "—"}`,
-      "",
-      lineupLines,
-    ].join("\n");
-
-    const shareUrl = window.location.href;
+    setShareMessage(null);
 
     try {
-      if (navigator.share) {
+      const width = 1200;
+      const height = 1500;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Could not create share image.");
+      }
+
+      // Background
+      ctx.fillStyle = "#020617";
+      ctx.fillRect(0, 0, width, height);
+
+      // Header
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = "700 34px Arial, sans-serif";
+      ctx.fillText("RACECOURSE FANTASY", 80, 95);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 78px Arial, sans-serif";
+      ctx.fillText("Race to 100", 80, 185);
+
+      if (hardMode) {
+        ctx.fillStyle = "#fbbf24";
+        ctx.font = "800 28px Arial, sans-serif";
+        ctx.fillText("HARD MODE", 82, 235);
+      }
+
+      // Score cards
+      const cardY = hardMode ? 285 : 250;
+      const cardH = 150;
+      const cardGap = 24;
+      const cardW = (width - 160 - cardGap) / 2;
+
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(80, cardY, cardW, cardH);
+      ctx.fillRect(80 + cardW + cardGap, cardY, cardW, cardH);
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "700 24px Arial, sans-serif";
+      ctx.fillText("TEAM RATING", 110, cardY + 45);
+      ctx.fillText("CHALLENGE SCORE", 110 + cardW + cardGap, cardY + 45);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 60px Arial, sans-serif";
+      ctx.fillText(finalTeamRating?.toFixed(1) ?? "—", 110, cardY + 115);
+
+      ctx.fillStyle = "#fbbf24";
+      ctx.fillText(`${finalChallengeScore}/100`, 110 + cardW + cardGap, cardY + 115);
+
+      // Team heading
+      let y = cardY + cardH + 80;
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "800 24px Arial, sans-serif";
+      ctx.fillText("YOUR TEAM", 80, y);
+
+      y += 45;
+
+      // Team rows
+      slotOrder.forEach((slot) => {
+        const runner = selectedLineup.get(slot);
+        if (!runner) return;
+
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(80, y, width - 160, 88);
+
+        ctx.fillStyle = "#64748b";
+        ctx.font = "800 19px Arial, sans-serif";
+        ctx.fillText(slot.toUpperCase(), 105, y + 31);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "900 30px Arial, sans-serif";
+        ctx.fillText(runner.horse.name, 105, y + 66);
+
+        ctx.fillStyle = "#fbbf24";
+        ctx.font = "900 31px Arial, sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillText(String(runner.horse.rating), width - 105, y + 55);
+        ctx.textAlign = "left";
+
+        y += 98;
+      });
+
+      // Footer
+      ctx.fillStyle = "#475569";
+      ctx.font = "700 20px Arial, sans-serif";
+      ctx.fillText("Race to 100", 80, height - 55);
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/png")
+      );
+
+      if (!blob) {
+        throw new Error("Could not create PNG.");
+      }
+
+      const file = new File([blob], "race-to-100-team.png", {
+        type: "image/png",
+      });
+
+      if (
+        navigator.share &&
+        navigator.canShare?.({ files: [file] })
+      ) {
         await navigator.share({
-          title: "My Race to 100 Team",
-          text: shareText,
-          url: shareUrl,
+          title: hardMode
+            ? "My Race to 100 Hard Mode Team"
+            : "My Race to 100 Team",
+          files: [file],
         });
-        setShareMessage(null);
         return;
       }
 
-      await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
-      setShareMessage("Team copied to clipboard.");
+      // Desktop/browser fallback: download the PNG.
+      const imageUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = imageUrl;
+      link.download = "race-to-100-team.png";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(imageUrl);
+
+      setShareMessage("Team PNG saved.");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
 
-      try {
-        await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
-        setShareMessage("Team copied to clipboard.");
-      } catch {
-        setShareMessage("Could not share this team on this browser.");
-      }
+      setShareMessage(
+        err instanceof Error ? err.message : "Could not create team PNG."
+      );
     }
+  }
+
+  function startSeason() {
+    if (!gameComplete) return;
+
+    const seasonStable = slotOrder
+      .map((slot) => {
+        const runner = selectedLineup.get(slot);
+        if (!runner) return null;
+
+        return {
+          slot,
+          horse: runner.horse,
+        };
+      })
+      .filter(Boolean);
+
+    window.localStorage.setItem(
+      "raceTo100SeasonStable",
+      JSON.stringify(seasonStable)
+    );
+    window.localStorage.removeItem("raceTo100SeasonProgress");
+    window.location.href = "/race-to-100/season";
   }
 
   function restartGame() {
     setCurrentRace(null);
-    setSpinningRace(null);
     setCurrentRunners([]);
     setUsedRaceIds([]);
     setSelectedHorses([]);
     setManualLineup(new Map());
     setMovingHorseId(null);
-    setRespinAvailable(true);
     setError(null);
     setShareMessage(null);
     setHardMode(false);
@@ -581,9 +652,6 @@ export default function RaceTo100Page() {
                   <div className="mt-6 grid grid-cols-3 gap-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 sm:mt-8 sm:flex sm:flex-wrap sm:text-xs">
                     <span className="flex min-h-[38px] items-center justify-center rounded-full border border-slate-700 bg-slate-950 px-2 py-2 text-center leading-tight sm:min-h-0 sm:px-3">
                       10 horses
-                    </span>
-                    <span className="flex min-h-[38px] items-center justify-center rounded-full border border-slate-700 bg-slate-950 px-2 py-2 text-center leading-tight sm:min-h-0 sm:px-3">
-                      1 respin
                     </span>
                     <span className="flex min-h-[38px] items-center justify-center rounded-full border border-slate-700 bg-slate-950 px-2 py-2 text-center leading-tight sm:min-h-0 sm:px-3">
                       100 point target
@@ -906,62 +974,23 @@ export default function RaceTo100Page() {
                     </div>
                   </div>
 
-                  <div className="mt-6 text-left">
-                    <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                      Your 10 Horses
-                    </div>
+                  <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={shareTeam}
+                      className="rounded-xl border border-slate-700 bg-slate-950 px-6 py-3 text-base font-black text-white transition hover:border-amber-400"
+                    >
+                      SHARE TEAM
+                    </button>
 
-                    <div className="space-y-2">
-                      {slotOrder.map((slot) => {
-                        const runner = selectedLineup.get(slot);
-
-                        if (!runner) return null;
-
-                        return (
-                          <div
-                            key={slot}
-                            className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3"
-                          >
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-[10px] font-black uppercase tracking-wide text-slate-600">
-                                  {slot}
-                                </div>
-
-                                <div className="mt-1 font-black text-white">
-                                  {runner.horse.name}
-                                </div>
-
-                                <div className="mt-1 text-xs font-semibold text-slate-500">
-                                  {runner.source_race_year} {runner.source_race_name}
-                                  {runner.source_race_grade
-                                    ? ` · ${runner.source_race_grade}`
-                                    : ""}
-                                </div>
-                              </div>
-
-                              <div className="shrink-0 rounded-lg border border-slate-800 px-3 py-2 text-center">
-                                <div className="text-base font-black">
-                                  {runner.horse.rating}
-                                </div>
-                                <div className="text-[9px] font-bold uppercase text-slate-500">
-                                  Rating
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={startSeason}
+                      className="rounded-xl bg-amber-400 px-6 py-3 text-base font-black text-slate-950 transition hover:bg-amber-300"
+                    >
+                      CONTINUE TO SEASON
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={shareTeam}
-                    className="mt-6 rounded-xl bg-amber-400 px-8 py-3 text-base font-black text-slate-950 transition hover:bg-amber-300"
-                  >
-                    SHARE TEAM
-                  </button>
 
                   {shareMessage && (
                     <div className="mt-3 text-sm font-semibold text-slate-400">
@@ -976,35 +1005,9 @@ export default function RaceTo100Page() {
                   </div>
 
                   {loading ? (
-                    <div className="py-4">
-                      <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-400">
-                        Spinning...
-                      </div>
-
-                      <div className="mx-auto mt-4 flex min-h-[112px] max-w-xl items-center justify-center overflow-hidden rounded-2xl border border-amber-400/30 bg-slate-950 px-5 py-6">
-                        <div
-                          key={spinningRace?.id ?? "starting-spin"}
-                          className="w-full animate-pulse"
-                        >
-                          <div className="text-2xl font-black sm:text-3xl">
-                            {spinningRace?.race_name ?? "Selecting a race..."}
-                          </div>
-
-                          {spinningRace && (
-                            <div className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-400">
-                              <span>{spinningRace.year}</span>
-                              <span>{spinningRace.track}</span>
-                              <span>{spinningRace.distance}m</span>
-                              {spinningRace.race_grade && (
-                                <span>{spinningRace.race_grade}</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 text-sm font-semibold text-slate-500">
-                        Finding your race...
+                    <div className="py-6">
+                      <div className="text-sm font-black uppercase tracking-[0.16em] text-amber-400">
+                        Loading race...
                       </div>
                     </div>
                   ) : (
@@ -1016,7 +1019,7 @@ export default function RaceTo100Page() {
                       </h2>
 
                       <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-400">
-                        The race wheel will cycle through historical races before landing on your draw.
+                        A random historical race will be selected from the remaining race pool.
                       </p>
 
                       <button
@@ -1027,9 +1030,6 @@ export default function RaceTo100Page() {
                         SPIN
                       </button>
 
-                      <div className="mt-4 text-sm font-semibold text-slate-500">
-                        Respin available: {respinAvailable ? 1 : 0}
-                      </div>
                     </>
                   )}
                 </div>
@@ -1051,14 +1051,6 @@ export default function RaceTo100Page() {
                       {currentRace.race_grade && <span>{currentRace.race_grade}</span>}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={!respinAvailable || loading}
-                    onClick={handleRespin}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-bold transition hover:border-amber-400 disabled:opacity-40 sm:w-auto sm:py-2"
-                  >
-                    RESPIN
-                  </button>
                 </div>
 
                 <div className="p-3 sm:p-4">
