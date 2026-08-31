@@ -28,6 +28,7 @@ type SeasonRace = {
   distance: number;
   category: Category;
   fieldSize: number;
+  grade: "G1" | "G2" | "G3" | "LR";
 };
 
 type RaceRunner = {
@@ -58,31 +59,30 @@ type SavedProgress = {
   results: RaceResult[];
 };
 
-const K = 5.5;
 const MAX_STARTS_PER_HALF = 3;
 
 const seasonRaces: SeasonRace[] = [
-  { id: "spring-moir", half: "Spring", name: "Moir Stakes", distance: 1000, category: "Sprint", fieldSize: 12 },
-  { id: "spring-makybe-diva", half: "Spring", name: "Makybe Diva Stakes", distance: 1600, category: "Middle Distance", fieldSize: 12 },
-  { id: "spring-everest", half: "Spring", name: "The Everest", distance: 1200, category: "Sprint", fieldSize: 12 },
-  { id: "spring-king-charles", half: "Spring", name: "King Charles III Stakes", distance: 1600, category: "Middle Distance", fieldSize: 12 },
-  { id: "spring-caulfield-cup", half: "Spring", name: "Caulfield Cup", distance: 2400, category: "Stayer", fieldSize: 18 },
-  { id: "spring-cox-plate", half: "Spring", name: "Cox Plate", distance: 2040, category: "Middle Distance", fieldSize: 14 },
-  { id: "spring-melbourne-cup", half: "Spring", name: "Melbourne Cup", distance: 3200, category: "Stayer", fieldSize: 24 },
-  { id: "spring-champions-sprint", half: "Spring", name: "Champions Sprint", distance: 1200, category: "Sprint", fieldSize: 12 },
-  { id: "spring-champions-stakes", half: "Spring", name: "Champions Stakes", distance: 2000, category: "Middle Distance", fieldSize: 12 },
-  { id: "spring-zipping", half: "Spring", name: "Zipping Classic", distance: 2400, category: "Stayer", fieldSize: 12 },
+  { id: "spring-moir", half: "Spring", name: "Moir Stakes", distance: 1000, category: "Sprint", fieldSize: 12, grade: "G1" },
+  { id: "spring-makybe-diva", half: "Spring", name: "Makybe Diva Stakes", distance: 1600, category: "Middle Distance", fieldSize: 12, grade: "G1" },
+  { id: "spring-everest", half: "Spring", name: "The Everest", distance: 1200, category: "Sprint", fieldSize: 12, grade: "G1" },
+  { id: "spring-king-charles", half: "Spring", name: "King Charles III Stakes", distance: 1600, category: "Middle Distance", fieldSize: 12, grade: "G1" },
+  { id: "spring-caulfield-cup", half: "Spring", name: "Caulfield Cup", distance: 2400, category: "Stayer", fieldSize: 18, grade: "G1" },
+  { id: "spring-cox-plate", half: "Spring", name: "Cox Plate", distance: 2040, category: "Middle Distance", fieldSize: 14, grade: "G1" },
+  { id: "spring-melbourne-cup", half: "Spring", name: "Melbourne Cup", distance: 3200, category: "Stayer", fieldSize: 24, grade: "G1" },
+  { id: "spring-champions-sprint", half: "Spring", name: "Champions Sprint", distance: 1200, category: "Sprint", fieldSize: 12, grade: "G1" },
+  { id: "spring-champions-stakes", half: "Spring", name: "Champions Stakes", distance: 2000, category: "Middle Distance", fieldSize: 12, grade: "G1" },
+  { id: "spring-zipping", half: "Spring", name: "Zipping Classic", distance: 2400, category: "Stayer", fieldSize: 12, grade: "G2" },
 
-  { id: "autumn-lightning", half: "Autumn", name: "Lightning Stakes", distance: 1000, category: "Sprint", fieldSize: 12 },
-  { id: "autumn-newmarket", half: "Autumn", name: "Newmarket Handicap", distance: 1200, category: "Sprint", fieldSize: 12 },
-  { id: "autumn-all-star-mile", half: "Autumn", name: "All-Star Mile", distance: 1600, category: "Middle Distance", fieldSize: 12 },
-  { id: "autumn-tancred", half: "Autumn", name: "Tancred Stakes", distance: 2400, category: "Stayer", fieldSize: 12 },
-  { id: "autumn-australian-cup", half: "Autumn", name: "Australian Cup", distance: 2000, category: "Middle Distance", fieldSize: 12 },
-  { id: "autumn-tj-smith", half: "Autumn", name: "T J Smith Stakes", distance: 1200, category: "Sprint", fieldSize: 12 },
-  { id: "autumn-doncaster", half: "Autumn", name: "Doncaster Mile", distance: 1600, category: "Middle Distance", fieldSize: 12 },
-  { id: "autumn-queen-elizabeth", half: "Autumn", name: "Queen Elizabeth Stakes", distance: 2000, category: "Middle Distance", fieldSize: 12 },
-  { id: "autumn-sydney-cup", half: "Autumn", name: "Sydney Cup", distance: 3200, category: "Stayer", fieldSize: 12 },
-  { id: "autumn-andrew-ramsden", half: "Autumn", name: "Andrew Ramsden Stakes", distance: 2800, category: "Stayer", fieldSize: 12 },
+  { id: "autumn-lightning", half: "Autumn", name: "Lightning Stakes", distance: 1000, category: "Sprint", fieldSize: 12, grade: "G1" },
+  { id: "autumn-newmarket", half: "Autumn", name: "Newmarket Handicap", distance: 1200, category: "Sprint", fieldSize: 12, grade: "G1" },
+  { id: "autumn-all-star-mile", half: "Autumn", name: "All-Star Mile", distance: 1600, category: "Middle Distance", fieldSize: 12, grade: "G1" },
+  { id: "autumn-tancred", half: "Autumn", name: "Tancred Stakes", distance: 2400, category: "Stayer", fieldSize: 12, grade: "G1" },
+  { id: "autumn-australian-cup", half: "Autumn", name: "Australian Cup", distance: 2000, category: "Middle Distance", fieldSize: 12, grade: "G1" },
+  { id: "autumn-tj-smith", half: "Autumn", name: "T J Smith Stakes", distance: 1200, category: "Sprint", fieldSize: 12, grade: "G1" },
+  { id: "autumn-doncaster", half: "Autumn", name: "Doncaster Mile", distance: 1600, category: "Middle Distance", fieldSize: 12, grade: "G1" },
+  { id: "autumn-queen-elizabeth", half: "Autumn", name: "Queen Elizabeth Stakes", distance: 2000, category: "Middle Distance", fieldSize: 12, grade: "G1" },
+  { id: "autumn-sydney-cup", half: "Autumn", name: "Sydney Cup", distance: 3200, category: "Stayer", fieldSize: 12, grade: "G1" },
+  { id: "autumn-andrew-ramsden", half: "Autumn", name: "Andrew Ramsden Stakes", distance: 2800, category: "Stayer", fieldSize: 12, grade: "LR" },
 ];
 
 function eligibleForCategory(horse: Horse, category: Category) {
@@ -95,7 +95,8 @@ function buildRandomOpposition(
   horses: Horse[],
   category: Category,
   stableIds: Set<string>,
-  count: number
+  count: number,
+  grade: SeasonRace["grade"]
 ) {
   const eligible = horses
     .filter((horse) => !stableIds.has(horse.id))
@@ -129,20 +130,35 @@ function buildRandomOpposition(
   );
   const lowerPool = eligible.filter((horse) => horse.rating < 80);
 
-  // Tiered field targets:
-  // - minimum 25% rated 90+
-  // - around 40% rated 80–89
-  // - remaining places from the rest of the eligible pool
+  // Easier non-G1 fields for elite horses.
+  const eliteShare =
+    grade === "G1"
+      ? 0.25
+      : grade === "G2"
+      ? 0.15
+      : grade === "G3"
+      ? 0.1
+      : 0.05;
+
+  const strongShare =
+    grade === "G1"
+      ? 0.4
+      : grade === "G2"
+      ? 0.35
+      : grade === "G3"
+      ? 0.3
+      : 0.25;
+
   const eliteTarget = Math.min(
     elitePool.length,
     count,
-    Math.ceil(count * 0.25)
+    Math.ceil(count * eliteShare)
   );
 
   const strongTarget = Math.min(
     strongPool.length,
     Math.max(0, count - eliteTarget),
-    Math.round(count * 0.4)
+    Math.round(count * strongShare)
   );
 
   addFromPool(elitePool, eliteTarget);
@@ -161,13 +177,16 @@ function buildRandomOpposition(
   return selected;
 }
 
-function weightedFinishingOrder(field: RaceRunner[]) {
+function weightedFinishingOrder(field: RaceRunner[], grade: SeasonRace["grade"]) {
   const remaining = [...field];
   const order: RaceRunner[] = [];
 
+  const raceK =
+    grade === "G1" ? 5.5 : grade === "G2" ? 5.0 : grade === "G3" ? 4.7 : 4.5;
+
   const pickWeightedIndex = (pool: RaceRunner[]) => {
     const weights = pool.map((runner) =>
-      Math.exp((runner.horse.rating - 80) / K)
+      Math.exp((runner.horse.rating - 80) / raceK)
     );
 
     const total = weights.reduce((sum, value) => sum + value, 0);
@@ -337,7 +356,8 @@ export default function RaceTo100SeasonPage() {
         allHorses,
         currentRace.category,
         stableIds,
-        oppositionNeeded
+        oppositionNeeded,
+        currentRace.grade
       ).map((horse) => ({ horse, isUser: false }));
 
       if (opposition.length < oppositionNeeded) {
@@ -346,7 +366,7 @@ export default function RaceTo100SeasonPage() {
         );
       }
 
-      const order = weightedFinishingOrder([...userRunners, ...opposition]);
+      const order = weightedFinishingOrder([...userRunners, ...opposition], currentRace.grade);
 
       const result: RaceResult = {
         raceId: currentRace.id,
@@ -702,7 +722,7 @@ export default function RaceTo100SeasonPage() {
                     {selectedIds.length} stable runner{selectedIds.length === 1 ? "" : "s"}
                   </h2>
                   <p className="mt-2 text-xs leading-5 text-slate-400">
-                    The remaining {Math.max(0, (currentRace?.fieldSize ?? 0) - selectedIds.length)} places will be filled by a tiered random field from eligible horses outside your stable: at least 25% rated 90+, around 40% rated 80–89, with the remaining places filled randomly.
+                    The remaining {Math.max(0, (currentRace?.fieldSize ?? 0) - selectedIds.length)} places will be filled by a tiered random field based on race grade. G1 fields are strongest, while G2, G3 and Listed races are easier for 90+ rated horses.
                   </p>
 
                   <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950 p-3">
