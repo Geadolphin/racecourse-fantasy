@@ -658,14 +658,26 @@ export default function RaceTo100Page() {
                     </span>
                   </div>
 
-                  <div className="mt-5 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3">
-                    <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-400">
-                      Hidden placement bonus
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-400">
+                        Hidden placement bonus
+                      </div>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">
+                        Horses that placed highly in the race you spin can earn bonus Challenge Points.
+                        The bonus stays hidden while you build your team.
+                      </p>
                     </div>
-                    <p className="mt-1 text-sm leading-6 text-slate-400">
-                      Horses that placed highly in the race you spin can earn bonus Challenge Points.
-                      The bonus stays hidden while you build your team.
-                    </p>
+
+                    <div className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3">
+                      <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-400">
+                        Season Mode
+                      </div>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">
+                        Finish your 10-horse team, then take that exact stable into a 20-race
+                        Spring and Autumn season and try to win as many races as possible.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -706,7 +718,8 @@ export default function RaceTo100Page() {
                     <div className="mt-2 text-3xl font-black text-white">Reach 100</div>
                     <p className="mt-2 text-sm leading-6 text-slate-400">
                       Horse ratings convert into Challenge Points. Your score stays hidden
-                      until all 10 positions are filled.
+                      until all 10 positions are filled, then your completed stable can continue
+                      into Season Mode.
                     </p>
                   </div>
                 </div>
