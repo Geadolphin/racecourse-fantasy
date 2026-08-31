@@ -413,14 +413,6 @@ export default function RaceTo100SeasonPage() {
   }
 
   function restartGame() {
-    if (
-      !window.confirm(
-        "Restart the whole game? Your Race to 100 team and all Season Mode results will be cleared."
-      )
-    ) {
-      return;
-    }
-
     setViewedResult(null);
     window.localStorage.removeItem("raceTo100SeasonStable");
     window.localStorage.removeItem("raceTo100SeasonProgress");
