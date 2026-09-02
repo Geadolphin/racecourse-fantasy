@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import HorseProfileModal from "@/components/HorseProfileModal";
@@ -117,6 +117,24 @@ type SortOption =
   | "price-low"
   | "name";
 
+type AutoSaveStatus =
+  | "idle"
+  | "pending"
+  | "waiting"
+  | "saving"
+  | "saved"
+  | "error";
+
+type AutoSavePayload = {
+  roundId: string;
+  entryIds: string[];
+  captainEntryId: string | null;
+  status: "draft" | "submitted";
+  salaryUsed: number;
+  snapshot: string;
+  selections: TeamSelection[];
+};
+
 const priceFilterOptions = [
   30000,
   50000,
@@ -201,6 +219,16 @@ export default function EditTeamPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] =
+    useState<AutoSaveStatus>("idle");
+
+  const hasHydratedTeamRef = useRef(false);
+  const hasPersistedTeamRef = useRef(false);
+  const preferredAutoSaveStatusRef =
+    useRef<"draft" | "submitted">("draft");
+  const lastSavedSnapshotRef = useRef("");
+  const autoSaveInFlightRef = useRef(false);
+  const autoSaveQueuedRef = useRef<AutoSavePayload | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -208,9 +236,11 @@ export default function EditTeamPage() {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   const loadPage = useCallback(async () => {
+    hasHydratedTeamRef.current = false;
     setLoading(true);
     setErrorMessage("");
     setSuccessMessage("");
+    setAutoSaveStatus("idle");
 
     const {
       data: { user },
@@ -435,6 +465,13 @@ export default function EditTeamPage() {
       setSelectedEntryIds([]);
       setSavedSelections([]);
       setCaptainEntryId(null);
+      hasPersistedTeamRef.current = false;
+      preferredAutoSaveStatusRef.current = "draft";
+      lastSavedSnapshotRef.current = JSON.stringify({
+        entryIds: [],
+        captainEntryId: null,
+      });
+      hasHydratedTeamRef.current = true;
       setLoading(false);
       return;
     }
@@ -442,6 +479,9 @@ export default function EditTeamPage() {
     const currentTeam = teamData as Team;
 
     setTeam(currentTeam);
+    hasPersistedTeamRef.current = true;
+    preferredAutoSaveStatusRef.current =
+      currentTeam.status === "submitted" ? "submitted" : "draft";
 
     const { data: selectionData, error: selectionError } =
       await supabase
@@ -478,9 +518,18 @@ export default function EditTeamPage() {
       (selection) => selection.is_captain
     );
 
-    setCaptainEntryId(
-      captainSelection?.race_entry_id ?? null
-    );
+    const loadedCaptainEntryId =
+      captainSelection?.race_entry_id ?? null;
+
+    setCaptainEntryId(loadedCaptainEntryId);
+
+    lastSavedSnapshotRef.current = JSON.stringify({
+      entryIds: selections
+        .map((selection) => selection.race_entry_id)
+        .sort(),
+      captainEntryId: loadedCaptainEntryId,
+    });
+    hasHydratedTeamRef.current = true;
 
     setLoading(false);
   }, []);
@@ -652,6 +701,151 @@ export default function EditTeamPage() {
     captainEntryId !== null &&
     salaryUsed <= salaryCap;
 
+  const flushAutoSaveQueue = useCallback(async () => {
+    if (autoSaveInFlightRef.current) {
+      return;
+    }
+
+    const payload = autoSaveQueuedRef.current;
+
+    if (!payload) {
+      return;
+    }
+
+    autoSaveQueuedRef.current = null;
+    autoSaveInFlightRef.current = true;
+    setAutoSaveStatus("saving");
+
+    const { error } = await supabase.rpc(
+      "save_my_round_team",
+      {
+        p_round_id: payload.roundId,
+        p_entry_ids: payload.entryIds,
+        p_captain_entry_id: payload.captainEntryId,
+        p_status: payload.status,
+      }
+    );
+
+    if (error) {
+      console.error("Auto-save error:", error);
+      setAutoSaveStatus("error");
+    } else {
+      lastSavedSnapshotRef.current = payload.snapshot;
+      hasPersistedTeamRef.current = true;
+      setSavedSelections(payload.selections);
+      setTeam((current) =>
+        current
+          ? {
+              ...current,
+              status: payload.status,
+              salary_used: payload.salaryUsed,
+            }
+          : current
+      );
+      setAutoSaveStatus("saved");
+    }
+
+    autoSaveInFlightRef.current = false;
+
+    if (autoSaveQueuedRef.current) {
+      void flushAutoSaveQueue();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      !hasHydratedTeamRef.current ||
+      loading ||
+      submitting ||
+      !round ||
+      !teamIsEditable ||
+      salaryUsed > salaryCap
+    ) {
+      return;
+    }
+
+    if (
+      !team &&
+      !hasPersistedTeamRef.current &&
+      firstLockoutHasStarted
+    ) {
+      return;
+    }
+
+    const entryIds = [...selectedEntryIds].sort();
+    const snapshot = JSON.stringify({
+      entryIds,
+      captainEntryId,
+    });
+
+    if (snapshot === lastSavedSnapshotRef.current) {
+      if (autoSaveStatus === "pending" || autoSaveStatus === "waiting") {
+        setAutoSaveStatus("saved");
+      }
+      return;
+    }
+
+    // A previously submitted team should never be automatically downgraded
+    // to an incomplete draft just because the user is midway through a swap.
+    // We wait until the team is valid again, then auto-save it as submitted.
+    if (
+      preferredAutoSaveStatusRef.current === "submitted" &&
+      !teamIsComplete
+    ) {
+      setAutoSaveStatus("waiting");
+      return;
+    }
+
+    setAutoSaveStatus("pending");
+
+    const timer = window.setTimeout(() => {
+      const status = preferredAutoSaveStatusRef.current;
+
+      const selections: TeamSelection[] = entryIds.map((entryId) => {
+        const entry = entries.find((item) => item.id === entryId);
+
+        return {
+          id: `autosave-${entryId}`,
+          team_id: team?.id ?? "autosaved",
+          race_entry_id: entryId,
+          is_captain: entryId === captainEntryId,
+          selected_price: entry?.price_at_entry ?? 0,
+          fantasy_points: 0,
+        };
+      });
+
+      autoSaveQueuedRef.current = {
+        roundId: round.id,
+        entryIds,
+        captainEntryId,
+        status,
+        salaryUsed,
+        snapshot,
+        selections,
+      };
+
+      void flushAutoSaveQueue();
+    }, 750);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    captainEntryId,
+    entries,
+    firstLockoutHasStarted,
+    flushAutoSaveQueue,
+    loading,
+    round,
+    salaryCap,
+    salaryUsed,
+    selectedEntryIds,
+    submitting,
+    team,
+    teamIsComplete,
+    teamIsEditable,
+  ]);
+
   const raceOptions = useMemo(() => {
     const uniqueRaces = new Map<string, Race>();
 
@@ -818,7 +1012,7 @@ export default function EditTeamPage() {
       return;
     }
 
-    if (!team && firstLockoutHasStarted) {
+    if (!team && !hasPersistedTeamRef.current && firstLockoutHasStarted) {
       setErrorMessage(
         "A new team cannot be created after the first lockout has commenced."
       );
@@ -878,7 +1072,7 @@ export default function EditTeamPage() {
       return;
     }
 
-    if (!team && firstLockoutHasStarted) {
+    if (!team && !hasPersistedTeamRef.current && firstLockoutHasStarted) {
       setErrorMessage(
         "A new team cannot be created after the first lockout has commenced."
       );
@@ -1138,7 +1332,7 @@ export default function EditTeamPage() {
       return;
     }
 
-    if (!team && firstLockoutHasStarted) {
+    if (!team && !hasPersistedTeamRef.current && firstLockoutHasStarted) {
       setErrorMessage(
         "A new team cannot be submitted after the first lockout has commenced."
       );
@@ -1285,6 +1479,28 @@ export default function EditTeamPage() {
                   {selectedProjectedPoints} pts
                 </p>
               </div>
+              <div
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+                  autoSaveStatus === "error"
+                    ? "border-red-700 bg-red-950/40 text-red-300"
+                    : autoSaveStatus === "saving"
+                      ? "border-amber-700 bg-amber-950/30 text-amber-300"
+                      : "border-slate-700 bg-slate-900 text-slate-300"
+                }`}
+                title="Changes to horses and captain are saved automatically."
+              >
+                {autoSaveStatus === "saving"
+                  ? "Auto-saving…"
+                  : autoSaveStatus === "pending"
+                    ? "Changes pending…"
+                    : autoSaveStatus === "waiting"
+                      ? "Complete team to auto-save"
+                      : autoSaveStatus === "error"
+                        ? "Auto-save failed"
+                        : autoSaveStatus === "saved"
+                          ? "Auto-saved"
+                          : "Auto-save on"}
+              </div>
               <button
                 type="button"
                 onClick={() => setShowScoringModal(true)}
@@ -1301,7 +1517,7 @@ export default function EditTeamPage() {
               <button
                 type="button"
                 onClick={fillTeam}
-                disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting}
+                disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting || autoSaveStatus === "saving"}
                 className="rounded-lg border border-teal-500 bg-slate-900 px-3 py-2 text-xs font-semibold text-teal-300 transition hover:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500 disabled:opacity-50"
               >
                 Fill Team
@@ -1309,7 +1525,7 @@ export default function EditTeamPage() {
               <button
                 type="button"
                 onClick={() => void saveDraft()}
-                disabled={saving || submitting}
+                disabled={saving || submitting || autoSaveStatus === "saving"}
                 className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold transition hover:bg-slate-800 disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Save Draft"}
@@ -1317,7 +1533,7 @@ export default function EditTeamPage() {
               <button
                 type="button"
                 onClick={() => void submitTeam()}
-                disabled={!teamIsComplete || submitting || saving}
+                disabled={!teamIsComplete || submitting || saving || autoSaveStatus === "saving"}
                 className="rounded-lg bg-teal-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-teal-400 disabled:bg-slate-700 disabled:text-slate-400"
               >
                 {submitting ? "Submitting..." : team?.status === "submitted" ? "Update Team" : "Submit Team"}
@@ -1917,7 +2133,7 @@ export default function EditTeamPage() {
             <button
               type="button"
               onClick={fillTeam}
-              disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting}
+              disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting || autoSaveStatus === "saving"}
               className="rounded-lg border border-teal-600 bg-white px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-50 disabled:border-slate-300 disabled:text-slate-400 disabled:opacity-50"
             >
               Fill Team
@@ -1925,7 +2141,7 @@ export default function EditTeamPage() {
             <button
               type="button"
               onClick={() => void saveDraft()}
-              disabled={saving || submitting}
+              disabled={saving || submitting || autoSaveStatus === "saving"}
               className="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save Draft"}
@@ -1933,7 +2149,7 @@ export default function EditTeamPage() {
             <button
               type="button"
               onClick={() => void submitTeam()}
-              disabled={!teamIsComplete || submitting || saving}
+              disabled={!teamIsComplete || submitting || saving || autoSaveStatus === "saving"}
               className="flex-1 rounded-lg bg-teal-700 px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
             >
               {submitting ? "Submitting..." : team?.status === "submitted" ? "Update Team" : "Submit Team"}
