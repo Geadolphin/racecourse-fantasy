@@ -8,6 +8,8 @@ export type RoundLeaderboardRow = {
   round_rank: number;
   salary_used: number;
   runners_used: number;
+  captain_ran: boolean;
+  projected_score: number;
 };
 
 export type SeasonLeaderboardRow = {

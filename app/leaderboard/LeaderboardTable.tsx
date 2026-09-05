@@ -17,7 +17,7 @@ import {
 
 type Props = {
   type: "round" | "season";
-  rows: RoundLeaderboardRow[] | SeasonLeaderboardRow[];
+  rows?: RoundLeaderboardRow[] | SeasonLeaderboardRow[];
 };
 
 function RankChange({
@@ -44,7 +44,9 @@ function RankChange({
     return (
       <span
         className="inline-flex items-center justify-end gap-1 font-bold text-emerald-600"
-        title={`Up ${value} ${value === 1 ? "place" : "places"}`}
+        title={`Up ${value} ${
+          value === 1 ? "place" : "places"
+        }`}
       >
         <ArrowUp className="h-4 w-4" />
         {value}
@@ -69,7 +71,7 @@ function RankChange({
 
 export default function LeaderboardTable({
   type,
-  rows,
+  rows = [],
 }: Props) {
   const [currentUserId, setCurrentUserId] =
     useState<string | null>(null);
@@ -83,7 +85,9 @@ export default function LeaderboardTable({
         error,
       } = await supabase.auth.getUser();
 
-      if (!active) return;
+      if (!active) {
+        return;
+      }
 
       if (error) {
         console.error(
@@ -123,14 +127,32 @@ export default function LeaderboardTable({
       <table className="min-w-full">
         <thead className="bg-slate-100">
           <tr>
-            <th className="px-4 py-3 text-left">Rank</th>
-            <th className="px-4 py-3 text-left">Player</th>
-            <th className="px-4 py-3 text-right">Points</th>
+            <th className="px-4 py-3 text-left">
+              Rank
+            </th>
+
+            <th className="px-4 py-3 text-left">
+              Player
+            </th>
+
+            <th className="px-4 py-3 text-right">
+              Points
+            </th>
 
             {type === "round" && (
-              <th className="px-4 py-3 text-right">
-                Salary Used
-              </th>
+              <>
+                <th className="px-4 py-3 text-right">
+                  Projected
+                </th>
+
+                <th className="px-4 py-3 text-right">
+                  Runners
+                </th>
+
+                <th className="px-4 py-3 text-right">
+                  Salary Used
+                </th>
+              </>
             )}
 
             {type === "season" && (
@@ -159,12 +181,19 @@ export default function LeaderboardTable({
           {rows.map((row, index) => {
             const rank =
               type === "round"
-                ? (row as RoundLeaderboardRow).round_rank
-                : (row as SeasonLeaderboardRow).overall_rank;
+                ? (row as RoundLeaderboardRow)
+                    .round_rank
+                : (row as SeasonLeaderboardRow)
+                    .overall_rank;
 
             const isCurrentUser =
               currentUserId !== null &&
               row.user_id === currentUserId;
+
+            const roundRow =
+              type === "round"
+                ? (row as RoundLeaderboardRow)
+                : null;
 
             return (
               <tr
@@ -198,22 +227,52 @@ export default function LeaderboardTable({
                   {row.total_points}
                 </td>
 
-                {type === "round" && (
-                  <td className="px-4 py-4 text-right">
-                    $
-                    {(
-                      row as RoundLeaderboardRow
-                    ).salary_used.toLocaleString()}
-                  </td>
-                )}
+                {type === "round" &&
+                  roundRow && (
+                    <>
+                      <td className="px-4 py-4 text-right font-bold text-amber-600">
+                        {roundRow.projected_score ??
+                          0}
+                      </td>
+
+                      <td className="px-4 py-4 text-right">
+                        <div className="inline-flex items-center justify-end gap-2">
+                          <span className="font-semibold text-slate-700">
+                            {roundRow.runners_used ??
+                              0}
+                            /10
+                          </span>
+
+                          {roundRow.captain_ran ===
+                            true && (
+                            <span
+                              className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-amber-500 bg-amber-400 px-1.5 text-[11px] font-black text-amber-950 shadow-sm"
+                              title="Captain has raced"
+                            >
+                              C
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4 text-right">
+                        $
+                        {Number(
+                          roundRow.salary_used ??
+                            0
+                        ).toLocaleString()}
+                      </td>
+                    </>
+                  )}
 
                 {type === "season" && (
                   <>
                     <td className="px-4 py-4 text-right">
                       <RankChange
                         value={
-                          (row as SeasonLeaderboardRow)
-                            .rank_change
+                          (
+                            row as SeasonLeaderboardRow
+                          ).rank_change
                         }
                       />
                     </td>
