@@ -178,6 +178,18 @@ function getGradeLabel(grade: Race["grade"]) {
   return labels[grade];
 }
 
+
+function getGradePillClass(grade: Race["grade"]) {
+  const classes: Record<Race["grade"], string> = {
+    G1: "bg-amber-400 text-amber-950",
+    G2: "bg-slate-400 text-white",
+    G3: "bg-teal-500 text-white",
+    L: "bg-blue-100 text-blue-800",
+  };
+
+  return classes[grade];
+}
+
 function getEntryStatusLabel(status: EntryStatus) {
   const labels: Record<EntryStatus, string> = {
     runner: "Runner",
@@ -196,6 +208,8 @@ export default function EditTeamPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [salaryCap, setSalaryCap] = useState(0);
   const [entries, setEntries] = useState<RaceEntry[]>([]);
+  const [recentFormByHorseId, setRecentFormByHorseId] =
+    useState<Record<string, string | null>>({});
   const [roundLockouts, setRoundLockouts] =
     useState<RoundLockout[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
@@ -434,7 +448,45 @@ export default function EditTeamPage() {
       return;
     }
 
-    setEntries((entryData ?? []) as unknown as RaceEntry[]);
+    const loadedEntries = (entryData ?? []) as unknown as RaceEntry[];
+    setEntries(loadedEntries);
+
+    const horseIds = Array.from(
+      new Set(
+        loadedEntries
+          .map((entry) => entry.horse_id)
+          .filter((horseId): horseId is string => Boolean(horseId))
+      )
+    );
+
+    if (horseIds.length > 0) {
+      const { data: recentFormRows, error: recentFormError } =
+        await supabase.rpc("get_horse_recent_forms", {
+          p_horse_ids: horseIds,
+          p_season_id: currentRound.season_id,
+        });
+
+      if (recentFormError) {
+        console.error("Recent form load error:", recentFormError);
+        setRecentFormByHorseId({});
+      } else {
+        setRecentFormByHorseId(
+          Object.fromEntries(
+            (
+              (recentFormRows ?? []) as Array<{
+                horse_id: string;
+                recent_form: string | null;
+              }>
+            ).map((row) => [
+              row.horse_id,
+              row.recent_form ? String(row.recent_form) : null,
+            ])
+          )
+        );
+      }
+    } else {
+      setRecentFormByHorseId({});
+    }
 
     const { data: teamData, error: teamError } = await supabase
       .from("teams")
@@ -1701,6 +1753,14 @@ export default function EditTeamPage() {
                           )}
                           {isLocked && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">LOCKED</span>}
                         </div>
+                        {recentFormByHorseId[entry.horse_id] && (
+                          <p className="mt-1 text-left text-xs text-slate-500">
+                            <span className="font-semibold">Form:</span>{" "}
+                            <span className="font-bold tracking-[0.12em] text-slate-700">
+                              {recentFormByHorseId[entry.horse_id]}
+                            </span>
+                          </p>
+                        )}
                         <p className="mt-0.5 truncate text-xs text-slate-500">
                           {entry.race ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}` : "Race unavailable"}
                         </p>
@@ -1765,16 +1825,38 @@ export default function EditTeamPage() {
                       key={raceGroup?.id ?? "unassigned"}
                       className="self-start overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                     >
-                      <div className="border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
+                      <div
+                        className={`border-b px-4 py-3 ${
+                          raceGroup?.grade === "G1"
+                            ? "border-amber-500 bg-amber-400 text-amber-950"
+                            : "border-slate-200 bg-slate-950 text-white"
+                        }`}
+                      >
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="rounded bg-teal-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                              <span
+                                className={
+                                  raceGroup?.grade === "G1"
+                                    ? "text-[11px] font-black uppercase tracking-wide text-amber-950"
+                                    : `rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                        raceGroup
+                                          ? getGradePillClass(raceGroup.grade)
+                                          : "bg-slate-600 text-white"
+                                      }`
+                                }
+                              >
                                 {raceGroup ? getGradeLabel(raceGroup.grade) : "Race"}
                               </span>
 
                               {raceGroup && (
-                                <span className="text-[11px] font-black uppercase tracking-wide text-slate-300">
+                                <span
+                                  className={`text-[11px] font-black uppercase tracking-wide ${
+                                    raceGroup?.grade === "G1"
+                                      ? "text-amber-900"
+                                      : "text-slate-300"
+                                  }`}
+                                >
                                   {raceGroup.racecourse?.name ?? "Racecourse"} · Race {raceGroup.race_number}
                                 </span>
                               )}
@@ -1797,14 +1879,26 @@ export default function EditTeamPage() {
                             </h3>
 
                             {raceGroup && (
-                              <p className="mt-0.5 text-[11px] text-slate-400">
+                              <p
+                                  className={`mt-0.5 text-[11px] ${
+                                    raceGroup?.grade === "G1"
+                                      ? "text-amber-900"
+                                      : "text-slate-400"
+                                  }`}
+                                >
                                 {formatDateTime(raceGroup.scheduled_start)}
                                 {raceLockout ? ` · ${raceLockout.display_name}` : ""}
                               </p>
                             )}
                           </div>
 
-                          <span className="shrink-0 text-xs font-bold text-slate-400">
+                          <span
+                            className={`shrink-0 text-xs font-bold ${
+                              raceGroup?.grade === "G1"
+                                ? "text-amber-900"
+                                : "text-slate-400"
+                            }`}
+                          >
                             {raceEntries.length} runner{raceEntries.length === 1 ? "" : "s"}
                           </span>
                         </div>
@@ -1882,6 +1976,27 @@ export default function EditTeamPage() {
                                     </span>
                                   )}
                                   </div>
+
+                                  {recentFormByHorseId[entry.horse_id] && (
+                                    <div className="mt-1 flex items-center">
+                                      {entry.saddlecloth_number && (
+                                        <span
+                                          className="inline-flex min-w-5 shrink-0"
+                                          aria-hidden="true"
+                                        />
+                                      )}
+                                      <p
+                                        className={`text-left text-[11px] text-slate-500 ${
+                                          entry.saddlecloth_number ? "ml-1.5" : ""
+                                        }`}
+                                      >
+                                        <span className="font-semibold">Form:</span>{" "}
+                                        <span className="font-bold tracking-[0.12em] text-slate-700">
+                                          {recentFormByHorseId[entry.horse_id]}
+                                        </span>
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
@@ -2062,7 +2177,17 @@ export default function EditTeamPage() {
                                   Scratched
                                 </span>
                               )}
+
                               </div>
+
+                              {recentFormByHorseId[entry.horse_id] && (
+                                <p className="mt-1 text-left text-xs text-slate-500">
+                                  <span className="font-semibold">Form:</span>{" "}
+                                  <span className="font-bold tracking-[0.12em] text-slate-700">
+                                    {recentFormByHorseId[entry.horse_id]}
+                                  </span>
+                                </p>
+                              )}
                             </div>
 
                             <p className="shrink-0 text-lg font-semibold leading-tight text-slate-950">
