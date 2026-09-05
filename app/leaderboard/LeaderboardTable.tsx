@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -10,14 +10,14 @@ import {
 
 import { supabase } from "@/lib/supabase";
 
-import {
+import type {
   RoundLeaderboardRow,
   SeasonLeaderboardRow,
 } from "./types";
 
 type Props = {
   type: "round" | "season";
-  rows?: RoundLeaderboardRow[] | SeasonLeaderboardRow[];
+  rows?: RoundLeaderboardRow[] | SeasonLeaderboardRow[] | null;
 };
 
 function RankChange({
@@ -71,10 +71,22 @@ function RankChange({
 
 export default function LeaderboardTable({
   type,
-  rows = [],
+  rows,
 }: Props) {
   const [currentUserId, setCurrentUserId] =
     useState<string | null>(null);
+
+  /*
+   * Always resolve rows to an array.
+   *
+   * This protects the component during Next.js prerendering,
+   * even if the prop is undefined or null.
+   */
+  const safeRows = useMemo<
+    RoundLeaderboardRow[] | SeasonLeaderboardRow[]
+  >(() => {
+    return Array.isArray(rows) ? rows : [];
+  }, [rows]);
 
   useEffect(() => {
     let active = true;
@@ -107,7 +119,7 @@ export default function LeaderboardTable({
     };
   }, []);
 
-  if (rows.length === 0) {
+  if (safeRows.length === 0) {
     return (
       <div className="rounded-xl border bg-white p-10 text-center">
         <h2 className="text-xl font-bold text-slate-900">
@@ -178,13 +190,11 @@ export default function LeaderboardTable({
         </thead>
 
         <tbody>
-          {rows.map((row, index) => {
+          {safeRows.map((row, index) => {
             const rank =
               type === "round"
-                ? (row as RoundLeaderboardRow)
-                    .round_rank
-                : (row as SeasonLeaderboardRow)
-                    .overall_rank;
+                ? (row as RoundLeaderboardRow).round_rank
+                : (row as SeasonLeaderboardRow).overall_rank;
 
             const isCurrentUser =
               currentUserId !== null &&
@@ -197,7 +207,7 @@ export default function LeaderboardTable({
 
             return (
               <tr
-                key={`${row.user_id}-${index}`}
+                key={`${row.user_id ?? "unknown"}-${index}`}
                 className={`border-t transition ${
                   isCurrentUser
                     ? "bg-amber-200 hover:bg-amber-200"
@@ -205,16 +215,22 @@ export default function LeaderboardTable({
                 }`}
               >
                 <td className="px-4 py-4 font-bold">
-                  {rank}
+                  {rank ?? "—"}
                 </td>
 
                 <td className="px-4 py-4">
-                  <Link
-                    href={`/players/${row.user_id}`}
-                    className="font-semibold text-teal-700 hover:text-slate-950 hover:underline"
-                  >
-                    {row.display_name}
-                  </Link>
+                  {row.user_id ? (
+                    <Link
+                      href={`/players/${row.user_id}`}
+                      className="font-semibold text-teal-700 hover:text-slate-950 hover:underline"
+                    >
+                      {row.display_name ?? "Unknown"}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold text-slate-700">
+                      {row.display_name ?? "Unknown"}
+                    </span>
+                  )}
 
                   {isCurrentUser && (
                     <span className="ml-2 text-xs font-black uppercase tracking-wide text-amber-900">
@@ -224,46 +240,45 @@ export default function LeaderboardTable({
                 </td>
 
                 <td className="px-4 py-4 text-right font-bold">
-                  {row.total_points}
+                  {Number(row.total_points ?? 0)}
                 </td>
 
-                {type === "round" &&
-                  roundRow && (
-                    <>
-                      <td className="px-4 py-4 text-right font-bold text-amber-600">
-                        {roundRow.projected_score ??
-                          0}
-                      </td>
+                {type === "round" && roundRow && (
+                  <>
+                    <td className="px-4 py-4 text-right font-bold text-amber-600">
+                      {Number(
+                        roundRow.projected_score ?? 0
+                      )}
+                    </td>
 
-                      <td className="px-4 py-4 text-right">
-                        <div className="inline-flex items-center justify-end gap-2">
-                          <span className="font-semibold text-slate-700">
-                            {roundRow.runners_used ??
-                              0}
-                            /10
-                          </span>
-
-                          {roundRow.captain_ran ===
-                            true && (
-                            <span
-                              className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-amber-500 bg-amber-400 px-1.5 text-[11px] font-black text-amber-950 shadow-sm"
-                              title="Captain has raced"
-                            >
-                              C
-                            </span>
+                    <td className="px-4 py-4 text-right">
+                      <div className="inline-flex items-center justify-end gap-2">
+                        <span className="font-semibold text-slate-700">
+                          {Number(
+                            roundRow.runners_used ?? 0
                           )}
-                        </div>
-                      </td>
+                          /10
+                        </span>
 
-                      <td className="px-4 py-4 text-right">
-                        $
-                        {Number(
-                          roundRow.salary_used ??
-                            0
-                        ).toLocaleString()}
-                      </td>
-                    </>
-                  )}
+                        {roundRow.captain_ran === true && (
+                          <span
+                            className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-amber-500 bg-amber-400 px-1.5 text-[11px] font-black text-amber-950 shadow-sm"
+                            title="Captain has raced"
+                          >
+                            C
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-4 text-right">
+                      $
+                      {Number(
+                        roundRow.salary_used ?? 0
+                      ).toLocaleString()}
+                    </td>
+                  </>
+                )}
 
                 {type === "season" && (
                   <>
@@ -278,27 +293,27 @@ export default function LeaderboardTable({
                     </td>
 
                     <td className="px-4 py-4 text-right">
-                      {
+                      {Number(
                         (
                           row as SeasonLeaderboardRow
-                        ).rounds_played
-                      }
+                        ).rounds_played ?? 0
+                      )}
                     </td>
 
                     <td className="px-4 py-4 text-right">
-                      {
+                      {Number(
                         (
                           row as SeasonLeaderboardRow
-                        ).round_wins
-                      }
+                        ).round_wins ?? 0
+                      )}
                     </td>
 
                     <td className="px-4 py-4 text-right">
-                      {
+                      {Number(
                         (
                           row as SeasonLeaderboardRow
-                        ).highest_round_score
-                      }
+                        ).highest_round_score ?? 0
+                      )}
                     </td>
                   </>
                 )}
