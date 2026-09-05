@@ -313,7 +313,6 @@ export default function CompareTeamsPage() {
             lockout_at
           `
         )
-        .not("lockout_at", "is", null)
         .order("round_number", { ascending: false });
 
       if (!active) {
@@ -334,15 +333,66 @@ export default function CompareTeamsPage() {
       }
 
       const loadedRounds = (data ?? []) as RoundOption[];
-      const now = Date.now();
+      const roundIds = loadedRounds.map((round) => round.id);
 
-      const comparableRounds = loadedRounds.filter((round) => {
-        if (!round.lockout_at) {
-          return false;
+      const firstLockoutByRound = new Map<string, string>();
+
+      if (roundIds.length > 0) {
+        const {
+          data: lockoutRows,
+          error: lockoutError,
+        } = await supabase
+          .from("round_lockouts")
+          .select("round_id, lockout_at")
+          .in("round_id", roundIds)
+          .order("lockout_at", { ascending: true });
+
+        if (!active) {
+          return;
         }
 
-        return new Date(round.lockout_at).getTime() <= now;
-      });
+        if (lockoutError) {
+          console.error(
+            "Comparison round lockouts load error:",
+            lockoutError
+          );
+        } else {
+          for (const row of lockoutRows ?? []) {
+            const roundId = String(row.round_id);
+            const lockoutAt = row.lockout_at
+              ? String(row.lockout_at)
+              : null;
+
+            if (
+              lockoutAt &&
+              !firstLockoutByRound.has(roundId)
+            ) {
+              firstLockoutByRound.set(roundId, lockoutAt);
+            }
+          }
+        }
+      }
+
+      const roundsWithComparisonLockout = loadedRounds.map(
+        (round) => ({
+          ...round,
+          lockout_at:
+            firstLockoutByRound.get(round.id) ??
+            round.lockout_at,
+        })
+      );
+
+      const now = Date.now();
+
+      const comparableRounds = roundsWithComparisonLockout.filter(
+        (round) => {
+          if (!round.lockout_at) {
+            return false;
+          }
+
+          return new Date(round.lockout_at).getTime() <= now;
+        }
+      );
 
       setRounds(comparableRounds);
 
