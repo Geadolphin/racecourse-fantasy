@@ -76,12 +76,6 @@ export default function LeaderboardTable({
   const [currentUserId, setCurrentUserId] =
     useState<string | null>(null);
 
-  /*
-   * Always resolve rows to an array.
-   *
-   * This protects the component during Next.js prerendering,
-   * even if the prop is undefined or null.
-   */
   const safeRows = useMemo<
     RoundLeaderboardRow[] | SeasonLeaderboardRow[]
   >(() => {
@@ -239,39 +233,41 @@ export default function LeaderboardTable({
                   )}
                 </td>
 
-                <td className="px-4 py-4 text-right font-bold">
+                <td className="px-4 py-4 text-right font-bold tabular-nums">
                   {Number(row.total_points ?? 0)}
                 </td>
 
                 {type === "round" && roundRow && (
                   <>
-                    <td className="px-4 py-4 text-right font-bold text-amber-600">
+                    <td className="px-4 py-4 text-right font-bold tabular-nums text-amber-600">
                       {Number(
                         roundRow.projected_score ?? 0
                       )}
                     </td>
 
                     <td className="px-4 py-4 text-right">
-                      <div className="inline-flex items-center justify-end gap-2">
-                        <span className="font-semibold text-slate-700">
+                      <div className="inline-grid grid-cols-[48px_28px] items-center justify-end gap-2">
+                        <span className="text-right font-semibold tabular-nums text-slate-700">
                           {Number(
                             roundRow.runners_used ?? 0
                           )}
                           /10
                         </span>
 
-                        {roundRow.captain_ran === true && (
-                          <span
-                            className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-amber-500 bg-amber-400 px-1.5 text-[11px] font-black text-amber-950 shadow-sm"
-                            title="Captain has raced"
-                          >
-                            C
-                          </span>
-                        )}
+                        <span className="flex h-6 w-7 items-center justify-center">
+                          {roundRow.captain_ran === true && (
+                            <span
+                              className="inline-flex h-6 min-w-6 items-center justify-center rounded-full border border-amber-500 bg-amber-400 px-1.5 text-[11px] font-black text-amber-950 shadow-sm"
+                              title="Captain has raced"
+                            >
+                              C
+                            </span>
+                          )}
+                        </span>
                       </div>
                     </td>
 
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-4 py-4 text-right tabular-nums">
                       $
                       {Number(
                         roundRow.salary_used ?? 0
@@ -292,7 +288,7 @@ export default function LeaderboardTable({
                       />
                     </td>
 
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-4 py-4 text-right tabular-nums">
                       {Number(
                         (
                           row as SeasonLeaderboardRow
@@ -300,7 +296,7 @@ export default function LeaderboardTable({
                       )}
                     </td>
 
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-4 py-4 text-right tabular-nums">
                       {Number(
                         (
                           row as SeasonLeaderboardRow
@@ -308,7 +304,7 @@ export default function LeaderboardTable({
                       )}
                     </td>
 
-                    <td className="px-4 py-4 text-right">
+                    <td className="px-4 py-4 text-right tabular-nums">
                       {Number(
                         (
                           row as SeasonLeaderboardRow
