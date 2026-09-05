@@ -151,8 +151,14 @@ export default function LeaderboardTable({
                   Projected
                 </th>
 
-                <th className="px-4 py-3 text-right">
-                  Runners
+                <th className="px-4 py-3">
+                  <div className="inline-grid w-full grid-cols-[48px_28px] items-center justify-end gap-2">
+                    <span className="text-right">
+                      Runners
+                    </span>
+
+                    <span className="w-7" />
+                  </div>
                 </th>
 
                 <th className="px-4 py-3 text-right">
@@ -245,8 +251,8 @@ export default function LeaderboardTable({
                       )}
                     </td>
 
-                    <td className="px-4 py-4 text-right">
-                      <div className="inline-grid grid-cols-[48px_28px] items-center justify-end gap-2">
+                    <td className="px-4 py-4">
+                      <div className="inline-grid w-full grid-cols-[48px_28px] items-center justify-end gap-2">
                         <span className="text-right font-semibold tabular-nums text-slate-700">
                           {Number(
                             roundRow.runners_used ?? 0
