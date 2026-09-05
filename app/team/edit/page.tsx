@@ -206,6 +206,7 @@ export default function EditTeamPage() {
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
+  const [isSpecialAutofillTeam, setIsSpecialAutofillTeam] = useState(false);
   const [salaryCap, setSalaryCap] = useState(0);
   const [entries, setEntries] = useState<RaceEntry[]>([]);
   const [recentFormByHorseId, setRecentFormByHorseId] =
@@ -265,6 +266,19 @@ export default function EditTeamPage() {
       setErrorMessage("You must be signed in to edit your team.");
       setLoading(false);
       return;
+    }
+
+    const { data: specialAutofillData, error: specialAutofillError } =
+      await supabase.rpc("is_special_lockout_autofill_user");
+
+    if (specialAutofillError) {
+      console.error(
+        "Special autofill status load error:",
+        specialAutofillError
+      );
+      setIsSpecialAutofillTeam(false);
+    } else {
+      setIsSpecialAutofillTeam(Boolean(specialAutofillData));
     }
 
     const { data: roundData, error: roundError } = await supabase
@@ -1193,96 +1207,181 @@ export default function EditTeamPage() {
       entryIds: string[];
     };
 
-    const randomCandidateGroups = shuffle(
-      [...candidateGroups.values()].map((horseEntries) =>
-        shuffle(horseEntries)
-      )
-    );
-
-    let states: Map<number, FillState>[] = Array.from(
-      { length: spotsToFill + 1 },
-      () => new Map<number, FillState>()
-    );
-
-    states[0].set(0, {
-      cost: 0,
-      entryIds: [],
-    });
-
-    for (const horseEntries of randomCandidateGroups) {
-      const nextStates = states.map(
-        (group) => new Map<number, FillState>(group)
+    function findRandomAffordableSolution(
+      groups: RaceEntry[][]
+    ): FillState | null {
+      const randomCandidateGroups = shuffle(
+        groups.map((horseEntries) => shuffle(horseEntries))
       );
 
-      for (let count = 0; count < spotsToFill; count += 1) {
-        const currentStates = shuffle([...states[count].values()]);
+      let states: Map<number, FillState>[] = Array.from(
+        { length: spotsToFill + 1 },
+        () => new Map<number, FillState>()
+      );
 
-        for (const state of currentStates) {
-          for (const entry of horseEntries) {
-            const newCost = state.cost + entry.price_at_entry;
+      states[0].set(0, {
+        cost: 0,
+        entryIds: [],
+      });
 
-            if (newCost > remainingBudget) {
-              continue;
-            }
+      for (const horseEntries of randomCandidateGroups) {
+        const nextStates = states.map(
+          (group) => new Map<number, FillState>(group)
+        );
 
-            const newState: FillState = {
-              cost: newCost,
-              entryIds: [...state.entryIds, entry.id],
-            };
+        for (let count = 0; count < spotsToFill; count += 1) {
+          const currentStates = shuffle([...states[count].values()]);
 
-            const existing = nextStates[count + 1].get(newCost);
+          for (const state of currentStates) {
+            for (const entry of horseEntries) {
+              const newCost = state.cost + entry.price_at_entry;
 
-            // Keep a random valid combination when multiple teams have the
-            // same cost so repeated Fill Team clicks produce different teams.
-            if (!existing || Math.random() < 0.5) {
-              nextStates[count + 1].set(newCost, newState);
+              if (newCost > remainingBudget) {
+                continue;
+              }
+
+              const newState: FillState = {
+                cost: newCost,
+                entryIds: [...state.entryIds, entry.id],
+              };
+
+              const existing = nextStates[count + 1].get(newCost);
+
+              if (!existing || Math.random() < 0.5) {
+                nextStates[count + 1].set(newCost, newState);
+              }
             }
           }
         }
+
+        states = nextStates;
       }
 
-      states = nextStates;
+      const solutions = [...states[spotsToFill].values()];
+
+      if (solutions.length === 0) {
+        return null;
+      }
+
+      return solutions[Math.floor(Math.random() * solutions.length)];
     }
 
-    const solutions = [...states[spotsToFill].values()];
+    let chosenSolution: FillState | null = null;
+    let usedSpecialPoolSize: number | null = null;
 
-    if (solutions.length === 0) {
+    if (isSpecialAutofillTeam) {
+      // Special teams draw randomly from the highest-projected horses first.
+      // Start with the top 20 unique available horses. Only expand beyond the
+      // top 20 when no affordable combination can complete the team.
+      const projectedCandidateGroups = [...candidateGroups.values()].sort(
+        (groupA, groupB) => {
+          const bestProjectionA = Math.max(
+            ...groupA.map((entry) => entry.projected_points ?? -1)
+          );
+          const bestProjectionB = Math.max(
+            ...groupB.map((entry) => entry.projected_points ?? -1)
+          );
+
+          if (bestProjectionA !== bestProjectionB) {
+            return bestProjectionB - bestProjectionA;
+          }
+
+          const cheapestA = Math.min(
+            ...groupA.map((entry) => entry.price_at_entry)
+          );
+          const cheapestB = Math.min(
+            ...groupB.map((entry) => entry.price_at_entry)
+          );
+
+          return cheapestA - cheapestB;
+        }
+      );
+
+      const initialPoolSize = Math.min(
+        projectedCandidateGroups.length,
+        Math.max(20, spotsToFill)
+      );
+
+      for (
+        let poolSize = initialPoolSize;
+        poolSize <= projectedCandidateGroups.length;
+        poolSize += 1
+      ) {
+        const solution = findRandomAffordableSolution(
+          projectedCandidateGroups.slice(0, poolSize)
+        );
+
+        if (solution) {
+          chosenSolution = solution;
+          usedSpecialPoolSize = poolSize;
+          break;
+        }
+      }
+    } else {
+      chosenSolution = findRandomAffordableSolution(
+        [...candidateGroups.values()]
+      );
+    }
+
+    if (!chosenSolution) {
       setErrorMessage(
         `A valid ${teamSize}-horse team cannot be completed within your remaining salary cap.`
       );
       return;
     }
 
-    const randomSolution =
-      solutions[Math.floor(Math.random() * solutions.length)];
-
     const completedEntryIds = [
       ...selectedEntryIds,
-      ...randomSolution.entryIds,
+      ...chosenSolution.entryIds,
     ];
 
     setSelectedEntryIds(completedEntryIds);
 
-    // If the captain is not already locked, choose a random captain from the
-    // completed team. Projected points are deliberately ignored.
     if (!lockedCaptainEntryId) {
-      const captainCandidates = completedEntryIds.filter(
-        (entryId) => !entryIdIsLocked(entryId)
-      );
+      const captainCandidates = completedEntryIds
+        .map((entryId) => entries.find((entry) => entry.id === entryId))
+        .filter((entry): entry is RaceEntry => Boolean(entry))
+        .filter((entry) => !entryIdIsLocked(entry.id));
 
       if (captainCandidates.length > 0) {
-        const randomCaptainId =
-          captainCandidates[
-            Math.floor(Math.random() * captainCandidates.length)
-          ];
+        if (isSpecialAutofillTeam) {
+          const highestProjectedCaptain = [...captainCandidates].sort(
+            (a, b) => {
+              const projectionDifference =
+                (b.projected_points ?? -1) -
+                (a.projected_points ?? -1);
 
-        setCaptainEntryId(randomCaptainId);
+              if (projectionDifference !== 0) {
+                return projectionDifference;
+              }
+
+              return a.price_at_entry - b.price_at_entry;
+            }
+          )[0];
+
+          setCaptainEntryId(highestProjectedCaptain.id);
+        } else {
+          const randomCaptain =
+            captainCandidates[
+              Math.floor(Math.random() * captainCandidates.length)
+            ];
+
+          setCaptainEntryId(randomCaptain.id);
+        }
       }
     }
 
-    setSuccessMessage(
-      "Team filled randomly within your salary cap, with a random eligible captain. Review it before saving or submitting."
-    );
+    if (isSpecialAutofillTeam) {
+      setSuccessMessage(
+        usedSpecialPoolSize && usedSpecialPoolSize > 20
+          ? `Team filled randomly from the highest-projected horses that could fit your salary cap. The search expanded to the top ${usedSpecialPoolSize} because the top 20 alone could not complete the team. Your highest-projected eligible horse was made captain.`
+          : "Team filled randomly from the top 20 highest-projected available horses within your salary cap. Your highest-projected eligible horse was made captain."
+      );
+    } else {
+      setSuccessMessage(
+        "Team filled randomly within your salary cap, with a random eligible captain. Review it before saving or submitting."
+      );
+    }
   }
 
   function selectCaptain(entryId: string) {
