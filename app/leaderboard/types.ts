@@ -7,6 +7,7 @@ export type RoundLeaderboardRow = {
   captain_points: number;
   round_rank: number;
   salary_used: number;
+  runners_used: number;
 };
 
 export type SeasonLeaderboardRow = {
