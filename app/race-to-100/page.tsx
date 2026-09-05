@@ -220,6 +220,7 @@ export default function RaceTo100Page() {
   const [movingHorseId, setMovingHorseId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [respinAvailable, setRespinAvailable] = useState(true);
 
   const selectedSet = useMemo(
     () => new Set(selectedHorses.map((runner) => runner.horse.id)),
@@ -396,6 +397,16 @@ export default function RaceTo100Page() {
   }
 
 
+
+  async function handleRespin() {
+    if (!currentRace || !respinAvailable || loading) return;
+
+    setRespinAvailable(false);
+    setCurrentRace(null);
+    setCurrentRunners([]);
+    await getRandomRace();
+  }
+
   async function shareTeam() {
     if (!gameComplete) return;
 
@@ -569,6 +580,7 @@ export default function RaceTo100Page() {
     setMovingHorseId(null);
     setError(null);
     setShareMessage(null);
+    setRespinAvailable(true);
     setHardMode(false);
     setStarted(false);
   }
@@ -1064,6 +1076,15 @@ export default function RaceTo100Page() {
                       {currentRace.race_grade && <span>{currentRace.race_grade}</span>}
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    disabled={!respinAvailable || loading}
+                    onClick={handleRespin}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm font-bold transition hover:border-amber-400 disabled:opacity-40 sm:w-auto sm:py-2"
+                  >
+                    {respinAvailable ? "RESPIN" : "RESPIN USED"}
+                  </button>
                 </div>
 
                 <div className="p-3 sm:p-4">

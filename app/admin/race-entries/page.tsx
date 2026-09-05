@@ -82,6 +82,11 @@ type ProjectionFormRow = {
   finish_position: number | "";
 };
 
+type RecentFormRow = {
+  horse_id: string;
+  recent_form: string | null;
+};
+
 
 const emptyEntry: EntryForm = {
   race_id: "",
@@ -163,9 +168,21 @@ export default function RaceEntriesPage() {
   const [formRatingsByHorseId, setFormRatingsByHorseId] =
     useState<Record<string, number | null>>({});
 
+  const [recentFormsByHorseId, setRecentFormsByHorseId] =
+    useState<Record<string, string>>({});
+  const [showRecentFormModal, setShowRecentFormModal] = useState(false);
+  const [recentFormEntry, setRecentFormEntry] = useState<RaceEntry | null>(null);
+  const [recentFormValue, setRecentFormValue] = useState("");
+  const [recentFormErrorMessage, setRecentFormErrorMessage] = useState("");
+  const [recentFormSaving, setRecentFormSaving] = useState(false);
+
   useEffect(() => {
     void loadPageData();
   }, []);
+
+  useEffect(() => {
+    void loadRecentForms();
+  }, [selectedSeasonId, entries]);
 
   async function loadPageData() {
     setLoading(true);
@@ -383,6 +400,126 @@ export default function RaceEntriesPage() {
     });
 
     setLoading(false);
+  }
+
+  async function loadRecentForms() {
+    if (!selectedSeasonId || entries.length === 0) {
+      setRecentFormsByHorseId({});
+      return;
+    }
+
+    const horseIds = Array.from(
+      new Set(entries.map((entry) => entry.horse_id))
+    );
+
+    if (horseIds.length === 0) {
+      setRecentFormsByHorseId({});
+      return;
+    }
+
+    const { data, error } = await supabase.rpc(
+      "get_horse_recent_forms",
+      {
+        p_horse_ids: horseIds,
+        p_season_id: selectedSeasonId,
+      }
+    );
+
+    if (error) {
+      console.error("Could not load recent forms:", error);
+      return;
+    }
+
+    setRecentFormsByHorseId(
+      Object.fromEntries(
+        ((data ?? []) as RecentFormRow[]).map((row) => [
+          row.horse_id,
+          row.recent_form ?? "",
+        ])
+      )
+    );
+  }
+
+  async function openRecentFormModal(entry: RaceEntry) {
+    setRecentFormEntry(entry);
+    setRecentFormErrorMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "get_horse_recent_form_seed",
+      {
+        p_horse_id: entry.horse_id,
+        p_season_id: selectedSeasonId,
+      }
+    );
+
+    if (error) {
+      console.error("Could not load recent form seed:", error);
+      setRecentFormErrorMessage(error.message);
+      setRecentFormValue("");
+    } else {
+      const payload = data as { recent_form?: string | null } | null;
+      setRecentFormValue(payload?.recent_form ?? "");
+    }
+
+    setShowRecentFormModal(true);
+  }
+
+  function closeRecentFormModal() {
+    if (recentFormSaving) {
+      return;
+    }
+
+    setShowRecentFormModal(false);
+    setRecentFormEntry(null);
+    setRecentFormValue("");
+    setRecentFormErrorMessage("");
+  }
+
+  async function saveRecentForm(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!recentFormEntry || !selectedSeasonId) {
+      return;
+    }
+
+    const normalisedForm = recentFormValue
+      .trim()
+      .toUpperCase();
+
+    if (
+      normalisedForm &&
+      !/^[0-9-]{1,5}$/.test(normalisedForm)
+    ) {
+      setRecentFormErrorMessage(
+        "Recent form can contain up to five characters using 0-9 and - only."
+      );
+      return;
+    }
+
+    setRecentFormSaving(true);
+    setRecentFormErrorMessage("");
+
+    const { error } = await supabase.rpc(
+      "save_horse_recent_form_seed",
+      {
+        p_horse_id: recentFormEntry.horse_id,
+        p_season_id: selectedSeasonId,
+        p_recent_form: normalisedForm,
+      }
+    );
+
+    if (error) {
+      console.error("Could not save recent form:", error);
+      setRecentFormErrorMessage(error.message);
+      setRecentFormSaving(false);
+      return;
+    }
+
+    setRecentFormSaving(false);
+    closeRecentFormModal();
+    await loadRecentForms();
   }
 
   async function openProjectionModal(entry: RaceEntry) {
@@ -1775,6 +1912,10 @@ export default function RaceEntriesPage() {
                                           </th>
 
                                           <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                            Recent Form
+                                          </th>
+
+                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                                             Entry Price
                                           </th>
 
@@ -1813,6 +1954,14 @@ export default function RaceEntriesPage() {
 
                                             <td className="px-4 py-4 font-semibold text-slate-900">
                                               {getHorseName(entry)}
+                                            </td>
+
+                                            <td className="px-4 py-4">
+                                              <span className="font-mono text-sm font-black tracking-[0.18em] text-slate-800">
+                                                {recentFormsByHorseId[
+                                                  entry.horse_id
+                                                ] || "—"}
+                                              </span>
                                             </td>
 
                                             <td className="px-4 py-4 text-sm text-slate-700">
@@ -1862,6 +2011,16 @@ export default function RaceEntriesPage() {
 
                                             <td className="px-4 py-4">
                                               <div className="flex flex-wrap gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    openRecentFormModal(entry)
+                                                  }
+                                                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100"
+                                                >
+                                                  Recent Form
+                                                </button>
+
                                                 <button
                                                   type="button"
                                                   onClick={() =>
@@ -1917,6 +2076,93 @@ export default function RaceEntriesPage() {
           })}
         </div>
       )}
+
+      <AdminModal
+        isOpen={showRecentFormModal}
+        title="Recent Form"
+        description={
+          recentFormEntry
+            ? `Set the starting recent form for ${getHorseName(recentFormEntry)} in the selected season.`
+            : "Set starting recent form."
+        }
+        onClose={closeRecentFormModal}
+        maxWidth="md"
+      >
+        <form
+          onSubmit={saveRecentForm}
+          className="space-y-5"
+        >
+          {recentFormErrorMessage && (
+            <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+              {recentFormErrorMessage}
+            </div>
+          )}
+
+          {recentFormEntry && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="font-bold text-slate-900">
+                {getHorseName(recentFormEntry)}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                This is the horse&apos;s starting form for the selected season.
+                Official Racecourse Fantasy results are appended automatically.
+              </p>
+            </div>
+          )}
+
+          <div>
+            <label
+              htmlFor="recent-form"
+              className="mb-1 block font-medium"
+            >
+              Starting Recent Form
+            </label>
+
+            <input
+              id="recent-form"
+              type="text"
+              maxLength={5}
+              value={recentFormValue}
+              onChange={(event) =>
+                setRecentFormValue(
+                  event.target.value
+                    .toUpperCase()
+                    .replace(/[^0-9-]/g, "")
+                    .slice(0, 5)
+                )
+              }
+              placeholder="e.g. 125-4"
+              className="w-full rounded-lg border p-3 font-mono text-lg font-black tracking-[0.18em]"
+            />
+
+            <p className="mt-2 text-sm text-slate-500">
+              Use 1-9 for finishing positions, 0 for 10th or worse, and - for a spell.
+              The newest character should be on the right. After each official season
+              run, the new result is added automatically and only the latest five
+              characters are displayed.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={closeRecentFormModal}
+              disabled={recentFormSaving}
+              className="rounded-lg border px-5 py-3 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              disabled={recentFormSaving}
+              className="rounded-lg bg-amber-500 px-5 py-3 font-semibold text-amber-950 hover:bg-amber-400 disabled:bg-slate-300"
+            >
+              {recentFormSaving ? "Saving..." : "Save Recent Form"}
+            </button>
+          </div>
+        </form>
+      </AdminModal>
 
       <AdminModal
         isOpen={showProjectionModal}

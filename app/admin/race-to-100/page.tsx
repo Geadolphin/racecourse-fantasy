@@ -26,6 +26,7 @@ type RunnerRow = {
   id: number;
   race_id: string;
   horse_id: string;
+  finishing_position: number | null;
 };
 
 type Runner = RunnerRow & {
@@ -190,7 +191,7 @@ export default function RaceTo100AdminPage() {
     try {
       const { data: runnerRows, error: runnerError } = await supabase
         .from("race_to_100_runners")
-        .select("id,race_id,horse_id")
+        .select("id,race_id,horse_id,finishing_position")
         .eq("race_id", raceId);
 
       if (runnerError) throw runnerError;
@@ -261,6 +262,82 @@ export default function RaceTo100AdminPage() {
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Could not add horse to race.",
+      );
+    } finally {
+      setWorkingHorseId(null);
+    }
+  }
+
+  async function setTopThreeFinish(
+    runner: Runner,
+    finishingPosition: number | null,
+  ) {
+    if (!selectedRaceId) return;
+
+    setWorkingHorseId(runner.horse.id);
+    setError(null);
+    setMessage(null);
+
+    try {
+      // Keep each top-three position unique within the selected race.
+      if (finishingPosition !== null) {
+        const existingRunner = runners.find(
+          (item) =>
+            item.id !== runner.id &&
+            item.finishing_position === finishingPosition,
+        );
+
+        if (existingRunner) {
+          const { error: clearError } = await supabase
+            .from("race_to_100_runners")
+            .update({ finishing_position: null })
+            .eq("id", existingRunner.id);
+
+          if (clearError) throw clearError;
+        }
+      }
+
+      const { error: updateError } = await supabase
+        .from("race_to_100_runners")
+        .update({ finishing_position: finishingPosition })
+        .eq("id", runner.id);
+
+      if (updateError) throw updateError;
+
+      setRunners((current) =>
+        current.map((item) => {
+          if (
+            finishingPosition !== null &&
+            item.id !== runner.id &&
+            item.finishing_position === finishingPosition
+          ) {
+            return { ...item, finishing_position: null };
+          }
+
+          if (item.id === runner.id) {
+            return { ...item, finishing_position: finishingPosition };
+          }
+
+          return item;
+        }),
+      );
+
+      setMessage(
+        finishingPosition === null
+          ? `${runner.horse.name} top-three finish cleared.`
+          : `${runner.horse.name} saved as ${
+              finishingPosition === 1
+                ? "1st"
+                : finishingPosition === 2
+                  ? "2nd"
+                  : "3rd"
+            }.`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not save finishing position.",
       );
     } finally {
       setWorkingHorseId(null);
@@ -606,7 +683,7 @@ export default function RaceTo100AdminPage() {
           </h1>
 
           <p className="mt-2 text-sm text-slate-400">
-            Manage race fields and runner silks for the Race to 100 game.
+            Manage race fields, hidden top-three results and runner silks for the Race to 100 game.
           </p>
         </div>
 
@@ -811,7 +888,7 @@ export default function RaceTo100AdminPage() {
                 <div>
                   <h2 className="text-xl font-black">Current Field</h2>
                   <p className="mt-1 text-sm text-slate-500">
-                    Horses currently assigned to this race.
+                    Horses currently assigned to this race. Set only 1st, 2nd and 3rd here.
                   </p>
                 </div>
 
@@ -861,6 +938,33 @@ export default function RaceTo100AdminPage() {
                             {horseCategories(runner.horse)}
                           </div>
                         </div>
+
+                        <label className="shrink-0">
+                          <div className="mb-1 text-[9px] font-bold uppercase text-slate-500">
+                            Finish
+                          </div>
+                          <select
+                            value={
+                              runner.finishing_position === null
+                                ? ""
+                                : String(runner.finishing_position)
+                            }
+                            disabled={workingHorseId === runner.horse.id}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setTopThreeFinish(
+                                runner,
+                                value ? Number(value) : null,
+                              );
+                            }}
+                            className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-xs font-black text-white outline-none focus:border-amber-400 disabled:opacity-50"
+                          >
+                            <option value="">—</option>
+                            <option value="1">1st</option>
+                            <option value="2">2nd</option>
+                            <option value="3">3rd</option>
+                          </select>
+                        </label>
 
                         <div className="shrink-0 rounded-lg border border-slate-800 px-3 py-2 text-center">
                           <div className="text-lg font-black">
