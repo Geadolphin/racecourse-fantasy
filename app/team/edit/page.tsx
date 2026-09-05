@@ -293,7 +293,7 @@ export default function EditTeamPage() {
           lockout_at
         `
       )
-      .eq("status", "open")
+      .in("status", ["open", "locked"])
       .order("lockout_at", {
         ascending: true,
       })
@@ -666,7 +666,6 @@ export default function EditTeamPage() {
 
   const teamIsEditable =
     round !== null &&
-    round.status === "open" &&
     !allLockoutsHaveStarted;
 
   function getEntryLockout(entry: RaceEntry) {
