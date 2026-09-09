@@ -445,354 +445,164 @@ export default function LeaderboardPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-100 p-8">
-        <div className="mx-auto max-w-6xl rounded-xl bg-white p-10 text-center">
-          Loading leaderboard...
+      <main className="min-h-screen bg-slate-100">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center font-semibold text-slate-500 shadow-sm">
+            Loading leaderboard...
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10">
-        <header className="mb-7 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white shadow-lg">
-          <div className="border-b border-slate-800 px-6 py-4 md:px-8">
-            <div className="flex items-center gap-2 text-teal-300">
-              <Trophy className="h-5 w-5" />
+    <main className="min-h-screen bg-slate-100 pb-10">
+      {/* Full-width branded hero */}
+      <header className="overflow-hidden border-b border-sky-300 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 text-white shadow-sm">
+        <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 md:py-9">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-white/90">
+                <Trophy className="h-5 w-5" />
+                <p className="text-xs font-black uppercase tracking-[0.22em]">
+                  Racecourse Fantasy
+                </p>
+              </div>
 
-              <p className="text-xs font-black uppercase tracking-[0.22em]">
-                Racecourse Fantasy
+              <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-white/80">
+                Official Rankings
+              </p>
+
+              <h1 className="mt-1 text-4xl font-black tracking-tight md:text-5xl">
+                Leaderboard
+              </h1>
+
+              <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-white/90 sm:text-base">
+                See how your team ranks across each round and the full season.
               </p>
             </div>
+
+            <div className="w-full rounded-xl border border-white/30 bg-white/15 px-4 py-3 shadow-sm backdrop-blur-md md:w-auto md:min-w-[320px]">
+              <label
+                htmlFor="leaderboard-viewing"
+                className="text-[10px] font-black uppercase tracking-[0.16em] text-white/75"
+              >
+                Viewing
+              </label>
+
+              <select
+                id="leaderboard-viewing"
+                value={
+                  tab === "round"
+                    ? selectedRoundId
+                    : selectedSeasonId
+                }
+                onChange={(event) => {
+                  if (tab === "round") {
+                    setSelectedRoundId(event.target.value);
+                  } else {
+                    setSelectedSeasonId(event.target.value);
+                  }
+                }}
+                className="mt-1.5 w-full rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-sm font-black text-white outline-none backdrop-blur-md focus:border-white/60 focus:ring-2 focus:ring-white/20"
+              >
+                {tab === "round" ? (
+                  seasonRounds.length > 0 ? (
+                    seasonRounds.map((round) => (
+                      <option
+                        key={round.id}
+                        value={round.id}
+                        className="text-slate-950"
+                      >
+                        Round {round.round_number}
+                        {round.name ? ` — ${round.name}` : ""}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled className="text-slate-950">
+                      No round results available
+                    </option>
+                  )
+                ) : seasons.length > 0 ? (
+                  seasons.map((season) => (
+                    <option
+                      key={season.id}
+                      value={season.id}
+                      className="text-slate-950"
+                    >
+                      {season.name} {season.year}
+                      {season.is_active ? " — Active" : ""}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled className="text-slate-950">
+                    No seasons available
+                  </option>
+                )}
+              </select>
+            </div>
           </div>
+        </div>
+      </header>
 
-          <div className="p-6 md:p-8">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
-              Official Rankings
-            </p>
-
-            <h1 className="mt-2 text-4xl font-black tracking-tight md:text-5xl">
-              Leaderboard
-            </h1>
-
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
-              See how your team ranks
-              against the Racecourse
-              Fantasy field across each
-              round and the full season.
-            </p>
-          </div>
-        </header>
-
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 md:py-8">
         {error && (
           <div className="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 font-medium text-red-700">
             {error}
           </div>
         )}
 
-        <div className="mb-6 inline-flex overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
+        {/* Round / Overall switch */}
+        <div className="mb-5 grid max-w-md grid-cols-2 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
           <button
             type="button"
-            onClick={() =>
-              setTab("round")
-            }
-            className={`px-6 py-3 text-sm font-black transition ${
+            onClick={() => setTab("round")}
+            className={`rounded-lg px-4 py-2.5 text-sm font-black transition ${
               tab === "round"
-                ? "bg-slate-950 text-teal-300"
-                : "bg-white text-slate-700 hover:bg-slate-50"
+                ? "bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
             }`}
           >
-            Round Rankings
+            Round
           </button>
 
           <button
             type="button"
-            onClick={() =>
-              setTab("season")
-            }
-            className={`border-l border-slate-300 px-6 py-3 text-sm font-black transition ${
+            onClick={() => setTab("season")}
+            className={`rounded-lg px-4 py-2.5 text-sm font-black transition ${
               tab === "season"
-                ? "bg-slate-950 text-teal-300"
-                : "bg-white text-slate-700 hover:bg-slate-50"
+                ? "bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
             }`}
           >
-            Season Rankings
+            Overall
           </button>
         </div>
 
-        {tab === "round" ? (
-          <>
-            <section className="mb-6 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
-              <div className="border-b border-slate-800 bg-slate-950 px-5 py-3 text-white">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
-                  Round Competition
-                </p>
-              </div>
+        {/* Stronger context heading */}
+        <div className="mb-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-600">
+            {tab === "round" ? "Round Competition" : "Season Competition"}
+          </p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
+            {tab === "round"
+              ? selectedRound
+                ? `Round ${selectedRound.round_number}${selectedRound.name ? ` · ${selectedRound.name}` : ""}`
+                : "Round Rankings"
+              : selectedSeason
+                ? `${selectedSeason.name} ${selectedSeason.year}`
+                : "Season Rankings"}
+          </h2>
+        </div>
 
-              <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
-                <div>
-                  <label
-                    htmlFor="leaderboard-round-season"
-                    className="block text-xs font-black uppercase tracking-wide text-slate-600"
-                  >
-                    Select season
-                  </label>
-
-                  <select
-                    id="leaderboard-round-season"
-                    value={
-                      selectedSeasonId
-                    }
-                    onChange={(event) =>
-                      setSelectedSeasonId(
-                        event.target.value
-                      )
-                    }
-                    disabled={
-                      !Array.isArray(
-                        seasons
-                      ) ||
-                      seasons.length === 0
-                    }
-                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                  >
-                    {!Array.isArray(
-                      seasons
-                    ) ||
-                    seasons.length ===
-                      0 ? (
-                      <option value="">
-                        No seasons available
-                      </option>
-                    ) : (
-                      seasons.map(
-                        (season) => (
-                          <option
-                            key={
-                              season.id
-                            }
-                            value={
-                              season.id
-                            }
-                          >
-                            {
-                              season.name
-                            }{" "}
-                            {
-                              season.year
-                            }
-                            {season.is_active
-                              ? " — Active"
-                              : ""}
-                          </option>
-                        )
-                      )
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="leaderboard-round"
-                    className="block text-xs font-black uppercase tracking-wide text-slate-600"
-                  >
-                    Select round
-                  </label>
-
-                  <select
-                    id="leaderboard-round"
-                    value={
-                      selectedRoundId
-                    }
-                    onChange={(event) =>
-                      setSelectedRoundId(
-                        event.target.value
-                      )
-                    }
-                    disabled={
-                      !Array.isArray(
-                        seasonRounds
-                      ) ||
-                      seasonRounds.length ===
-                        0
-                    }
-                    className="mt-2 min-w-64 rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                  >
-                    {!Array.isArray(
-                      seasonRounds
-                    ) ||
-                    seasonRounds.length ===
-                      0 ? (
-                      <option value="">
-                        No round results
-                        available
-                      </option>
-                    ) : (
-                      seasonRounds.map(
-                        (round) => (
-                          <option
-                            key={
-                              round.id
-                            }
-                            value={
-                              round.id
-                            }
-                          >
-                            Round{" "}
-                            {
-                              round.round_number
-                            }
-                            {round.name
-                              ? ` — ${round.name}`
-                              : ""}
-                          </option>
-                        )
-                      )
-                    )}
-                  </select>
-                </div>
-
-                {selectedRound && (
-                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200 lg:text-right">
-                    <p className="font-semibold text-slate-900">
-                      Round{" "}
-                      {
-                        selectedRound.round_number
-                      }
-                      {selectedRound.name
-                        ? ` — ${selectedRound.name}`
-                        : ""}
-                    </p>
-
-                    <p className="mt-1">
-                      {selectedRoundRows?.length ??
-                        0}{" "}
-                      {(selectedRoundRows?.length ??
-                        0) === 1
-                        ? "team"
-                        : "teams"}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <LeaderboardTable
-              type="round"
-              rows={
-                selectedRoundRows ??
-                []
-              }
-            />
-          </>
-        ) : (
-          <>
-            <section className="mb-6 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
-              <div className="border-b border-slate-800 bg-slate-950 px-5 py-3 text-white">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
-                  Season Competition
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <label
-                    htmlFor="leaderboard-season"
-                    className="block text-xs font-black uppercase tracking-wide text-slate-600"
-                  >
-                    Select season
-                  </label>
-
-                  <select
-                    id="leaderboard-season"
-                    value={
-                      selectedSeasonId
-                    }
-                    onChange={(event) =>
-                      setSelectedSeasonId(
-                        event.target.value
-                      )
-                    }
-                    disabled={
-                      !Array.isArray(
-                        seasons
-                      ) ||
-                      seasons.length === 0
-                    }
-                    className="mt-2 min-w-64 rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                  >
-                    {!Array.isArray(
-                      seasons
-                    ) ||
-                    seasons.length ===
-                      0 ? (
-                      <option value="">
-                        No seasons available
-                      </option>
-                    ) : (
-                      seasons.map(
-                        (season) => (
-                          <option
-                            key={
-                              season.id
-                            }
-                            value={
-                              season.id
-                            }
-                          >
-                            {
-                              season.name
-                            }{" "}
-                            {
-                              season.year
-                            }
-                            {season.is_active
-                              ? " — Active"
-                              : ""}
-                          </option>
-                        )
-                      )
-                    )}
-                  </select>
-                </div>
-
-                {selectedSeason && (
-                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200 sm:text-right">
-                    <p className="font-semibold text-slate-900">
-                      {
-                        selectedSeason.name
-                      }{" "}
-                      {
-                        selectedSeason.year
-                      }
-                      {selectedSeason.is_active
-                        ? " — Active"
-                        : ""}
-                    </p>
-
-                    <p className="mt-1">
-                      {selectedSeasonRows?.length ??
-                        0}{" "}
-                      {(selectedSeasonRows?.length ??
-                        0) === 1
-                        ? "team"
-                        : "teams"}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <LeaderboardTable
-              type="season"
-              rows={
-                selectedSeasonRows ??
-                []
-              }
-            />
-          </>
-        )}
+        <LeaderboardTable
+          type={tab}
+          rows={
+            tab === "round"
+              ? selectedRoundRows ?? []
+              : selectedSeasonRows ?? []
+          }
+        />
       </div>
     </main>
   );
