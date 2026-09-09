@@ -180,9 +180,14 @@ export default function Navbar() {
       }`;
   }
 
+  const navbarWidthClass =
+    pathname === "/dashboard" || pathname.startsWith("/dashboard/")
+      ? "max-w-[1480px]"
+      : "max-w-7xl";
+
   return (
     <header className="relative z-50 border-b border-slate-800 bg-slate-900 text-white">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+      <nav className={`mx-auto flex w-full ${navbarWidthClass} items-center justify-between px-4 py-4 sm:px-6`}>
         <Link
           href={user ? "/dashboard" : "/"}
           aria-label={user ? "Racecourse Fantasy dashboard" : "Racecourse Fantasy home"}
@@ -396,7 +401,7 @@ export default function Navbar() {
 
       {!loading && user && mobileOpen && (
         <div className="border-t border-slate-800 bg-slate-900 px-4 pb-4 pt-3 lg:hidden">
-          <div className="mx-auto max-w-7xl space-y-1">
+          <div className={`mx-auto w-full ${navbarWidthClass} space-y-1`}>
             <Link
               href="/team"
               className={mobileLinkClasses("/team")}
