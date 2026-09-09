@@ -190,6 +190,57 @@ function getGradePillClass(grade: Race["grade"]) {
   return classes[grade];
 }
 
+const gradeScoring: Record<Race["grade"], Array<{ finish: string; points: number }>> = {
+  G1: [
+    { finish: "1st", points: 45 },
+    { finish: "2nd", points: 35 },
+    { finish: "3rd", points: 30 },
+    { finish: "4th", points: 25 },
+    { finish: "5th", points: 20 },
+    { finish: "6th", points: 18 },
+    { finish: "7th", points: 16 },
+    { finish: "8th", points: 14 },
+    { finish: "9th", points: 12 },
+    { finish: "10th", points: 10 },
+  ],
+  G2: [
+    { finish: "1st", points: 35 },
+    { finish: "2nd", points: 30 },
+    { finish: "3rd", points: 25 },
+    { finish: "4th", points: 20 },
+    { finish: "5th", points: 18 },
+    { finish: "6th", points: 16 },
+    { finish: "7th", points: 14 },
+    { finish: "8th", points: 12 },
+    { finish: "9th", points: 10 },
+    { finish: "10th", points: 8 },
+  ],
+  G3: [
+    { finish: "1st", points: 30 },
+    { finish: "2nd", points: 25 },
+    { finish: "3rd", points: 20 },
+    { finish: "4th", points: 18 },
+    { finish: "5th", points: 16 },
+    { finish: "6th", points: 14 },
+    { finish: "7th", points: 12 },
+    { finish: "8th", points: 10 },
+    { finish: "9th", points: 8 },
+    { finish: "10th", points: 6 },
+  ],
+  L: [
+    { finish: "1st", points: 25 },
+    { finish: "2nd", points: 20 },
+    { finish: "3rd", points: 18 },
+    { finish: "4th", points: 16 },
+    { finish: "5th", points: 14 },
+    { finish: "6th", points: 12 },
+    { finish: "7th", points: 10 },
+    { finish: "8th", points: 8 },
+    { finish: "9th", points: 6 },
+    { finish: "10th", points: 4 },
+  ],
+};
+
 function getEntryStatusLabel(status: EntryStatus) {
   const labels: Record<EntryStatus, string> = {
     runner: "Runner",
@@ -1592,7 +1643,7 @@ export default function EditTeamPage() {
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-[1600px] px-3 py-4 sm:px-4 md:px-6">
+      <div className="mx-auto max-w-[1900px] px-3 py-4 sm:px-4 md:px-6">
         <header className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-white shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
@@ -1895,7 +1946,7 @@ export default function EditTeamPage() {
           </div>
         </details>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)] xl:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)]">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)] 2xl:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)_280px]">
           <section className="min-w-0">
             <div className="flex items-end justify-between border-b border-slate-300 pb-2">
               <div>
@@ -1990,15 +2041,17 @@ export default function EditTeamPage() {
                             )}
                           </div>
 
-                          <span
-                            className={`shrink-0 text-xs font-bold ${
-                              raceGroup?.grade === "G1"
-                                ? "text-amber-900"
-                                : "text-slate-400"
-                            }`}
-                          >
-                            {raceEntries.length} runner{raceEntries.length === 1 ? "" : "s"}
-                          </span>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <span
+                              className={`text-xs font-bold ${
+                                raceGroup?.grade === "G1"
+                                  ? "text-amber-900"
+                                  : "text-slate-400"
+                              }`}
+                            >
+                              {raceEntries.length} runner{raceEntries.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -2035,12 +2088,6 @@ export default function EditTeamPage() {
 
                                 <div className="min-w-0 flex-1">
                                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                  {entry.saddlecloth_number && (
-                                    <span className="inline-flex min-w-5 items-center justify-center text-xs font-medium text-slate-500">
-                                      {entry.saddlecloth_number}
-                                    </span>
-                                  )}
-
                                   {entry.horse?.id ? (
                                     <button
                                       type="button"
@@ -2077,17 +2124,7 @@ export default function EditTeamPage() {
 
                                   {recentFormByHorseId[entry.horse_id] && (
                                     <div className="mt-1 flex items-center">
-                                      {entry.saddlecloth_number && (
-                                        <span
-                                          className="inline-flex min-w-5 shrink-0"
-                                          aria-hidden="true"
-                                        />
-                                      )}
-                                      <p
-                                        className={`text-left text-[11px] text-slate-500 ${
-                                          entry.saddlecloth_number ? "ml-1.5" : ""
-                                        }`}
-                                      >
+                                      <p className="text-left text-[11px] text-slate-500">
                                         <span className="font-semibold">Form:</span>{" "}
                                         <span className="font-bold tracking-[0.12em] text-slate-700">
                                           {recentFormByHorseId[entry.horse_id]}
@@ -2347,6 +2384,52 @@ export default function EditTeamPage() {
               </div>
 
 
+            </div>
+          </aside>
+
+          <aside className="hidden 2xl:block">
+            <div className="sticky top-4 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md">
+              <div className="border-b border-slate-800 bg-slate-950 px-4 py-4 text-white">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-300">
+                  Racecourse Fantasy
+                </p>
+                <h2 className="mt-1 text-xl font-black">Scoring System</h2>
+                <p className="mt-1 text-xs text-slate-300">
+                  Captain scores double points.
+                </p>
+              </div>
+
+              <div className="p-3">
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  <table className="w-full table-fixed text-center text-xs">
+                    <thead>
+                      <tr className="text-[10px] font-black uppercase tracking-wide">
+                        <th className="bg-slate-100 px-2 py-2.5 text-left text-slate-600">
+                          Finish
+                        </th>
+                        <th className="bg-amber-400 px-1 py-2.5 text-amber-950">G1</th>
+                        <th className="bg-slate-400 px-1 py-2.5 text-white">G2</th>
+                        <th className="bg-teal-500 px-1 py-2.5 text-white">G3</th>
+                        <th className="bg-blue-100 px-1 py-2.5 text-blue-800">L</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
+                      {gradeScoring.G1.map((row, index) => (
+                        <tr key={row.finish} className="bg-white">
+                          <td className="px-2 py-2 text-left font-black text-slate-950">
+                            {row.finish}
+                          </td>
+                          <td className="px-1 py-2">{row.points}</td>
+                          <td className="px-1 py-2">{gradeScoring.G2[index]?.points ?? "—"}</td>
+                          <td className="px-1 py-2">{gradeScoring.G3[index]?.points ?? "—"}</td>
+                          <td className="px-1 py-2">{gradeScoring.L[index]?.points ?? "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+              </div>
             </div>
           </aside>
         </div>
