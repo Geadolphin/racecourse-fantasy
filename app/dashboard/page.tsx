@@ -2149,21 +2149,21 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Horse of the Round */}
+        {/* Best of the Round */}
         <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:py-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
-                Season highlights
+                Season Highlights
               </p>
               <h2 className="mt-1 text-xl font-black text-slate-950">
-                Horse of the Round
+                Best of the Round
               </h2>
             </div>
           </div>
 
-          <div className="-mx-1 overflow-x-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-w-max snap-x snap-mandatory gap-3 pr-4">
+          <div className="overflow-x-auto px-4 py-4 [scrollbar-width:auto] [scrollbar-color:rgb(148_163_184)_rgb(241_245_249)] [scrollbar-gutter:stable] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400 hover:[&::-webkit-scrollbar-thumb]:bg-slate-500">
+            <div className="flex w-max snap-x snap-mandatory gap-3 pb-2 pr-4">
               {horsesOfTheWeek.map((item) => {
                 const hasHorse = Boolean(item.horse_id && item.horse_name);
                 const hasTeam = Boolean(item.top_team_user_id);
@@ -2187,7 +2187,10 @@ export default function Dashboard() {
                             <img
                               src={item.silks_url}
                               alt={`${item.horse_name} silks`}
-                              className="h-full w-full object-contain"
+                              width={88}
+                              height={88}
+                              decoding="async"
+                              className="h-[88px] w-[88px] object-contain [image-rendering:auto]"
                             />
                           ) : (
                             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
