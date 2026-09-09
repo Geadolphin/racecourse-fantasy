@@ -421,6 +421,8 @@ export default function MyTeamPage() {
   const [team, setTeam] = useState<Team | null>(null);
   const [salaryCap, setSalaryCap] = useState(0);
 
+  const [showProjectedScores, setShowProjectedScores] = useState(false);
+
   const [selections, setSelections] = useState<
     TeamSelection[]
   >([]);
@@ -464,6 +466,39 @@ export default function MyTeamPage() {
   const [horseSilks, setHorseSilks] = useState<Record<string, string | null>>(
     {}
   );
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProjectedScoresSetting() {
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Projected scores setting load error:", error);
+        setShowProjectedScores(false);
+        return;
+      }
+
+      const settings =
+        data && typeof data === "object"
+          ? (data as { show_projected_scores?: boolean })
+          : null;
+
+      setShowProjectedScores(
+        settings?.show_projected_scores === true
+      );
+    }
+
+    void loadProjectedScoresSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -835,6 +870,8 @@ export default function MyTeamPage() {
     round !== null &&
     currentTime >= new Date(round.lockout_at).getTime();
 
+  const projectionsVisible = showProjectedScores;
+
   const editButtonVisible =
     round !== null &&
     !lockoutHasStarted &&
@@ -1076,7 +1113,7 @@ export default function MyTeamPage() {
 
               <OfficialTeamStat
                 label="Projected Score"
-                value={`${liveProjectedScore} pts`}
+                value={projectionsVisible ? `${liveProjectedScore} pts` : "Hidden"}
                 emphasis="amber"
               />
 
@@ -1331,6 +1368,15 @@ export default function MyTeamPage() {
                                     <p className="text-lg font-black uppercase leading-none text-red-700">
                                       Scratched
                                     </p>                                  </>
+                                ) : !projectionsVisible ? (
+                                  <>
+                                    <p className="text-sm font-black leading-none text-slate-500">
+                                      Hidden
+                                    </p>
+                                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                      Projection
+                                    </p>
+                                  </>
                                 ) : displayedProjectedPoints === null ? (
                                   <>
                                     <p className="text-lg font-semibold leading-none text-slate-400">
@@ -1677,7 +1723,7 @@ export default function MyTeamPage() {
                             Projected
                           </p>
                           <p className="mt-0.5 text-[14px] font-black text-amber-600">
-                            {liveProjectedScore}
+                            {projectionsVisible ? liveProjectedScore : "Hidden"}
                           </p>
                         </div>
 
@@ -1809,10 +1855,12 @@ export default function MyTeamPage() {
                               ) : (
                                 <>
                                   <p className="text-[17px] font-black leading-none tabular-nums text-amber-600">
-                                    {shownProjection ?? "—"}
+                                    {projectionsVisible
+                                      ? shownProjection ?? "—"
+                                      : "—"}
                                   </p>
                                   <p className="mt-1 text-[7px] font-black uppercase tracking-wide text-slate-400">
-                                    proj
+                                    {projectionsVisible ? "proj" : "hidden"}
                                   </p>
                                 </>
                               )}

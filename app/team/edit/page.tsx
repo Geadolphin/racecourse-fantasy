@@ -258,6 +258,8 @@ export default function EditTeamPage() {
   const [round, setRound] = useState<Round | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
   const [isSpecialAutofillTeam, setIsSpecialAutofillTeam] = useState(false);
+  const [showProjectedScores, setShowProjectedScores] = useState(false);
+
   const [salaryCap, setSalaryCap] = useState(0);
   const [entries, setEntries] = useState<RaceEntry[]>([]);
   const [recentFormByHorseId, setRecentFormByHorseId] =
@@ -300,6 +302,39 @@ export default function EditTeamPage() {
   const [successMessage, setSuccessMessage] = useState("");
 
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProjectedScoresSetting() {
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Projected scores setting load error:", error);
+        setShowProjectedScores(false);
+        return;
+      }
+
+      const settings =
+        data && typeof data === "object"
+          ? (data as { show_projected_scores?: boolean })
+          : null;
+
+      setShowProjectedScores(
+        settings?.show_projected_scores === true
+      );
+    }
+
+    void loadProjectedScoresSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const loadPage = useCallback(async () => {
     hasHydratedTeamRef.current = false;
@@ -795,6 +830,8 @@ export default function EditTeamPage() {
 
   const salaryRemaining = salaryCap - salaryUsed;
 
+  const projectionsVisible = showProjectedScores;
+
   const selectedProjectedPoints = useMemo(() => {
     const baseTotal = selectedEntries.reduce(
       (total, entry) => total + (entry.projected_points ?? 0),
@@ -811,6 +848,12 @@ export default function EditTeamPage() {
 
   const selectedCount = selectedEntryIds.length;
   const teamSize = season?.team_size ?? 0;
+
+  useEffect(() => {
+    if (!projectionsVisible && sortOption === "projected-high") {
+      setSortOption("race");
+    }
+  }, [projectionsVisible, sortOption]);
 
   const teamIsComplete =
     selectedCount === teamSize &&
@@ -1319,8 +1362,8 @@ export default function EditTeamPage() {
     let chosenSolution: FillState | null = null;
     let usedSpecialPoolSize: number | null = null;
 
-    if (isSpecialAutofillTeam) {
-      // Special teams draw randomly from the highest-projected horses first.
+    if (isSpecialAutofillTeam && projectionsVisible) {
+      // Special teams only use projection-based autofill once projections are visible.
       // Start with the top 20 unique available horses. Only expand beyond the
       // top 20 when no affordable combination can complete the team.
       const projectedCandidateGroups = [...candidateGroups.values()].sort(
@@ -1394,7 +1437,7 @@ export default function EditTeamPage() {
         .filter((entry) => !entryIdIsLocked(entry.id));
 
       if (captainCandidates.length > 0) {
-        if (isSpecialAutofillTeam) {
+        if (isSpecialAutofillTeam && projectionsVisible) {
           const highestProjectedCaptain = [...captainCandidates].sort(
             (a, b) => {
               const projectionDifference =
@@ -1421,7 +1464,7 @@ export default function EditTeamPage() {
       }
     }
 
-    if (isSpecialAutofillTeam) {
+    if (isSpecialAutofillTeam && projectionsVisible) {
       setSuccessMessage(
         usedSpecialPoolSize && usedSpecialPoolSize > 20
           ? `Team filled randomly from the highest-projected horses that could fit your salary cap. The search expanded to the top ${usedSpecialPoolSize} because the top 20 alone could not complete the team. Your highest-projected eligible horse was made captain.`
@@ -1684,7 +1727,7 @@ export default function EditTeamPage() {
               <div className="min-w-0 rounded-lg border border-white/25 bg-white/15 px-3 py-2 shadow-sm backdrop-blur-md">
                 <p className="text-[9px] font-black uppercase tracking-wide text-white/65">Projected</p>
                 <p className="text-sm font-semibold text-white">
-                  {selectedProjectedPoints} pts
+                  {projectionsVisible ? `${selectedProjectedPoints} pts` : "Hidden"}
                 </p>
               </div>
               <div
@@ -1829,7 +1872,11 @@ export default function EditTeamPage() {
               className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
             >
               <option value="race">Race order</option>
-              <option value="projected-high">Projected points: highest first</option>
+              {projectionsVisible && (
+                <option value="projected-high">
+                  Projected points: highest first
+                </option>
+              )}
               <option value="price-high">Price: highest first</option>
               <option value="price-low">Price: lowest first</option>
               <option value="name">Horse name</option>
@@ -1928,7 +1975,9 @@ export default function EditTeamPage() {
                           </p>
                         )}
                         <p className="mt-0.5 text-xs font-bold text-sky-700">
-                          Projected: {entry.projected_points ?? "—"} pts
+                          {projectionsVisible
+                            ? `Projected: ${entry.projected_points ?? "—"} pts`
+                            : "Projection hidden"}
                         </p>
                       </div>
                       <p className="shrink-0 text-sm font-bold text-slate-800">{formatCurrency(entry.price_at_entry)}</p>
@@ -2039,7 +2088,11 @@ export default function EditTeamPage() {
               className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
             >
               <option value="race">Race order</option>
-              <option value="projected-high">Projected points: highest first</option>
+              {projectionsVisible && (
+                <option value="projected-high">
+                  Projected points: highest first
+                </option>
+              )}
               <option value="price-high">Price: highest first</option>
               <option value="price-low">Price: lowest first</option>
               <option value="name">Horse name</option>
@@ -2242,7 +2295,9 @@ export default function EditTeamPage() {
                                   {formatCurrency(entry.price_at_entry)}
                                 </p>
                                 <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700">
-                                  Proj {entry.projected_points ?? "—"} pts
+                                  {projectionsVisible
+                                    ? `Proj ${entry.projected_points ?? "—"} pts`
+                                    : "Projection hidden"}
                                 </p>
                                 {wouldExceedBudget && (
                                   <p className="text-[10px] font-bold text-red-700">
@@ -2447,7 +2502,9 @@ export default function EditTeamPage() {
                                 </p>
                               )}
                               <p className="mt-1 text-xs font-bold text-sky-700">
-                                Projected: {entry.projected_points ?? "—"} pts
+                                {projectionsVisible
+                                  ? `Projected: ${entry.projected_points ?? "—"} pts`
+                                  : "Projection hidden"}
                               </p>
                             </div>
 

@@ -76,11 +76,27 @@ export default function LeaderboardTable({
   const [currentUserId, setCurrentUserId] =
     useState<string | null>(null);
 
+  const [showProjectedScores, setShowProjectedScores] =
+    useState(false);
+
+  const [currentTime, setCurrentTime] =
+    useState(() => Date.now());
+
   const safeRows = useMemo<
     RoundLeaderboardRow[] | SeasonLeaderboardRow[]
   >(() => {
     return Array.isArray(rows) ? rows : [];
   }, [rows]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 60000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -112,6 +128,45 @@ export default function LeaderboardTable({
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProjectedScoresSetting() {
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) return;
+
+      if (error) {
+        console.error(
+          "Leaderboard projected scores setting error:",
+          error
+        );
+        setShowProjectedScores(false);
+        return;
+      }
+
+      const settings =
+        data && typeof data === "object"
+          ? (data as { show_projected_scores?: boolean })
+          : null;
+
+      setShowProjectedScores(
+        settings?.show_projected_scores === true
+      );
+    }
+
+    void loadProjectedScoresSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const projectionsVisible =
+    type !== "round" || showProjectedScores;
 
   if (safeRows.length === 0) {
     return (
@@ -246,17 +301,15 @@ export default function LeaderboardTable({
                 {type === "round" && roundRow && (
                   <>
                     <td className="px-4 py-4 text-right font-bold tabular-nums text-amber-600">
-                      {Number(
-                        roundRow.projected_score ?? 0
-                      )}
+                      {projectionsVisible
+                        ? Number(roundRow.projected_score ?? 0)
+                        : "Hidden"}
                     </td>
 
                     <td className="px-4 py-4">
                       <div className="inline-grid w-full grid-cols-[48px_28px] items-center justify-end gap-2">
                         <span className="text-right font-semibold tabular-nums text-slate-700">
-                          {Number(
-                            roundRow.runners_used ?? 0
-                          )}
+                          {Number(roundRow.runners_used ?? 0)}
                           /10
                         </span>
 

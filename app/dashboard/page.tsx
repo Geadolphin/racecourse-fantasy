@@ -355,6 +355,8 @@ export default function Dashboard() {
   const [currentRoundSalaryCap, setCurrentRoundSalaryCap] =
     useState<number | null>(null);
 
+  const [showProjectedScores, setShowProjectedScores] = useState(false);
+
   const [upcomingRace, setUpcomingRace] =
     useState<UpcomingRace | null>(null);
 
@@ -442,6 +444,39 @@ export default function Dashboard() {
 
   const [errorMessage, setErrorMessage] =
     useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProjectedScoresSetting() {
+      const { data, error } = await supabase.rpc(
+        "get_public_site_settings"
+      );
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Projected scores setting load error:", error);
+        setShowProjectedScores(false);
+        return;
+      }
+
+      const settings =
+        data && typeof data === "object"
+          ? (data as { show_projected_scores?: boolean })
+          : null;
+
+      setShowProjectedScores(
+        settings?.show_projected_scores === true
+      );
+    }
+
+    void loadProjectedScoresSetting();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const interval =
@@ -1487,6 +1522,8 @@ export default function Dashboard() {
 
   const autofillPenalty = autofilledHorseCount * 3;
 
+  const projectionsVisible = showProjectedScores;
+
   const projectedRoundScoreAfterPenalty =
     projectedRoundScore - autofillPenalty;
 
@@ -1729,9 +1766,11 @@ export default function Dashboard() {
                     Projected
                   </p>
                   <p className="mt-1 text-2xl font-black text-white">
-                    {team && selectedHorseCount === season.team_size
-                      ? projectedRoundScoreAfterPenalty
-                      : "—"}
+                    {!projectionsVisible
+                      ? "Hidden"
+                      : team && selectedHorseCount === season.team_size
+                        ? projectedRoundScoreAfterPenalty
+                        : "—"}
                   </p>
                 </div>
 
