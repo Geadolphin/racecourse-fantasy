@@ -1331,7 +1331,7 @@ export default function Dashboard() {
         : "text-slate-500";
 
   const visibleLeagues =
-    dashboardExtras.leagues.slice(0, 5);
+    dashboardExtras.leagues.slice(0, 10);
 
   if (loading) {
     return (
@@ -1982,7 +1982,7 @@ export default function Dashboard() {
         </section>
 
         {/* Leaderboard + Scoring System */}
-        <section className="mt-4 grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+        <section className="mt-4 grid items-stretch gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
               <div>
@@ -1990,7 +1990,7 @@ export default function Dashboard() {
                   Leaderboard
                 </p>
                 <h2 className="mt-1 text-xl font-black text-slate-950">
-                  Top five
+                  Top 10
                 </h2>
               </div>
 
@@ -2005,11 +2005,12 @@ export default function Dashboard() {
             {miniLeaderboard.length > 0 ? (
               <div className="divide-y divide-slate-100">
                 {miniLeaderboard.map((entry) => (
-                  <div
+                  <Link
                     key={entry.user_id}
+                    href={`/players/${entry.user_id}`}
                     className={`grid grid-cols-[40px_1fr_auto] items-center gap-3 px-4 py-2 transition ${
                       entry.user_id === team?.user_id
-                        ? "bg-cyan-50 ring-1 ring-inset ring-cyan-200"
+                        ? "bg-cyan-50 ring-1 ring-inset ring-cyan-200 hover:bg-cyan-100/70"
                         : "bg-white hover:bg-slate-50"
                     }`}
                   >
@@ -2029,7 +2030,7 @@ export default function Dashboard() {
                     <span className="font-black text-slate-900">
                       {entry.total_score}
                     </span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (
@@ -2039,7 +2040,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
@@ -2056,25 +2057,25 @@ export default function Dashboard() {
 
             </div>
 
-            <div className="p-3 sm:p-4">
-              <div className="overflow-hidden rounded-xl border border-slate-200">
-                <div className="w-full">
-                  <table className="w-full table-fixed text-center text-xs sm:text-sm">
+            <div className="flex flex-1 p-2.5 sm:p-3">
+              <div className="flex w-full flex-1 overflow-hidden rounded-xl border border-slate-200">
+                <div className="flex w-full flex-1">
+                  <table className="h-full w-full table-fixed text-center text-xs leading-tight sm:text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50">
-                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                        <th className="w-1/5 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
                           Finish
                         </th>
-                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                        <th className="w-1/5 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
                           G1
                         </th>
-                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                        <th className="w-1/5 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
                           G2
                         </th>
-                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                        <th className="w-1/5 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
                           G3
                         </th>
-                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                        <th className="w-1/5 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
                           Listed
                         </th>
                       </tr>
@@ -2099,14 +2100,14 @@ export default function Dashboard() {
                             index < 3 ? "bg-slate-50/40" : "bg-white"
                           }`}
                         >
-                          <td className="w-1/5 px-2 py-2.5 text-center font-black text-slate-950">
+                          <td className="w-1/5 px-2 py-1.5 text-center font-black text-slate-950">
                             {finish}
                           </td>
 
                           {[g1, g2, g3, listed].map((points, pointsIndex) => (
                             <td
                               key={pointsIndex}
-                              className={`w-1/5 px-2 py-2.5 font-black ${
+                              className={`w-1/5 px-2 py-1.5 font-black ${
                                 index === 0
                                   ? "text-slate-950"
                                   : "text-slate-700"
