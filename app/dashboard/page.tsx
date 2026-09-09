@@ -1910,7 +1910,7 @@ export default function Dashboard() {
 
         {/* Horse of the Round */}
         <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:py-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
                 Season highlights
@@ -1921,8 +1921,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="overflow-x-auto p-4">
-            <div className="flex min-w-max gap-3">
+          <div className="-mx-1 overflow-x-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-max snap-x snap-mandatory gap-3 pr-4">
               {horsesOfTheWeek.map((item) => {
                 const hasWinner = Boolean(item.horse_id && item.horse_name);
 
@@ -1931,13 +1931,13 @@ export default function Dashboard() {
                     key={item.round_id}
                     href={hasWinner ? `/horses/${item.horse_id}` : "#"}
                     aria-disabled={!hasWinner}
-                    className={`w-[120px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white transition ${
+                    className={`w-[138px] shrink-0 snap-start overflow-hidden rounded-xl border border-slate-200 bg-white transition sm:w-[120px] ${
                       hasWinner
                         ? "cursor-pointer hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md"
                         : "pointer-events-none"
                     }`}
                   >
-                    <div className="flex h-24 items-center justify-center bg-slate-50 p-3">
+                    <div className="flex h-28 items-center justify-center bg-slate-50 p-3 sm:h-24">
                       {hasWinner && item.silks_url ? (
                         <img
                           src={item.silks_url}
@@ -1953,13 +1953,13 @@ export default function Dashboard() {
 
                     <div className="border-t border-slate-100 px-2 py-2 text-center">
                       <p
-                        className="truncate text-xs font-black text-slate-900"
+                        className="truncate text-sm font-black text-slate-900 sm:text-xs"
                         title={item.horse_name ?? undefined}
                       >
                         {item.horse_name ?? "—"}
                       </p>
                       <p
-                        className="mt-0.5 truncate text-[10px] font-semibold text-slate-500"
+                        className="mt-0.5 truncate text-[11px] font-semibold text-slate-500 sm:text-[10px]"
                         title={item.race_name ?? undefined}
                       >
                         {item.race_name ?? (item.horse_name ? "Race" : "—")}
@@ -1982,7 +1982,7 @@ export default function Dashboard() {
         </section>
 
         {/* Leaderboard + Scoring System */}
-        <section className="mt-4 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+        <section className="mt-4 grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
               <div>
@@ -2050,7 +2050,7 @@ export default function Dashboard() {
                 </h2>
               </div>
 
-              <span className="text-xs font-bold text-slate-500">
+              <span className="max-w-[110px] text-right text-[11px] font-bold leading-tight text-slate-500 sm:max-w-none sm:text-xs">
                 Captain scores double
               </span>
 
@@ -2058,8 +2058,8 @@ export default function Dashboard() {
 
             <div className="p-3 sm:p-4">
               <div className="overflow-hidden rounded-xl border border-slate-200">
-                <div className="overflow-x-auto">
-                  <table className="w-full table-fixed text-center text-sm">
+                <div className="w-full">
+                  <table className="w-full table-fixed text-center text-xs sm:text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50">
                         <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
