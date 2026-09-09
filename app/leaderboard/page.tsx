@@ -458,7 +458,7 @@ export default function LeaderboardPage() {
   return (
     <main className="min-h-screen bg-slate-100 pb-10">
       {/* Full-width branded hero */}
-      <header className="overflow-hidden border-b border-sky-300 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 text-white shadow-sm">
+      <header className="overflow-hidden border-b border-cyan-500 bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 text-white shadow-sm">
         <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 md:py-9">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div>
