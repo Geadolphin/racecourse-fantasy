@@ -396,15 +396,15 @@ function OfficialTeamStat({
 }) {
   const valueClasses =
     emphasis === "teal"
-      ? "text-teal-300"
+      ? "text-white"
       : emphasis === "amber"
-        ? "text-amber-300"
+        ? "text-amber-100"
         : "text-white";
 
 
   return (
-    <div className="min-w-0 bg-slate-900 px-4 py-3.5">
-      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+    <div className="min-w-0 bg-white/12 px-4 py-3.5 backdrop-blur-sm">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/65">
         {label}
       </p>
 
@@ -926,8 +926,8 @@ export default function MyTeamPage() {
     return (
       <main className="min-h-screen bg-slate-100 p-4 md:p-8">
         <div className="mx-auto max-w-6xl">
-          <header className="rounded-2xl bg-teal-700 p-6 text-white shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-green-200">
+          <header className="rounded-2xl border border-sky-300 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 p-6 text-white shadow-sm">
+            <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
               {season.name}
             </p>
 
@@ -935,13 +935,13 @@ export default function MyTeamPage() {
               My Team
             </h1>
 
-            <p className="mt-2 text-teal-100">
+            <p className="mt-2 text-white/85">
               Round {round.round_number}
               {round.name ? ` — ${round.name}` : ""}
             </p>
 
             <div className="mt-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-teal-300">
+              <p className="text-xs font-semibold uppercase tracking-wider text-white/75">
                 {lockoutHasStarted
                   ? "Lockout Status"
                   : "Lockout Countdown"}
@@ -955,7 +955,7 @@ export default function MyTeamPage() {
                 )}
               </p>
 
-              <p className="mt-2 text-sm text-teal-100">
+              <p className="mt-2 text-sm text-white/80">
                 Lockout:{" "}
                 {formatDateTime(round.lockout_at)}
               </p>
@@ -975,7 +975,7 @@ export default function MyTeamPage() {
             {!lockoutHasStarted ? (
               <Link
                 href="/team/edit"
-                className="mt-6 inline-flex rounded-lg bg-teal-700 px-6 py-3 font-bold text-white transition hover:bg-teal-800"
+                className="mt-6 inline-flex rounded-lg bg-gradient-to-r from-cyan-500 to-sky-500 px-6 py-3 font-bold text-white shadow-sm transition hover:brightness-105"
               >
                 Create Team
               </Link>
@@ -994,36 +994,36 @@ export default function MyTeamPage() {
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10">
-        <header className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white shadow-lg">
-          <div className="border-b border-slate-800 px-5 py-3 md:px-6">
+        <header className="overflow-hidden rounded-2xl border border-sky-300 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 text-white shadow-lg">
+          <div className="border-b border-white/20 px-5 py-3 md:px-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-teal-300">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-white/85">
                   Official Team Sheet
                 </p>
 
                 <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                  <span className="font-semibold text-slate-400">
+                  <span className="font-semibold text-white/80">
                     {season.name} · Round {round.round_number}
                     {round.name ? ` — ${round.name}` : ""}
                   </span>
 
-                  <span className="inline-flex items-center gap-1.5 text-slate-300">
-                    <Icon name="clock" className="h-3.5 w-3.5 text-teal-300" />
+                  <span className="inline-flex items-center gap-1.5 text-white/85">
+                    <Icon name="clock" className="h-3.5 w-3.5 text-white/85" />
                     {lockoutHasStarted ? "Round locked" : "Next lockout"}:
                     <strong className="text-white">
                       {getCountdown(round.lockout_at, currentTime)}
                     </strong>
                   </span>
 
-                  <span className="text-slate-500">
+                  <span className="text-white/65">
                     {formatDateTime(round.lockout_at)}
                   </span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-slate-200">
+                <span className="rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white shadow-sm backdrop-blur-md">
                   {getStatusLabel(team.status)}
                 </span>
 
@@ -1033,7 +1033,7 @@ export default function MyTeamPage() {
                     setShareError("");
                     setShareOpen(true);
                   }}
-                  className="inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-black text-white transition hover:border-teal-400 hover:text-teal-300"
+                  className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
                 >
                   <Icon name="share" className="mr-1.5 h-3.5 w-3.5" />
                   Share Team
@@ -1042,7 +1042,7 @@ export default function MyTeamPage() {
                 {editButtonVisible && (
                   <Link
                     href="/team/edit"
-                    className="inline-flex items-center justify-center rounded-lg bg-teal-500 px-3 py-1.5 text-xs font-black text-slate-950 transition hover:bg-teal-400"
+                    className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
                   >
                     <Icon name="edit" className="mr-1.5 h-3.5 w-3.5" />
                     Edit Team
@@ -1055,7 +1055,7 @@ export default function MyTeamPage() {
           <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(620px,1.5fr)]">
             <div className="p-5 md:p-6">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-300">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
                   My Team
                 </p>
 
@@ -1067,7 +1067,7 @@ export default function MyTeamPage() {
 
             </div>
 
-            <div className="grid grid-cols-2 gap-px border-t border-slate-800 bg-slate-800 lg:grid-cols-5 xl:border-l xl:border-t-0">
+            <div className="grid grid-cols-2 gap-px border-t border-white/20 bg-white/20 lg:grid-cols-5 xl:border-l xl:border-t-0">
               <OfficialTeamStat
                 label="Current Score"
                 value={`${totalPoints} pts`}
@@ -1080,10 +1080,12 @@ export default function MyTeamPage() {
                 emphasis="amber"
               />
 
-              <OfficialTeamStat
-                label="Team Salary"
-                value={formatCurrency(salaryUsed)}
-              />
+              <div className="hidden lg:block">
+                <OfficialTeamStat
+                  label="Team Salary"
+                  value={formatCurrency(salaryUsed)}
+                />
+              </div>
 
               <OfficialTeamStat
                 label="Salary Cap"
@@ -1128,7 +1130,7 @@ export default function MyTeamPage() {
             <div className="min-w-0">
               <div className="mb-4 flex flex-col gap-2 border-b border-slate-300 pb-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-700">
                     Stable Line-up
                   </p>
 
@@ -1193,7 +1195,7 @@ export default function MyTeamPage() {
                             ? "border-red-300 bg-red-50 hover:border-red-400 focus:ring-red-500"
                             : selection.is_captain
                               ? "border-amber-300 bg-amber-50/50 hover:border-amber-400 focus:ring-amber-500"
-                              : "border-slate-200 bg-white hover:border-teal-300 focus:ring-teal-500"
+                              : "border-slate-200 bg-white hover:border-sky-300 focus:ring-sky-500"
                         }`}
                         aria-label={horse ? `View statistics for ${horse.name}` : "Horse statistics unavailable"}
                       >
@@ -1353,7 +1355,7 @@ export default function MyTeamPage() {
                               </div>
                             ) : (
                               <div className="text-right">
-                                <p className="text-xl font-bold leading-none text-teal-600 sm:text-2xl">{displayedPoints}</p>
+                                <p className="text-xl font-bold leading-none text-sky-600 sm:text-2xl">{displayedPoints}</p>
                                 <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{selection.is_captain ? "pts · 2×" : "pts"}</p>
                               </div>
                             )}
@@ -1402,13 +1404,13 @@ export default function MyTeamPage() {
 
             <aside className="space-y-4">
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-800 bg-slate-950 px-4 py-3 text-white">
+                <div className="border-b border-sky-300 bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-3 text-white">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-teal-300 ring-1 ring-slate-700">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/25 bg-white/15 text-white backdrop-blur-sm">
                       <Icon name="calendar" />
                     </span>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-300">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/80">
                         Race day
                       </p>
                       <h2 className="text-sm font-black uppercase tracking-wide text-white">
@@ -1428,7 +1430,7 @@ export default function MyTeamPage() {
                           key={fixtureRace.id}
                           type="button"
                           onClick={() => setSelectedRaceId(fixtureRace.id)}
-                          className="grid w-full grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500"
+                          className="grid w-full grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500"
                           aria-label={`View race details for ${fixtureRace.race_name}`}
                         >
                           <p className="text-xs font-bold text-slate-950">
@@ -1486,8 +1488,8 @@ export default function MyTeamPage() {
               </div>
 
               <div className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
-                <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-950 px-4 py-3 text-white">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-teal-300 ring-1 ring-slate-700">
+                <div className="flex items-center gap-2 border-b border-sky-300 bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-3 text-white">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/25 bg-white/15 text-white backdrop-blur-sm">
                     <Icon name="flag" />
                   </span>
                   <h2 className="text-sm font-black uppercase tracking-wide text-white">
@@ -1501,7 +1503,7 @@ export default function MyTeamPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedRaceId(latestResultRace.id)}
-                        className="w-full border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500"
+                        className="w-full border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500"
                         aria-label={`View full results for ${latestResultRace.race_name}`}
                       >
                         <div className="flex items-center justify-between gap-3">
@@ -1517,7 +1519,7 @@ export default function MyTeamPage() {
                             </p>
                           </div>
 
-                          <span className="shrink-0 text-xs font-black text-teal-700">
+                          <span className="shrink-0 text-xs font-black text-sky-700">
                             Full results →
                           </span>
                         </div>
@@ -1543,7 +1545,7 @@ export default function MyTeamPage() {
                             </span>
 
                             <span className="shrink-0 text-right">
-                              <span className="text-lg font-black text-teal-700">
+                              <span className="text-lg font-black text-sky-700">
                                 {result.fantasy_points}
                               </span>
                               <span className="ml-1 text-xs font-bold uppercase text-slate-500">
@@ -1584,7 +1586,7 @@ export default function MyTeamPage() {
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">
                   Share Team
                 </p>
                 <h2 className="mt-0.5 text-lg font-black text-slate-950">
@@ -1980,13 +1982,13 @@ export default function MyTeamPage() {
                                   <button
                                     type="button"
                                     onClick={() => setSelectedHorseId(result.horse_id)}
-                                    className="font-bold text-slate-950 hover:text-teal-700"
+                                    className="font-bold text-slate-950 hover:text-sky-700"
                                   >
                                     {result.horse_name}
                                   </button>
                                 </td>
 
-                                <td className="px-4 py-4 text-right font-bold text-teal-700">
+                                <td className="px-4 py-4 text-right font-bold text-sky-700">
                                   {result.fantasy_points}
                                 </td>
 
