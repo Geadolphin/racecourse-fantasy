@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Analytics } from "@vercel/analytics/next";
+import { Lato } from "next/font/google";
 import "./globals.css";
 import Navbar from "../components/Navbar";
+
+const lato = Lato({
+  subsets: ["latin"],
+  weight: ["400", "700", "900"],
+  variable: "--font-lato",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -25,7 +32,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-50 text-slate-950">
+      <body
+        className={`${lato.variable} min-h-screen bg-slate-50 text-slate-950`}
+      >
         <Navbar />
 
         {children}

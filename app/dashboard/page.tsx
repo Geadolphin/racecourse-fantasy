@@ -1329,39 +1329,122 @@ export default function Dashboard() {
     );
   }
 
+  const primaryTeamHref =
+    !team || team.status === "draft"
+      ? "/team/edit"
+      : lockoutHasPassed
+        ? "/team"
+        : "/team/edit";
+
+  const primaryTeamLabel =
+    !team
+      ? "Create Team"
+      : team.status === "draft"
+        ? "Finish Team"
+        : lockoutHasPassed
+          ? "View Team"
+          : "Edit Team";
+
+  const roundStatusLabel =
+    roundIsComplete
+      ? "Complete"
+      : lockoutHasPassed
+        ? "Locked"
+        : "Open";
+
+  const roundStatusClasses =
+    roundIsComplete
+      ? "bg-slate-700 text-white"
+      : lockoutHasPassed
+        ? "bg-red-500/15 text-red-200 ring-1 ring-inset ring-red-400/30"
+        : "bg-emerald-400/15 text-emerald-200 ring-1 ring-inset ring-emerald-300/30";
+
   return (
-    <main className="min-h-screen bg-slate-100 p-3 sm:p-4 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <section className="rounded-2xl bg-slate-900 p-4 text-white shadow-sm sm:p-5 md:p-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300">
-                {season.name}
-              </p>
+    <main className="min-h-screen bg-slate-100 p-3 sm:p-4 md:p-5">
+      <div className="mx-auto max-w-[1480px]">
+        {errorMessage && (
+          <div className="mb-4 rounded-xl border border-red-300 bg-red-50 p-4 text-red-800">
+            {errorMessage}
+          </div>
+        )}
 
-              <h1 className="mt-2 text-2xl font-bold sm:text-3xl md:text-4xl">
-                Welcome, {displayName}
-              </h1>
+        {/* Compact top identity / action bar */}
+        <section className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-sm">
+          <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-300">
+                  {season.name}
+                </p>
 
-              <p className="mt-2 text-sm text-slate-300">
-                Round {round.round_number}
-                {round.name
-                  ? ` · ${round.name}`
-                  : ""}
-              </p>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
+                    roundIsComplete
+                      ? "bg-white/10 text-white"
+                      : lockoutHasPassed
+                        ? "bg-red-500/20 text-red-200"
+                        : "bg-emerald-400/15 text-emerald-200"
+                  }`}
+                >
+                  {roundStatusLabel}
+                </span>
+              </div>
+
+              <div className="mt-1 flex flex-wrap items-end gap-x-4 gap-y-1">
+                <h1 className="text-2xl font-black sm:text-3xl">
+                  {displayName}
+                </h1>
+
+                <p className="pb-0.5 text-sm font-semibold text-slate-300">
+                  Round {round.round_number}
+                  {round.name ? ` · ${round.name}` : ""}
+                </p>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-300">
+                <span>
+                  Team:{" "}
+                  <strong className="text-white">
+                    {getTeamStatusLabel(team?.status ?? null)}
+                  </strong>
+                </span>
+
+                <span className="hidden h-4 w-px bg-slate-700 sm:block" />
+
+                <span>
+                  {selectedHorseCount}/{season.team_size} horses
+                </span>
+
+                <span className="hidden h-4 w-px bg-slate-700 sm:block" />
+
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock3 className="h-4 w-4 text-amber-300" />
+                  {roundIsComplete
+                    ? "Round complete"
+                    : lockoutHasPassed
+                      ? "Locked"
+                      : round.lockout_at
+                        ? formatTimeUntil(
+                            round.lockout_at,
+                            currentTime,
+                            "lockout"
+                          )
+                        : "Lockout not set"}
+                </span>
+              </div>
             </div>
 
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+            <div className="grid grid-cols-2 gap-2 sm:flex">
               <Link
-                href="/team"
-                className="w-full rounded-lg bg-amber-400 px-4 py-2.5 text-center text-sm font-bold text-slate-900 transition hover:bg-amber-300 sm:w-auto"
+                href={primaryTeamHref}
+                className="rounded-lg bg-amber-400 px-5 py-2.5 text-center text-sm font-black text-slate-950 transition hover:bg-amber-300"
               >
-                View Team
+                {primaryTeamLabel}
               </Link>
 
               <Link
                 href="/leaderboard"
-                className="w-full rounded-lg border border-slate-700 px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-slate-800 sm:w-auto"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-5 py-2.5 text-center text-sm font-bold text-white transition hover:bg-slate-800"
               >
                 Leaderboard
               </Link>
@@ -1369,310 +1452,163 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {errorMessage && (
-          <div className="mt-5 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
-            {errorMessage}
-          </div>
-        )}
+        {/* SuperCoach-style score board */}
+        <section className="mt-4 grid gap-3 lg:grid-cols-[1.15fr_1fr_1fr]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:row-span-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-700">
+              Round {round.round_number} Score
+            </p>
 
-        <section className="mt-4 sm:mt-5">
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
-            {/* Round stats: one combined card on mobile, two coloured cards on desktop */}
-            <div className="overflow-hidden rounded-xl bg-teal-600 text-white shadow-sm xl:contents">
-              <div className="bg-teal-600 p-3.5 text-white shadow-sm sm:p-4 xl:rounded-xl">
-                <p className="text-xs font-semibold uppercase tracking-wide text-teal-100">
-                  Round Score
-                </p>
-
-                <p className="mt-2 text-2xl font-bold text-white sm:text-3xl">
+            <div className="mt-3 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-5xl font-black leading-none text-slate-950 sm:text-6xl">
                   {currentRoundScore}
                 </p>
-
-                <p className="mt-1 text-xs text-teal-100">
+                <p className="mt-2 text-sm font-semibold text-slate-500">
                   points
                 </p>
-
-                {autofillPenalty > 0 && (
-                  <p className="mt-2 inline-flex rounded-full bg-red-950/35 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-red-100 ring-1 ring-inset ring-red-300/30">
-                    Autofill penalty · −{autofillPenalty} pts
-                  </p>
-                )}
               </div>
 
-              <div className="border-t border-teal-500 bg-teal-600 p-3.5 text-white shadow-sm sm:p-4 xl:rounded-xl xl:border-t-0">
-                <p className="text-xs font-semibold uppercase tracking-wide text-teal-100">
+              <div className="text-right">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Round Rank
                 </p>
-
-                <p className="mt-2 text-xl font-bold text-white sm:text-2xl">
+                <p className="mt-1 text-2xl font-black text-slate-950">
                   {rankOfTotal(
                     currentRoundRank,
                     dashboardExtras.round_ranked_count
                   )}
                 </p>
-
-                <p className="mt-1 text-xs text-teal-100">
-                  this round
-                </p>
               </div>
             </div>
 
-            {/* Season stats: one combined card on mobile, two coloured cards on desktop */}
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm xl:contents">
-              <div className="border border-slate-200 bg-white p-3.5 text-slate-900 shadow-sm sm:p-4 xl:rounded-xl">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Season Score
-                </p>
+            <div className="mt-5 border-t border-slate-200 pt-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Projected
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-amber-700">
+                    {team && selectedHorseCount === season.team_size
+                      ? projectedRoundScoreAfterPenalty
+                      : "—"}
+                  </p>
+                </div>
 
-                <p className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
-                  {currentSeasonScore}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  points
-                </p>
-              </div>
-
-              <div className="border-t border-slate-200 bg-white p-3.5 text-slate-900 shadow-sm sm:p-4 xl:rounded-xl xl:border xl:border-slate-200 xl:border-t">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Overall Rank
-                </p>
-
-                <p className="mt-2 text-xl font-bold text-slate-900 sm:text-2xl">
-                  {rankOfTotal(
-                    currentOverallRank,
-                    dashboardExtras.season_ranked_count
-                  )}
-                </p>
-
-                <div className="mt-1 flex items-center gap-2 text-xs">
-                  <span className="text-slate-500">
-                    this season
-                  </span>
-
-                  {overallRankMovementLabel && (
-                    <span className={`font-semibold ${overallRankMovementClasses}`}>
-                      {overallRankMovementLabel}
-                    </span>
-                  )}
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Horses Ran
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-slate-950">
+                    {horsesRanCount}/{season.team_size}
+                  </p>
                 </div>
               </div>
+
+              {scratchedHorseCount > 0 && (
+                <p className="mt-3 text-xs font-semibold text-red-600">
+                  {scratchedHorseCount}{" "}
+                  {scratchedHorseCount === 1 ? "horse" : "horses"} scratched
+                </p>
+              )}
+
+              {autofillPenalty > 0 && (
+                <p className="mt-2 text-xs font-semibold text-red-600">
+                  Autofill penalty · −{autofillPenalty} pts
+                </p>
+              )}
             </div>
           </div>
 
-          {team &&
-            selectedHorseCount === season.team_size && (
-            <div className="mt-2.5 grid grid-cols-2 divide-x divide-slate-700 rounded-xl bg-slate-900 p-4 text-white shadow-sm sm:mt-3">
-              <div className="pr-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-teal-300">
-                  Projected Score
-                </p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+              Season Score
+            </p>
+            <p className="mt-2 text-4xl font-black text-slate-950">
+              {currentSeasonScore}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">points</p>
+          </div>
 
-                <p className="mt-1 text-2xl font-bold text-white sm:text-3xl">
-                  {projectedRoundScoreAfterPenalty}
-                </p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+              Overall Rank
+            </p>
+            <p className="mt-2 text-3xl font-black text-slate-950">
+              {rankOfTotal(
+                currentOverallRank,
+                dashboardExtras.season_ranked_count
+              )}
+            </p>
 
-                <p className="mt-1 text-xs text-slate-400">
-                  points
-                </p>
+            {overallRankMovementLabel && (
+              <p className={`mt-2 text-sm font-black ${overallRankMovementClasses}`}>
+                {overallRankMovementLabel}
+              </p>
+            )}
+          </div>
 
-                {autofillPenalty > 0 && (
-                  <p className="mt-2 text-[10px] font-medium uppercase tracking-wide text-red-400">
-                    Autofill penalty · −{autofillPenalty} pts
-                  </p>
-                )}
-              </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+              Team Value
+            </p>
+            <p className="mt-2 text-2xl font-black text-slate-950">
+              {formatCurrency(salaryUsed)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {formatCurrency(salaryRemaining)} remaining
+            </p>
+          </div>
 
-              <div className="pl-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Horses Ran
-                  </p>
-
-                  {scratchedHorseCount > 0 && (
-                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-400 ring-1 ring-inset ring-red-500/30">
-                      {scratchedHorseCount}{" "}
-                      {scratchedHorseCount === 1 ? "horse" : "horses"} scratched
-                    </span>
-                  )}
-                </div>
-
-                <p className="mt-1 text-2xl font-bold text-white sm:text-3xl">
-                  {horsesRanCount}/{season.team_size}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  horses
-                </p>
-              </div>
-            </div>
-          )}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+              Team Status
+            </p>
+            <p className="mt-2 text-2xl font-black text-slate-950">
+              {selectedHorseCount}/{season.team_size}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {getTeamStatusLabel(team?.status ?? null)}
+            </p>
+          </div>
         </section>
 
-        {cupMatchup && (
-          <section className="mt-4 sm:mt-5">
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-teal-700">
-                    <Trophy className="h-4 w-4" />
-                    <p className="text-xs font-bold uppercase tracking-wide">
-                      Cup Matchup
-                    </p>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <h2 className="text-xl font-bold text-slate-900">
-                      {cupMatchup.cup_name}
-                    </h2>
-                    <span className="text-sm font-semibold text-slate-500">
-                      {cupMatchup.stage_name}
-                    </span>
-
-                    {cupMatchup.status === "matchup" &&
-                      cupMatchup.score_status === "scheduled" && (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-blue-700">
-                          Projected
-                        </span>
-                      )}
-
-                    {cupMatchup.status === "matchup" &&
-                      cupMatchup.score_status === "live" && (
-                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-700">
-                          Live
-                        </span>
-                      )}
-
-                    {cupMatchup.status === "matchup" &&
-                      cupMatchup.score_status === "final" && (
-                        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
-                          Complete
-                        </span>
-                      )}
-                  </div>
-
-                  {cupMatchup.status === "matchup" ? (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
-                      <span>{displayName}</span>
-                      {cupMatchup.my_score !== null && (
-                        <span className="inline-flex flex-col items-center rounded-lg bg-slate-100 px-2.5 py-1 text-base leading-tight">
-                          <span>{cupMatchup.my_score}</span>
-                          {(cupMatchup.my_autofill_penalty ?? 0) > 0 && (
-                            <span className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-red-600">
-                              −{cupMatchup.my_autofill_penalty} penalty
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      <span className="text-sm font-black uppercase tracking-wide text-slate-400">
-                        vs
-                      </span>
-                      {cupMatchup.opponent_score !== null && (
-                        <span className="inline-flex flex-col items-center rounded-lg bg-slate-100 px-2.5 py-1 text-base leading-tight">
-                          <span>{cupMatchup.opponent_score}</span>
-                          {(cupMatchup.opponent_autofill_penalty ?? 0) > 0 && (
-                            <span className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-red-600">
-                              −{cupMatchup.opponent_autofill_penalty} penalty
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      <span>{cupMatchup.opponent_name}</span>
-                    </div>
-                  ) : cupMatchup.status === "eliminated" ? (
-                    <div className="mt-3">
-                      <span className="inline-flex rounded-full bg-red-100 px-3 py-1 text-sm font-black uppercase tracking-wide text-red-700">
-                        Eliminated
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="mt-3 font-semibold text-slate-500">
-                      Matchup TBC
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-                  {cupMatchup.status === "matchup" && (
-                    <button
-                      type="button"
-                      onClick={() => void openCupTeamCompare()}
-                      className="rounded-lg bg-slate-900 px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-slate-800"
-                    >
-                      Compare Teams
-                    </button>
-                  )}
-
-                  <Link
-                    href={`/cups/${cupMatchup.cup_id}`}
-                    className="rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    View Cup →
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        <section className="mt-4 grid gap-4 sm:mt-5 sm:gap-5 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            <div className="flex items-start justify-between gap-4">
+        {/* FPL-style round status + next race */}
+        <section className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
               <div>
-                <div className="flex items-center gap-2 text-amber-700">
-                  <Clock3 className="h-4 w-4" />
-
-                  <p className="text-xs font-bold uppercase tracking-wide">
-                    Current Round
-                  </p>
-                </div>
-
-                <h2 className="mt-2 text-xl font-bold text-slate-900">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-700">
+                  Round Status
+                </p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">
                   Round {round.round_number}
-                  {round.name
-                    ? ` — ${round.name}`
-                    : ""}
+                  {round.name ? ` · ${round.name}` : ""}
                 </h2>
               </div>
 
               <span
-                className={`rounded-full px-3 py-1 text-xs font-bold ${
+                className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-wide ${
                   roundIsComplete
                     ? "bg-slate-900 text-white"
                     : lockoutHasPassed
-                      ? "bg-red-100 text-red-800"
-                      : "bg-teal-100 text-teal-800"
+                      ? "bg-red-100 text-red-700"
+                      : "bg-emerald-100 text-emerald-700"
                 }`}
               >
-                {roundIsComplete
-                  ? "Complete"
-                  : lockoutHasPassed
-                    ? "Locked"
-                    : "Open"}
+                {roundStatusLabel}
               </span>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:mt-5 sm:grid-cols-2 sm:gap-4">
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+            <div className="grid gap-3 p-4 sm:grid-cols-2">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                   Lockout
                 </p>
-
-                <p className="mt-1 font-bold text-slate-900">
-                  {formatDateTime(
-                    round.lockout_at
-                  )}
+                <p className="mt-1 font-black text-slate-950">
+                  {formatDateTime(round.lockout_at)}
                 </p>
-
-                <p
-                  className={`mt-2 text-sm font-bold ${
-                    roundIsComplete
-                      ? "text-slate-700"
-                      : lockoutHasPassed
-                        ? "text-red-700"
-                        : "text-amber-700"
-                  }`}
-                >
+                <p className="mt-2 text-sm font-bold text-amber-700">
                   {roundIsComplete
                     ? "Complete"
                     : lockoutHasPassed
@@ -1687,182 +1623,226 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Next Race
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                  Your Team
                 </p>
-
-                {upcomingRace ? (
-                  <>
-                    <p className="mt-1 font-bold text-slate-900">
-                      {upcomingRace.race_name}
+                <div className="mt-1 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-2xl font-black text-slate-950">
+                      {selectedHorseCount}/{season.team_size}
                     </p>
+                    <p className="text-xs text-slate-500">selected</p>
+                  </div>
 
-                    <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Distance
-                        </p>
-
-                        <p className="mt-0.5 font-semibold text-slate-700">
-                          {upcomingRace.distance_metres
-                            ? `${upcomingRace.distance_metres}m`
-                            : "—"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Track
-                        </p>
-
-                        <p className="mt-0.5 font-semibold text-slate-700">
-                          {upcomingRace.racecourse?.name ??
-                            "—"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Time
-                        </p>
-
-                        <p className="mt-0.5 font-semibold text-slate-700">
-                          {formatRaceTime(
-                            upcomingRace.scheduled_start
-                          )}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Race
-                        </p>
-
-                        <p className="mt-0.5 font-semibold text-slate-700">
-                          Race {upcomingRace.race_number}
-                        </p>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <p className="mt-1 text-sm text-slate-500">
-                    No upcoming race.
-                  </p>
-                )}
+                  <Link
+                    href={primaryTeamHref}
+                    className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-black text-white hover:bg-teal-700"
+                  >
+                    {primaryTeamLabel}
+                  </Link>
+                </div>
               </div>
             </div>
-
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
               <div>
-                <div className="flex items-center gap-2 text-teal-700">
-                  <Gauge className="h-4 w-4" />
-
-                  <p className="text-xs font-bold uppercase tracking-wide">
-                    My Team
-                  </p>
-                </div>
-
-                <h2 className="mt-2 text-xl font-bold text-slate-900">
-                  {getTeamStatusLabel(
-                    team?.status ?? null
-                  )}
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                  Next Race
+                </p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">
+                  {upcomingRace?.race_name ?? "No upcoming race"}
                 </h2>
               </div>
 
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-bold ${getTeamStatusClasses(
-                  team?.status ?? null
-                )}`}
-              >
-                {team?.status
-                  ? team.status
-                  : "Not started"}
-              </span>
-            </div>
-
-            <div className="mt-5">
-              <div className="flex items-center justify-between gap-4 text-sm">
-                <span className="font-semibold text-slate-600">
-                  Salary
+              {upcomingRace && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">
+                  R{upcomingRace.race_number}
                 </span>
-
-                <span className="font-bold text-slate-900">
-                  {formatCurrency(
-                    salaryUsed
-                  )}{" "}
-                  /{" "}
-                  {formatCurrency(
-                    salaryCap
-                  )}
-                </span>
-              </div>
-
-              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className="h-full rounded-full bg-teal-600 transition-all duration-500"
-                  style={{
-                    width: `${salaryPercentage}%`,
-                  }}
-                />
-              </div>
-
-              <div className="mt-4 flex items-center justify-between rounded-xl bg-teal-50 px-4 py-3">
-                <span className="text-sm font-semibold text-teal-700">
-                  Remaining
-                </span>
-
-                <span className="font-bold text-teal-900">
-                  {formatCurrency(
-                    salaryRemaining
-                  )}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-              <Link
-                href="/team"
-                className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
-              >
-                View Team
-              </Link>
-
-              {!lockoutHasPassed && (
-                <Link
-                  href="/team/edit"
-                  className="w-full rounded-lg bg-teal-600 px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-teal-700 sm:w-auto"
-                >
-                  Edit Team
-                </Link>
               )}
             </div>
+
+            {upcomingRace ? (
+              <div className="p-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                      Grade
+                    </p>
+                    <p className="mt-1 font-bold text-slate-800">
+                      {upcomingRace.grade === "L" ? "Listed" : upcomingRace.grade}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                      Distance
+                    </p>
+                    <p className="mt-1 font-bold text-slate-800">
+                      {upcomingRace.distance_metres
+                        ? `${upcomingRace.distance_metres}m`
+                        : "—"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                      Track
+                    </p>
+                    <p className="mt-1 font-bold text-slate-800">
+                      {upcomingRace.racecourse?.name ?? "—"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                      Time
+                    </p>
+                    <p className="mt-1 font-bold text-slate-800">
+                      {formatRaceTime(upcomingRace.scheduled_start)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-xl bg-slate-950 px-4 py-3 text-center text-white">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-300">
+                    To Jump
+                  </p>
+                  <p className="mt-1 text-xl font-black">
+                    {formatTimeUntil(
+                      upcomingRace.scheduled_start,
+                      currentTime,
+                      "jump"
+                    ).replace(" until jump", "")}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 text-sm text-slate-500">
+                There are no more upcoming races in this round.
+              </div>
+            )}
           </div>
         </section>
 
-        <section className="mt-5 grid gap-5 lg:grid-cols-2">
+        {/* Cup + leagues */}
+        <section className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4 sm:gap-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
+              <div>
+                <div className="flex items-center gap-2 text-teal-700">
+                  <Trophy className="h-4 w-4" />
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em]">
+                    Cup
+                  </p>
+                </div>
+                <h2 className="mt-1 text-xl font-black text-slate-950">
+                  {cupMatchup?.cup_name ?? "Cup competition"}
+                </h2>
+              </div>
+
+              {cupMatchup && (
+                <Link
+                  href={`/cups/${cupMatchup.cup_id}`}
+                  className="text-sm font-bold text-teal-700 hover:text-slate-950"
+                >
+                  View →
+                </Link>
+              )}
+            </div>
+
+            {cupMatchup ? (
+              <div className="p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-500">
+                    {cupMatchup.stage_name}
+                  </span>
+
+                  {cupMatchup.status === "matchup" &&
+                    cupMatchup.score_status === "live" && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-700">
+                        Live
+                      </span>
+                    )}
+
+                  {cupMatchup.status === "matchup" &&
+                    cupMatchup.score_status === "final" && (
+                      <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">
+                        Complete
+                      </span>
+                    )}
+                </div>
+
+                {cupMatchup.status === "matchup" ? (
+                  <>
+                    <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                      <div>
+                        <p className="truncate font-bold text-slate-950">
+                          {displayName}
+                        </p>
+                        <p className="mt-1 text-3xl font-black text-slate-950">
+                          {cupMatchup.my_score ?? "—"}
+                        </p>
+                      </div>
+
+                      <span className="text-xs font-black uppercase tracking-wide text-slate-400">
+                        vs
+                      </span>
+
+                      <div className="text-right">
+                        <p className="truncate font-bold text-slate-950">
+                          {cupMatchup.opponent_name}
+                        </p>
+                        <p className="mt-1 text-3xl font-black text-slate-950">
+                          {cupMatchup.opponent_score ?? "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void openCupTeamCompare()}
+                      className="mt-4 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"
+                    >
+                      Compare Teams
+                    </button>
+                  </>
+                ) : cupMatchup.status === "eliminated" ? (
+                  <span className="mt-4 inline-flex rounded-full bg-red-100 px-3 py-1 text-sm font-bold uppercase tracking-wide text-red-700">
+                    Eliminated
+                  </span>
+                ) : (
+                  <p className="mt-4 font-semibold text-slate-500">
+                    Matchup TBC
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 text-sm text-slate-500">
+                No Cup matchup is assigned to this round.
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
               <div>
                 <div className="flex items-center gap-2 text-teal-700">
                   <Network className="h-4 w-4" />
-
-                  <p className="text-xs font-bold uppercase tracking-wide">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em]">
                     Your Leagues
                   </p>
                 </div>
-
-                <h2 className="mt-1 text-xl font-bold text-slate-900">
-                  Private league positions
+                <h2 className="mt-1 text-xl font-black text-slate-950">
+                  League positions
                 </h2>
               </div>
 
               <Link
                 href="/leagues"
-                className="text-sm font-bold text-teal-700 transition hover:text-slate-900"
+                className="text-sm font-bold text-teal-700 hover:text-slate-950"
               >
                 View all →
               </Link>
@@ -1870,63 +1850,45 @@ export default function Dashboard() {
 
             {visibleLeagues.length > 0 ? (
               <div className="divide-y divide-slate-100">
-                {visibleLeagues.map(
-                  (league) => (
-                    <Link
-                      key={league.league_id}
-                      href={`/leagues?league=${league.league_id}`}
-                      className="flex items-center justify-between gap-3 px-4 py-3.5 transition hover:bg-slate-50 sm:gap-4 sm:px-5 sm:py-4"
-                    >
-                      <span className="truncate font-bold text-slate-900">
-                        {league.league_name}
-                      </span>
-
-                      <span className="shrink-0 font-bold text-teal-700">
-                        {ordinal(
-                          league.league_rank
-                        )}{" "}
-                        of{" "}
-                        {league.member_count}
-                      </span>
-                    </Link>
-                  )
-                )}
+                {visibleLeagues.map((league) => (
+                  <Link
+                    key={league.league_id}
+                    href={`/leagues?league=${league.league_id}`}
+                    className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-slate-50"
+                  >
+                    <span className="truncate font-bold text-slate-900">
+                      {league.league_name}
+                    </span>
+                    <span className="shrink-0 font-black text-teal-700">
+                      {ordinal(league.league_rank)} / {league.member_count}
+                    </span>
+                  </Link>
+                ))}
               </div>
             ) : (
-              <div className="p-7 text-center">
-                <p className="text-slate-500">
-                  You have not joined any private leagues for this season.
-                </p>
-
-                <Link
-                  href="/leagues"
-                  className="mt-3 inline-block font-bold text-teal-700 hover:underline"
-                >
-                  Find your leagues →
-                </Link>
+              <div className="p-5 text-sm text-slate-500">
+                You have not joined any private leagues.
               </div>
             )}
           </div>
+        </section>
 
+        {/* Leaderboard */}
+        <section className="mt-4">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4 sm:gap-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
               <div>
-                <div className="flex items-center gap-2 text-teal-700">
-                  <Trophy className="h-4 w-4" />
-
-                  <p className="text-xs font-bold uppercase tracking-wide">
-                    Leaderboard
-                  </p>
-                </div>
-
-                <h2 className="mt-1 text-xl font-bold text-slate-900">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">
+                  Leaderboard
+                </p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">
                   Top five
                 </h2>
               </div>
 
               <Link
                 href="/leaderboard"
-                className="text-sm font-bold text-teal-700 transition hover:text-slate-900"
+                className="text-sm font-bold text-teal-700 hover:text-slate-950"
               >
                 View all →
               </Link>
@@ -1934,37 +1896,25 @@ export default function Dashboard() {
 
             {miniLeaderboard.length > 0 ? (
               <div className="divide-y divide-slate-100">
-                {miniLeaderboard.map(
-                  (entry) => (
-                    <div
-                      key={entry.user_id}
-                      className="grid grid-cols-[36px_1fr_auto] items-center gap-2 px-4 py-3 sm:grid-cols-[48px_1fr_auto] sm:gap-3 sm:px-5 sm:py-3.5"
-                    >
-                      <div className="text-center font-bold text-slate-500">
-                        {entry.overall_rank}
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="truncate font-bold text-slate-900">
-                          {entry.display_name}
-                        </p>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="font-bold text-slate-900">
-                          {entry.total_score}
-                        </p>
-
-                        <p className="text-xs text-slate-500">
-                          points
-                        </p>
-                      </div>
-                    </div>
-                  )
-                )}
+                {miniLeaderboard.map((entry) => (
+                  <div
+                    key={entry.user_id}
+                    className="grid grid-cols-[40px_1fr_auto] items-center gap-3 px-4 py-3"
+                  >
+                    <span className="text-center font-black text-slate-400">
+                      {entry.overall_rank}
+                    </span>
+                    <span className="truncate font-bold text-slate-900">
+                      {entry.display_name}
+                    </span>
+                    <span className="font-black text-slate-900">
+                      {entry.total_score}
+                    </span>
+                  </div>
+                ))}
               </div>
             ) : (
-              <div className="p-7 text-center text-slate-500">
+              <div className="p-5 text-sm text-slate-500">
                 No leaderboard scores are available yet.
               </div>
             )}
