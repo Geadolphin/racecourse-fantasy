@@ -65,6 +65,18 @@ type MiniLeaderboardEntry = {
   overall_rank: number;
 };
 
+type HorseOfTheWeek = {
+  round_id: string;
+  round_number: number;
+  round_name: string | null;
+  race_name: string | null;
+  round_status: string;
+  horse_id: string | null;
+  horse_name: string | null;
+  silks_url: string | null;
+  fantasy_points: number | null;
+};
+
 type DashboardData = {
   success: boolean;
   message?: string;
@@ -359,6 +371,11 @@ export default function Dashboard() {
   ] = useState<MiniLeaderboardEntry[]>([]);
 
   const [
+    horsesOfTheWeek,
+    setHorsesOfTheWeek,
+  ] = useState<HorseOfTheWeek[]>([]);
+
+  const [
     dashboardExtras,
     setDashboardExtras,
   ] = useState<DashboardExtras>({
@@ -576,6 +593,20 @@ export default function Dashboard() {
               b.overall_rank
           )
       );
+
+      const { data: horseWeekData, error: horseWeekError } =
+        await supabase.rpc("get_horses_of_the_week");
+
+      if (!active) {
+        return;
+      }
+
+      if (horseWeekError) {
+        console.error("Horse of the Round RPC error:", horseWeekError);
+        setHorsesOfTheWeek([]);
+      } else if (Array.isArray(horseWeekData)) {
+        setHorsesOfTheWeek(horseWeekData as HorseOfTheWeek[]);
+      }
 
       setLoading(false);
 
@@ -1300,7 +1331,7 @@ export default function Dashboard() {
         : "text-slate-500";
 
   const visibleLeagues =
-    dashboardExtras.leagues.slice(0, 10);
+    dashboardExtras.leagues.slice(0, 5);
 
   if (loading) {
     return (
@@ -1877,6 +1908,79 @@ export default function Dashboard() {
           </div>
         </section>
 
+        {/* Horse of the Round */}
+        <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
+                Season highlights
+              </p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">
+                Horse of the Round
+              </h2>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto p-4">
+            <div className="flex min-w-max gap-3">
+              {horsesOfTheWeek.map((item) => {
+                const hasWinner = Boolean(item.horse_id && item.horse_name);
+
+                return (
+                  <Link
+                    key={item.round_id}
+                    href={hasWinner ? `/horses/${item.horse_id}` : "#"}
+                    aria-disabled={!hasWinner}
+                    className={`w-[120px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white transition ${
+                      hasWinner
+                        ? "cursor-pointer hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md"
+                        : "pointer-events-none"
+                    }`}
+                  >
+                    <div className="flex h-24 items-center justify-center bg-slate-50 p-3">
+                      {hasWinner && item.silks_url ? (
+                        <img
+                          src={item.silks_url}
+                          alt={`${item.horse_name} silks`}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
+                          ?
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-100 px-2 py-2 text-center">
+                      <p
+                        className="truncate text-xs font-black text-slate-900"
+                        title={item.horse_name ?? undefined}
+                      >
+                        {item.horse_name ?? "—"}
+                      </p>
+                      <p
+                        className="mt-0.5 truncate text-[10px] font-semibold text-slate-500"
+                        title={item.race_name ?? undefined}
+                      >
+                        {item.race_name ?? (item.horse_name ? "Race" : "—")}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 bg-gradient-to-r from-cyan-500 to-sky-400 px-2 py-1.5 text-[10px] font-black text-slate-950">
+                      <span>R{item.round_number}</span>
+                      <span className="text-right">
+                        {item.fantasy_points != null
+                          ? `${item.fantasy_points} pts`
+                          : "—"}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
         {/* Leaderboard + Scoring System */}
         <section className="mt-4 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -1886,7 +1990,7 @@ export default function Dashboard() {
                   Leaderboard
                 </p>
                 <h2 className="mt-1 text-xl font-black text-slate-950">
-                  Top 10
+                  Top five
                 </h2>
               </div>
 
@@ -1903,14 +2007,25 @@ export default function Dashboard() {
                 {miniLeaderboard.map((entry) => (
                   <div
                     key={entry.user_id}
-                    className="grid grid-cols-[40px_1fr_auto] items-center gap-3 px-4 py-2"
+                    className={`grid grid-cols-[40px_1fr_auto] items-center gap-3 px-4 py-2 transition ${
+                      entry.user_id === team?.user_id
+                        ? "bg-cyan-50 ring-1 ring-inset ring-cyan-200"
+                        : "bg-white hover:bg-slate-50"
+                    }`}
                   >
                     <span className="text-center font-black text-slate-400">
                       {entry.overall_rank}
                     </span>
-                    <span className="truncate font-bold text-slate-900">
-                      {entry.display_name}
-                    </span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-bold text-slate-900">
+                        {entry.display_name}
+                      </span>
+                      {entry.user_id === team?.user_id && (
+                        <span className="shrink-0 rounded-full bg-cyan-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-cyan-700">
+                          You
+                        </span>
+                      )}
+                    </div>
                     <span className="font-black text-slate-900">
                       {entry.total_score}
                     </span>
