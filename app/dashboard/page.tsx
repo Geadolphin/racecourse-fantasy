@@ -75,6 +75,29 @@ type HorseOfTheWeek = {
   horse_name: string | null;
   silks_url: string | null;
   fantasy_points: number | null;
+  top_team_user_id: string | null;
+  top_team_display_name: string | null;
+  top_team_name: string | null;
+  top_team_points: number | null;
+};
+
+type TeamOfRoundSelection = {
+  horse_id: string;
+  horse_name: string;
+  silks_url: string | null;
+  race_name: string | null;
+  is_captain: boolean;
+  fantasy_points: number;
+};
+
+type TeamOfRoundDetail = {
+  user_id: string;
+  display_name: string;
+  team_name: string;
+  round_number: number;
+  round_name: string | null;
+  total_points: number;
+  selections: TeamOfRoundSelection[];
 };
 
 type DashboardData = {
@@ -388,6 +411,21 @@ export default function Dashboard() {
     useState<DashboardCupMatchup | null>(null);
 
   const [cupCompareOpen, setCupCompareOpen] =
+    useState(false);
+
+  const [teamOfRoundOpen, setTeamOfRoundOpen] =
+    useState(false);
+
+  const [teamOfRoundLoading, setTeamOfRoundLoading] =
+    useState(false);
+
+  const [teamOfRoundError, setTeamOfRoundError] =
+    useState("");
+
+  const [teamOfRoundDetail, setTeamOfRoundDetail] =
+    useState<TeamOfRoundDetail | null>(null);
+
+  const [cupHowItWorksOpen, setCupHowItWorksOpen] =
     useState(false);
 
   const [cupCompareLoading, setCupCompareLoading] =
@@ -1183,6 +1221,174 @@ export default function Dashboard() {
     };
   }, [router]);
 
+  async function openTeamOfRound(item: HorseOfTheWeek) {
+    if (!item.top_team_user_id) {
+      return;
+    }
+
+    setTeamOfRoundOpen(true);
+    setTeamOfRoundLoading(true);
+    setTeamOfRoundError("");
+    setTeamOfRoundDetail(null);
+
+    try {
+      const { data: selectedTeam, error: teamError } = await supabase
+        .from("teams")
+        .select("id")
+        .eq("user_id", item.top_team_user_id)
+        .eq("round_id", item.round_id)
+        .maybeSingle();
+
+      if (teamError) {
+        throw teamError;
+      }
+
+      if (!selectedTeam?.id) {
+        throw new Error("The selected team for this round could not be found.");
+      }
+
+      const { data: selectionsRaw, error: selectionsError } = await supabase
+        .from("team_selections")
+        .select("race_entry_id, is_captain, fantasy_points")
+        .eq("team_id", selectedTeam.id);
+
+      if (selectionsError) {
+        throw selectionsError;
+      }
+
+      const selections = selectionsRaw ?? [];
+      const raceEntryIds = selections
+        .map((selection) => selection.race_entry_id)
+        .filter(Boolean);
+
+      if (raceEntryIds.length === 0) {
+        setTeamOfRoundDetail({
+          user_id: item.top_team_user_id,
+          display_name: item.top_team_display_name ?? "Player",
+          team_name:
+            item.top_team_name ??
+            item.top_team_display_name ??
+            "Team of the Round",
+          round_number: item.round_number,
+          round_name: item.round_name,
+          total_points: item.top_team_points ?? 0,
+          selections: [],
+        });
+        setTeamOfRoundLoading(false);
+        return;
+      }
+
+      const { data: entriesRaw, error: entriesError } = await supabase
+        .from("race_entries")
+        .select("id, horse_id, race_id")
+        .in("id", raceEntryIds);
+
+      if (entriesError) {
+        throw entriesError;
+      }
+
+      const entries = entriesRaw ?? [];
+      const horseIds = Array.from(
+        new Set(entries.map((entry) => entry.horse_id).filter(Boolean))
+      );
+      const raceIds = Array.from(
+        new Set(entries.map((entry) => entry.race_id).filter(Boolean))
+      );
+
+      const [
+        { data: horsesRaw, error: horsesError },
+        { data: racesRaw, error: racesError },
+      ] = await Promise.all([
+        horseIds.length > 0
+          ? supabase
+              .from("horses")
+              .select("id, name, silks_url")
+              .in("id", horseIds)
+          : Promise.resolve({ data: [], error: null }),
+        raceIds.length > 0
+          ? supabase
+              .from("races")
+              .select("id, race_name")
+              .in("id", raceIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (horsesError) {
+        throw horsesError;
+      }
+
+      if (racesError) {
+        throw racesError;
+      }
+
+      const horseById = new Map(
+        (horsesRaw ?? []).map((horse) => [horse.id, horse])
+      );
+
+      const raceById = new Map(
+        (racesRaw ?? []).map((race) => [race.id, race])
+      );
+
+      const entryById = new Map(
+        entries.map((entry) => [entry.id, entry])
+      );
+
+      const resolvedSelections: TeamOfRoundSelection[] = selections
+        .map((selection) => {
+          const entry = entryById.get(selection.race_entry_id);
+          if (!entry) {
+            return null;
+          }
+
+          const horse = horseById.get(entry.horse_id);
+          const race = raceById.get(entry.race_id);
+
+          if (!horse) {
+            return null;
+          }
+
+          return {
+            horse_id: horse.id,
+            horse_name: horse.name,
+            silks_url: horse.silks_url ?? null,
+            race_name: race?.race_name ?? null,
+            is_captain: Boolean(selection.is_captain),
+            fantasy_points: Number(selection.fantasy_points ?? 0),
+          };
+        })
+        .filter(Boolean) as TeamOfRoundSelection[];
+
+      resolvedSelections.sort((a, b) => {
+        if (a.is_captain !== b.is_captain) {
+          return a.is_captain ? -1 : 1;
+        }
+        return b.fantasy_points - a.fantasy_points;
+      });
+
+      setTeamOfRoundDetail({
+        user_id: item.top_team_user_id,
+        display_name: item.top_team_display_name ?? "Player",
+        team_name:
+          item.top_team_name ??
+          item.top_team_display_name ??
+          "Team of the Round",
+        round_number: item.round_number,
+        round_name: item.round_name,
+        total_points: item.top_team_points ?? 0,
+        selections: resolvedSelections,
+      });
+    } catch (error) {
+      console.error("Team of the Round load error:", error);
+      setTeamOfRoundError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load this round's selected team."
+      );
+    } finally {
+      setTeamOfRoundLoading(false);
+    }
+  }
+
   async function openCupTeamCompare() {
     if (!cupMatchup || !round) {
       return;
@@ -1432,12 +1638,6 @@ export default function Dashboard() {
                   <strong className="text-white">
                     {getTeamStatusLabel(team?.status ?? null)}
                   </strong>
-                </span>
-
-                <span className="hidden h-4 w-px bg-white/35 sm:block" />
-
-                <span>
-                  {selectedHorseCount}/{season.team_size} horses
                 </span>
 
                 <span className="hidden h-4 w-px bg-white/35 sm:block" />
@@ -1778,15 +1978,50 @@ export default function Dashboard() {
                 </h2>
               </div>
 
-              {cupMatchup && (
-                <Link
-                  href={`/cups/${cupMatchup.cup_id}`}
-                  className="text-sm font-bold text-cyan-700 hover:text-slate-950"
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCupHowItWorksOpen((open) => !open)
+                  }
+                  className="text-sm font-bold text-slate-500 transition hover:text-cyan-700"
+                  aria-expanded={cupHowItWorksOpen}
                 >
-                  View →
-                </Link>
-              )}
+                  How it works
+                </button>
+
+                {cupMatchup && (
+                  <Link
+                    href={`/cups/${cupMatchup.cup_id}`}
+                    className="text-sm font-bold text-cyan-700 hover:text-slate-950"
+                  >
+                    View →
+                  </Link>
+                )}
+              </div>
             </div>
+
+            {cupHowItWorksOpen && (
+              <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-sm font-bold text-slate-900">
+                  Cups are head-to-head competitions between fantasy teams.
+                </p>
+                <div className="mt-3 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2.5">
+                  <p className="text-xs font-black uppercase tracking-[0.12em] text-cyan-700">
+                    2026 Spring Carnival
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-slate-900">
+                    The Spring Cup is the official Cup competition for the 2026 Spring Carnival.
+                  </p>
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  Your team&apos;s round score is compared with your opponent&apos;s.
+                  Win your matchup to improve your position or progress through
+                  the competition. Cup results are separate from the overall
+                  Racecourse Fantasy leaderboard.
+                </p>
+              </div>
+            )}
 
             {cupMatchup ? (
               <div className="p-4">
@@ -1855,8 +2090,14 @@ export default function Dashboard() {
                 )}
               </div>
             ) : (
-              <div className="p-4 text-sm text-slate-500">
-                No Cup matchup is assigned to this round.
+              <div className="p-4">
+                <p className="font-bold text-slate-900">
+                  No Cup matchup this round
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  If you&apos;re entered in a Cup, your matchup will appear here
+                  when one is scheduled.
+                </p>
               </div>
             )}
           </div>
@@ -1924,57 +2165,115 @@ export default function Dashboard() {
           <div className="-mx-1 overflow-x-auto px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex min-w-max snap-x snap-mandatory gap-3 pr-4">
               {horsesOfTheWeek.map((item) => {
-                const hasWinner = Boolean(item.horse_id && item.horse_name);
+                const hasHorse = Boolean(item.horse_id && item.horse_name);
+                const hasTeam = Boolean(item.top_team_user_id);
+                const teamLabel =
+                  item.top_team_name?.trim() ||
+                  item.top_team_display_name?.trim() ||
+                  "—";
 
                 return (
-                  <Link
+                  <div
                     key={item.round_id}
-                    href={hasWinner ? `/horses/${item.horse_id}` : "#"}
-                    aria-disabled={!hasWinner}
-                    className={`w-[138px] shrink-0 snap-start overflow-hidden rounded-xl border border-slate-200 bg-white transition sm:w-[120px] ${
-                      hasWinner
-                        ? "cursor-pointer hover:-translate-y-0.5 hover:border-cyan-300 hover:shadow-md"
-                        : "pointer-events-none"
-                    }`}
+                    className="w-[158px] shrink-0 snap-start overflow-hidden rounded-xl border border-slate-200 bg-white sm:w-[148px]"
                   >
-                    <div className="flex h-28 items-center justify-center bg-slate-50 p-3 sm:h-24">
-                      {hasWinner && item.silks_url ? (
-                        <img
-                          src={item.silks_url}
-                          alt={`${item.horse_name} silks`}
-                          className="h-full w-full object-contain"
-                        />
-                      ) : (
-                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
-                          ?
+                    {hasHorse ? (
+                      <Link
+                        href={`/horses/${item.horse_id}`}
+                        className="block transition hover:bg-cyan-50/40"
+                      >
+                        <div className="flex h-28 items-center justify-center bg-slate-50 p-3 sm:h-24">
+                          {item.silks_url ? (
+                            <img
+                              src={item.silks_url}
+                              alt={`${item.horse_name} silks`}
+                              className="h-full w-full object-contain"
+                            />
+                          ) : (
+                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
+                              ?
+                            </div>
+                          )}
                         </div>
+
+                        <div className="border-t border-slate-100 px-2 py-2 text-center">
+                          <p
+                            className="truncate text-sm font-black text-slate-900 sm:text-xs"
+                            title={item.horse_name ?? undefined}
+                          >
+                            {item.horse_name}
+                          </p>
+                          <p
+                            className="mt-0.5 truncate text-[11px] font-semibold text-slate-500 sm:text-[10px]"
+                            title={item.race_name ?? undefined}
+                          >
+                            {item.race_name ?? "Race"}
+                          </p>
+                          <p className="mt-1 text-[10px] font-black text-cyan-700">
+                            {item.fantasy_points != null
+                              ? `${item.fantasy_points} pts`
+                              : "—"}
+                          </p>
+                        </div>
+                      </Link>
+                    ) : (
+                      <>
+                        <div className="flex h-28 items-center justify-center bg-slate-50 p-3 sm:h-24">
+                          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
+                            ?
+                          </div>
+                        </div>
+                        <div className="border-t border-slate-100 px-2 py-2 text-center">
+                          <p className="text-sm font-black text-slate-400 sm:text-xs">
+                            —
+                          </p>
+                          <p className="mt-0.5 text-[11px] font-semibold text-slate-400 sm:text-[10px]">
+                            Horse of the Round
+                          </p>
+                          <p className="mt-1 text-[10px] font-black text-slate-400">
+                            —
+                          </p>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="border-t border-slate-200 bg-white px-2 py-2">
+                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">
+                        Team of the Round
+                      </p>
+
+                      {hasTeam ? (
+                        <button
+                          type="button"
+                          onClick={() => void openTeamOfRound(item)}
+                          className="mt-1 block w-full rounded-md text-left transition hover:bg-cyan-50"
+                        >
+                          <p
+                            className="truncate text-xs font-black text-slate-900"
+                            title={teamLabel}
+                          >
+                            {teamLabel}
+                          </p>
+                          <p className="mt-0.5 text-[10px] font-bold text-cyan-700">
+                            {item.top_team_points ?? 0} pts
+                          </p>
+                        </button>
+                      ) : (
+                        <>
+                          <p className="mt-1 truncate text-xs font-black text-slate-400">
+                            —
+                          </p>
+                          <p className="mt-0.5 text-[10px] font-bold text-slate-400">
+                            —
+                          </p>
+                        </>
                       )}
                     </div>
 
-                    <div className="border-t border-slate-100 px-2 py-2 text-center">
-                      <p
-                        className="truncate text-sm font-black text-slate-900 sm:text-xs"
-                        title={item.horse_name ?? undefined}
-                      >
-                        {item.horse_name ?? "—"}
-                      </p>
-                      <p
-                        className="mt-0.5 truncate text-[11px] font-semibold text-slate-500 sm:text-[10px]"
-                        title={item.race_name ?? undefined}
-                      >
-                        {item.race_name ?? (item.horse_name ? "Race" : "—")}
-                      </p>
+                    <div className="bg-gradient-to-r from-cyan-500 to-sky-400 px-2 py-1.5 text-[10px] font-black text-slate-950">
+                      Round {item.round_number}
                     </div>
-
-                    <div className="grid grid-cols-2 bg-gradient-to-r from-cyan-500 to-sky-400 px-2 py-1.5 text-[10px] font-black text-slate-950">
-                      <span>R{item.round_number}</span>
-                      <span className="text-right">
-                        {item.fantasy_points != null
-                          ? `${item.fantasy_points} pts`
-                          : "—"}
-                      </span>
-                    </div>
-                  </Link>
+                  </div>
                 );
               })}
             </div>
@@ -2127,6 +2426,138 @@ export default function Dashboard() {
           </div>
         </section>
       </div>
+
+      {teamOfRoundOpen && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setTeamOfRoundOpen(false);
+            }
+          }}
+        >
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">
+                  Team of the Round
+                </p>
+                <h2 className="mt-1 truncate text-xl font-black text-slate-950 sm:text-2xl">
+                  {teamOfRoundDetail?.team_name ?? "Selected Team"}
+                </h2>
+                {teamOfRoundDetail && (
+                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                    Round {teamOfRoundDetail.round_number}
+                    {teamOfRoundDetail.round_name
+                      ? ` · ${teamOfRoundDetail.round_name}`
+                      : ""}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setTeamOfRoundOpen(false)}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+                aria-label="Close Team of the Round"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[calc(90vh-86px)] overflow-y-auto p-4 sm:p-6">
+              {teamOfRoundLoading ? (
+                <div className="py-12 text-center font-semibold text-slate-500">
+                  Loading selected team...
+                </div>
+              ) : teamOfRoundError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                  {teamOfRoundError}
+                </div>
+              ) : teamOfRoundDetail ? (
+                <>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-400 px-4 py-3 text-slate-950">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] opacity-70">
+                        Round winner
+                      </p>
+                      <p className="mt-0.5 font-black">
+                        {teamOfRoundDetail.display_name}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-3xl font-black tabular-nums">
+                        {teamOfRoundDetail.total_points}
+                      </p>
+                      <p className="text-[10px] font-black uppercase tracking-wide opacity-70">
+                        points
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {teamOfRoundDetail.selections.map((selection) => (
+                      <Link
+                        key={selection.horse_id}
+                        href={`/horses/${selection.horse_id}`}
+                        className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 transition hover:border-cyan-300 hover:bg-cyan-50/50"
+                      >
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-50 p-1.5">
+                          {selection.silks_url ? (
+                            <img
+                              src={selection.silks_url}
+                              alt={`${selection.horse_name} silks`}
+                              className="h-full w-full object-contain"
+                            />
+                          ) : (
+                            <span className="text-xl font-black text-slate-300">
+                              ?
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <p className="truncate font-black text-slate-950">
+                              {selection.horse_name}
+                            </p>
+
+                            {selection.is_captain && (
+                              <span className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[9px] font-black text-amber-900">
+                                C
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="mt-0.5 truncate text-xs text-slate-500">
+                            {selection.race_name ?? "Race"}
+                          </p>
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                          <p className="text-lg font-black tabular-nums text-cyan-700">
+                            {selection.fantasy_points}
+                          </p>
+                          <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                            pts
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+
+                  {teamOfRoundDetail.selections.length === 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                      No selections were found for this team in this round.
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
 
       {cupCompareOpen && (
         <div
