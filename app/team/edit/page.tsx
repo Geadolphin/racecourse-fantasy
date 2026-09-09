@@ -260,6 +260,11 @@ export default function EditTeamPage() {
   const [isSpecialAutofillTeam, setIsSpecialAutofillTeam] = useState(false);
   const [showProjectedScores, setShowProjectedScores] = useState(false);
 
+  const [showSpecialTeamProjections, setShowSpecialTeamProjections] =
+    useState(false);
+  const [hasEarlyProjectionAccess, setHasEarlyProjectionAccess] =
+    useState(false);
+
   const [salaryCap, setSalaryCap] = useState(0);
   const [entries, setEntries] = useState<RaceEntry[]>([]);
   const [recentFormByHorseId, setRecentFormByHorseId] =
@@ -321,11 +326,47 @@ export default function EditTeamPage() {
 
       const settings =
         data && typeof data === "object"
-          ? (data as { show_projected_scores?: boolean })
+          ? (data as {
+              show_projected_scores?: boolean;
+              show_special_team_projections?: boolean;
+            })
           : null;
 
       setShowProjectedScores(
         settings?.show_projected_scores === true
+      );
+      setShowSpecialTeamProjections(
+        settings?.show_special_team_projections === true
+      );
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (!active) return;
+
+      if (userError || !user) {
+        setHasEarlyProjectionAccess(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("projection_access_early")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (profileError) {
+        console.error("Special projection access load error:", profileError);
+        setHasEarlyProjectionAccess(false);
+        return;
+      }
+
+      setHasEarlyProjectionAccess(
+        profile?.projection_access_early === true
       );
     }
 
@@ -830,7 +871,9 @@ export default function EditTeamPage() {
 
   const salaryRemaining = salaryCap - salaryUsed;
 
-  const projectionsVisible = showProjectedScores;
+  const projectionsVisible =
+    showProjectedScores ||
+    (showSpecialTeamProjections && hasEarlyProjectionAccess);
 
   const selectedProjectedPoints = useMemo(() => {
     const baseTotal = selectedEntries.reduce(

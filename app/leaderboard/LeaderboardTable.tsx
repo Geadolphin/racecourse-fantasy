@@ -79,6 +79,11 @@ export default function LeaderboardTable({
   const [showProjectedScores, setShowProjectedScores] =
     useState(false);
 
+  const [showSpecialTeamProjections, setShowSpecialTeamProjections] =
+    useState(false);
+  const [hasEarlyProjectionAccess, setHasEarlyProjectionAccess] =
+    useState(false);
+
   const [currentTime, setCurrentTime] =
     useState(() => Date.now());
 
@@ -120,6 +125,34 @@ export default function LeaderboardTable({
       }
 
       setCurrentUserId(user?.id ?? null);
+
+      if (!user) {
+        setHasEarlyProjectionAccess(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("projection_access_early")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!active) {
+        return;
+      }
+
+      if (profileError) {
+        console.error(
+          "Leaderboard special projection access error:",
+          profileError
+        );
+        setHasEarlyProjectionAccess(false);
+        return;
+      }
+
+      setHasEarlyProjectionAccess(
+        profile?.projection_access_early === true
+      );
     }
 
     void loadCurrentUser();
@@ -150,11 +183,17 @@ export default function LeaderboardTable({
 
       const settings =
         data && typeof data === "object"
-          ? (data as { show_projected_scores?: boolean })
+          ? (data as {
+              show_projected_scores?: boolean;
+              show_special_team_projections?: boolean;
+            })
           : null;
 
       setShowProjectedScores(
         settings?.show_projected_scores === true
+      );
+      setShowSpecialTeamProjections(
+        settings?.show_special_team_projections === true
       );
     }
 
@@ -166,7 +205,9 @@ export default function LeaderboardTable({
   }, []);
 
   const projectionsVisible =
-    type !== "round" || showProjectedScores;
+    type !== "round" ||
+    showProjectedScores ||
+    (showSpecialTeamProjections && hasEarlyProjectionAccess);
 
   if (safeRows.length === 0) {
     return (

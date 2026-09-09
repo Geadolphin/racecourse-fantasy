@@ -145,6 +145,13 @@ export default function AdminDashboardPage() {
   const [projectionSettingMessage, setProjectionSettingMessage] =
     useState("");
 
+  const [showSpecialTeamProjections, setShowSpecialTeamProjections] =
+    useState(false);
+  const [specialProjectionSettingSaving, setSpecialProjectionSettingSaving] =
+    useState(false);
+  const [specialProjectionSettingMessage, setSpecialProjectionSettingMessage] =
+    useState("");
+
   useEffect(() => {
     let active = true;
 
@@ -177,6 +184,7 @@ export default function AdminDashboardPage() {
             ? (data as {
                 show_horse_silks?: boolean;
                 show_projected_scores?: boolean;
+                show_special_team_projections?: boolean;
               })
             : null;
 
@@ -185,6 +193,9 @@ export default function AdminDashboardPage() {
         );
         setShowProjectedScores(
           settings?.show_projected_scores === true
+        );
+        setShowSpecialTeamProjections(
+          settings?.show_special_team_projections === true
         );
       }
 
@@ -293,6 +304,54 @@ export default function AdminDashboardPage() {
         : "Projected scores are now OFF across the website."
     );
     setProjectionSettingSaving(false);
+  }
+
+  async function toggleSpecialTeamProjections() {
+    if (specialProjectionSettingSaving) {
+      return;
+    }
+
+    const nextValue = !showSpecialTeamProjections;
+
+    setSpecialProjectionSettingSaving(true);
+    setSpecialProjectionSettingMessage("");
+
+    const { data, error } = await supabase.rpc(
+      "admin_set_special_team_projections_enabled",
+      {
+        p_enabled: nextValue,
+      }
+    );
+
+    if (error) {
+      console.error(
+        "Special-team projections setting update error:",
+        error
+      );
+      setSpecialProjectionSettingMessage(
+        `Could not update special-team projections: ${error.message}`
+      );
+      setSpecialProjectionSettingSaving(false);
+      return;
+    }
+
+    const result =
+      data && typeof data === "object"
+        ? (data as {
+            show_special_team_projections?: boolean;
+          })
+        : null;
+
+    const savedValue =
+      result?.show_special_team_projections ?? nextValue;
+
+    setShowSpecialTeamProjections(savedValue);
+    setSpecialProjectionSettingMessage(
+      savedValue
+        ? "Special-team projections are now ON."
+        : "Special-team projections are now OFF."
+    );
+    setSpecialProjectionSettingSaving(false);
   }
 
   useEffect(() => {
@@ -1124,7 +1183,7 @@ export default function AdminDashboardPage() {
               Checking round...
             </div>
           ) : (
-            <div className="grid divide-y divide-slate-200 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+            <div className="grid divide-y divide-slate-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
               <div className="divide-y divide-slate-200">
                 {checklist
                   .slice(0, 4)
@@ -1297,9 +1356,50 @@ export default function AdminDashboardPage() {
                 />
               </button>
             </div>
+
+            <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-bold text-slate-950">
+                  Special teams projections
+                </p>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {showSpecialTeamProjections
+                    ? "Special teams can see projections while the main switch is off."
+                    : "Special teams follow the main projected scores switch."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showSpecialTeamProjections}
+                disabled={specialProjectionSettingSaving}
+                onClick={() => void toggleSpecialTeamProjections()}
+                className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition ${
+                  showSpecialTeamProjections
+                    ? "bg-teal-600"
+                    : "bg-slate-300"
+                } ${
+                  specialProjectionSettingSaving
+                    ? "cursor-not-allowed opacity-60"
+                    : "cursor-pointer"
+                }`}
+              >
+                <span
+                  className={`inline-block h-6 w-6 rounded-full bg-white shadow-sm transition ${
+                    showSpecialTeamProjections
+                      ? "translate-x-7"
+                      : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
-          {(silksSettingMessage || projectionSettingMessage) && (
+          {(silksSettingMessage ||
+            projectionSettingMessage ||
+            specialProjectionSettingMessage) && (
             <div className="border-t border-slate-200">
               {silksSettingMessage && (
                 <div
@@ -1322,6 +1422,18 @@ export default function AdminDashboardPage() {
                   }`}
                 >
                   {projectionSettingMessage}
+                </div>
+              )}
+
+              {specialProjectionSettingMessage && (
+                <div
+                  className={`px-6 py-3 text-sm font-semibold ${
+                    specialProjectionSettingMessage.startsWith("Could not")
+                      ? "bg-red-50 text-red-700"
+                      : "bg-teal-50 text-teal-700"
+                  }`}
+                >
+                  {specialProjectionSettingMessage}
                 </div>
               )}
             </div>

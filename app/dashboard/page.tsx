@@ -357,6 +357,11 @@ export default function Dashboard() {
 
   const [showProjectedScores, setShowProjectedScores] = useState(false);
 
+  const [showSpecialTeamProjections, setShowSpecialTeamProjections] =
+    useState(false);
+  const [hasEarlyProjectionAccess, setHasEarlyProjectionAccess] =
+    useState(false);
+
   const [upcomingRace, setUpcomingRace] =
     useState<UpcomingRace | null>(null);
 
@@ -463,11 +468,17 @@ export default function Dashboard() {
 
       const settings =
         data && typeof data === "object"
-          ? (data as { show_projected_scores?: boolean })
+          ? (data as {
+              show_projected_scores?: boolean;
+              show_special_team_projections?: boolean;
+            })
           : null;
 
       setShowProjectedScores(
         settings?.show_projected_scores === true
+      );
+      setShowSpecialTeamProjections(
+        settings?.show_special_team_projections === true
       );
     }
 
@@ -508,6 +519,31 @@ export default function Dashboard() {
       if (userError || !user) {
         router.push("/login");
         return;
+      }
+
+      const {
+        data: projectionAccessProfile,
+        error: projectionAccessError,
+      } = await supabase
+        .from("profiles")
+        .select("projection_access_early")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!active) {
+        return;
+      }
+
+      if (projectionAccessError) {
+        console.error(
+          "Dashboard special projection access error:",
+          projectionAccessError
+        );
+        setHasEarlyProjectionAccess(false);
+      } else {
+        setHasEarlyProjectionAccess(
+          projectionAccessProfile?.projection_access_early === true
+        );
       }
 
       const {
@@ -1522,7 +1558,9 @@ export default function Dashboard() {
 
   const autofillPenalty = autofilledHorseCount * 3;
 
-  const projectionsVisible = showProjectedScores;
+  const projectionsVisible =
+    showProjectedScores ||
+    (showSpecialTeamProjections && hasEarlyProjectionAccess);
 
   const projectedRoundScoreAfterPenalty =
     projectedRoundScore - autofillPenalty;
