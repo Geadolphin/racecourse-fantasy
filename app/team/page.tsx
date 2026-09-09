@@ -1606,87 +1606,97 @@ export default function MyTeamPage() {
               <div className="mx-auto w-full max-w-[540px] overflow-hidden rounded-xl shadow-xl">
                 <div
                   ref={shareCardRef}
-                  className="w-[540px] bg-slate-50 text-slate-950"
-                  style={{ fontFamily: "Arial, Helvetica, sans-serif" }}
+                  className="w-[540px] bg-white text-slate-950"
+                  style={{ fontFamily: "Lato, Arial, Helvetica, sans-serif" }}
                 >
-                  <div className="bg-slate-950 px-7 pb-5 pt-6 text-white">
-                    <div className="flex items-start justify-between gap-5">
+                  {/* Match the visual style used by Best of the Round */}
+                  <div className="px-5 pb-4 pt-5">
+                    <div className="flex items-center justify-between gap-4 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-400 px-5 py-4 text-slate-950">
                       <div className="min-w-0">
-                        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-teal-300">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
                           Racecourse Fantasy
                         </p>
-                        <h2 className="mt-2 truncate text-[28px] font-black leading-none">
+
+                        <h2 className="mt-1 truncate text-[24px] font-black leading-tight">
                           {team.team_name?.trim() || "My Team"}
                         </h2>
-                        <p className="mt-2 text-[13px] font-bold text-slate-300">
-                          {season.name} · Round {round.round_number}
-                          {round.name ? ` — ${round.name}` : ""}
+
+                        <p className="mt-1 text-[11px] font-bold opacity-75">
+                          Round {round.round_number}
+                          {round.name ? ` · ${round.name}` : ""}
                         </p>
                       </div>
 
-                      <div className="shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-right">
-                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-                          Team Salary
+                      <div className="shrink-0 text-right">
+                        <p className="text-[34px] font-black leading-none tabular-nums">
+                          {totalPoints}
                         </p>
-                        <p className="mt-1 text-[17px] font-black text-white">
-                          {formatCurrency(salaryUsed)}
+                        <p className="mt-1 text-[9px] font-black uppercase tracking-[0.14em] opacity-70">
+                          points
                         </p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-px bg-slate-200">
-                    <div className="bg-white px-5 py-3">
-                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-                        Current Score
-                      </p>
-                      <p className="mt-1 text-[22px] font-black text-teal-700">
-                        {totalPoints} pts
-                      </p>
-                    </div>
-                    <div className="bg-white px-5 py-3">
-                      <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-                        Projected Score
-                      </p>
-                      <p className="mt-1 text-[22px] font-black text-amber-600">
-                        {liveProjectedScore} pts
-                      </p>
-                    </div>
-                  </div>
+                    {autofillPenalty > 0 && (
+                      <div className="mt-3 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.12em] text-red-700">
+                          Autofill penalty · {autofilledHorseCount} × 3 pts
+                        </p>
+                        <p className="text-[13px] font-black text-red-700">
+                          −{autofillPenalty} pts
+                        </p>
+                      </div>
+                    )}
 
-                  {autofillPenalty > 0 && (
-                    <div className="flex items-center justify-between border-t border-red-200 bg-red-50 px-5 py-2.5">
+                    <div className="mt-4 flex items-end justify-between gap-3">
                       <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-red-700">
-                          Autofill Penalty
+                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                          Selected Horses
                         </p>
-                        <p className="mt-0.5 text-[10px] font-bold text-red-700">
-                          {autofilledHorseCount} × 3 pts
+                        <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
+                          {season.name}
                         </p>
                       </div>
-                      <p className="text-[16px] font-black text-red-700">
-                        −{autofillPenalty} pts
-                      </p>
+
+                      <div className="flex items-center gap-4 text-right">
+                        <div>
+                          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                            Projected
+                          </p>
+                          <p className="mt-0.5 text-[14px] font-black text-amber-600">
+                            {liveProjectedScore}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                            Salary
+                          </p>
+                          <p className="mt-0.5 text-[14px] font-black text-slate-800">
+                            {formatCurrency(salaryUsed)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  )}
 
-                  <div className="px-5 py-4">
-                    <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                      Selected Horses
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       {sortedSelections.map((selection) => {
                         const entry = selection.race_entry;
                         const horse = entry?.horse;
                         const race = entry?.race;
-                        const activeNominations = selection.active_nominations ?? [];
-                        const isScratched = selection.is_scratched === true;
+                        const activeNominations =
+                          selection.active_nominations ?? [];
+                        const isScratched =
+                          selection.is_scratched === true;
+
                         const shareRaces =
                           activeNominations.length > 0
                             ? activeNominations
                                 .map((nomination) => nomination.race)
-                                .filter((item): item is FixtureRace => Boolean(item))
+                                .filter(
+                                  (item): item is FixtureRace =>
+                                    Boolean(item)
+                                )
                             : race
                               ? [race]
                               : [];
@@ -1697,7 +1707,9 @@ export default function MyTeamPage() {
 
                         const projected =
                           entry?.projected_points ??
-                          projectedPointsByEntryId[selection.race_entry_id] ??
+                          projectedPointsByEntryId[
+                            selection.race_entry_id
+                          ] ??
                           null;
 
                         const shownProjection =
@@ -1710,87 +1722,84 @@ export default function MyTeamPage() {
                         return (
                           <div
                             key={selection.id}
-                            className={`grid min-h-[96px] grid-cols-[minmax(0,1fr)_58px] items-center gap-2 rounded-lg border px-3 py-2 ${
+                            className={`flex min-h-[78px] items-center gap-2 rounded-xl border p-2.5 ${
                               isScratched
-                                ? "border-red-300 bg-red-50"
+                                ? "border-red-200 bg-red-50"
                                 : selection.is_captain
-                                  ? "border-amber-300 bg-amber-50"
+                                  ? "border-amber-200 bg-amber-50/60"
                                   : "border-slate-200 bg-white"
                             }`}
                           >
-                            <div className="flex min-w-0 items-stretch gap-2">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center">
                               {showHorseSilks &&
-                                horse?.id &&
-                                horseSilks[horse.id] && (
-                                  <div className="flex w-8 shrink-0 items-center justify-center self-stretch">
-                                    <img
-                                      src={horseSilks[horse.id] ?? ""}
-                                      alt={`${horse.name} silks`}
-                                      className="h-full max-h-[70px] w-full object-contain"
-                                    />
-                                  </div>
-                                )}
+                              horse?.id &&
+                              horseSilks[horse.id] ? (
+                                <img
+                                  src={horseSilks[horse.id] ?? ""}
+                                  alt={`${horse.name} silks`}
+                                  className="h-full w-full object-contain"
+                                />
+                              ) : (
+                                <span className="text-xl font-black text-slate-300">
+                                  ?
+                                </span>
+                              )}
+                            </div>
 
-                              <div className="min-w-0">
-                                <div className="flex min-w-0 flex-wrap items-start gap-1.5">
-                                  <p className="max-w-full whitespace-normal break-words text-[15px] font-black leading-[1.05] text-slate-950">
-                                    {horse?.name ?? "Unknown horse"}
-                                  </p>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <p className="truncate text-[12px] font-black text-slate-950">
+                                  {horse?.name ?? "Unknown horse"}
+                                </p>
 
                                 {selection.is_captain && (
-                                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[11px] font-black text-amber-950">
+                                  <span className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[8px] font-black text-amber-900">
                                     C
                                   </span>
                                 )}
                               </div>
 
-                              {isScratched && (
-                                <p className="mt-1 text-[11px] font-black uppercase text-red-700">
+                              {isScratched ? (
+                                <p className="mt-0.5 text-[9px] font-black uppercase text-red-700">
                                   Scratched
                                 </p>
-                              )}
-
-                              {shareRaces.length > 0 ? (
-                                <div className="mt-1 space-y-0.5">
-                                  {shareRaces.map((shareRace) => (
-                                    <p
-                                      key={shareRace.id}
-                                      className="truncate text-[9px] font-bold leading-snug text-slate-600"
-                                    >
-                                      R{shareRace.race_number} {shareRace.race_name} ·{" "}
-                                      {getGradeLabel(shareRace.grade)}
-                                    </p>
-                                  ))}
-                                </div>
+                              ) : shareRaces.length > 0 ? (
+                                <p className="mt-0.5 truncate text-[9px] font-semibold text-slate-500">
+                                  {shareRaces
+                                    .map(
+                                      (shareRace) =>
+                                        `R${shareRace.race_number} · ${shareRace.race_name}`
+                                    )
+                                    .join(" / ")}
+                                </p>
                               ) : (
-                                <p className="mt-1 text-[12px] font-bold text-slate-400">
+                                <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
                                   Race unavailable
                                 </p>
                               )}
-                              </div>
                             </div>
 
-                            <div className="text-right">
+                            <div className="shrink-0 text-right">
                               {selection.has_result ? (
                                 <>
-                                  <p className="text-[21px] font-black leading-none text-teal-700">
+                                  <p className="text-[17px] font-black leading-none tabular-nums text-cyan-700">
                                     {points}
                                   </p>
-                                  <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-400">
-                                    points
+                                  <p className="mt-1 text-[7px] font-black uppercase tracking-wide text-slate-400">
+                                    {selection.is_captain ? "pts · 2×" : "pts"}
                                   </p>
                                 </>
                               ) : isScratched ? (
-                                <p className="text-[11px] font-black uppercase text-red-700">
-                                  Scratched
+                                <p className="text-[8px] font-black uppercase text-red-700">
+                                  SCR
                                 </p>
                               ) : (
                                 <>
-                                  <p className="text-[21px] font-black leading-none text-amber-600">
+                                  <p className="text-[17px] font-black leading-none tabular-nums text-amber-600">
                                     {shownProjection ?? "—"}
                                   </p>
                                   <p className="mt-1 text-[7px] font-black uppercase tracking-wide text-slate-400">
-                                    projected
+                                    proj
                                   </p>
                                 </>
                               )}
@@ -1801,11 +1810,11 @@ export default function MyTeamPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-3">
+                  <div className="flex items-center justify-between border-t border-slate-200 bg-white px-5 py-3">
                     <p className="text-[9px] font-bold text-slate-400">
                       Captain scores 2× points
                     </p>
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-700">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">
                       Racecourse Fantasy
                     </p>
                   </div>

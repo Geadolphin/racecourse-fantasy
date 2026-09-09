@@ -2154,7 +2154,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:py-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
-                Season Highlights
+                Best of the Round
               </p>
               <h2 className="mt-1 text-xl font-black text-slate-950">
                 Best of the Round
@@ -2506,7 +2506,7 @@ export default function Dashboard() {
                         href={`/horses/${selection.horse_id}`}
                         className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 transition hover:border-cyan-300 hover:bg-cyan-50/50"
                       >
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-slate-50 p-1.5">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center">
                           {selection.silks_url ? (
                             <img
                               src={selection.silks_url}
@@ -2540,10 +2540,12 @@ export default function Dashboard() {
 
                         <div className="shrink-0 text-right">
                           <p className="text-lg font-black tabular-nums text-cyan-700">
-                            {selection.fantasy_points}
+                            {selection.is_captain
+                              ? selection.fantasy_points * 2
+                              : selection.fantasy_points}
                           </p>
                           <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
-                            pts
+                            {selection.is_captain ? "pts · 2×" : "pts"}
                           </p>
                         </div>
                       </Link>
