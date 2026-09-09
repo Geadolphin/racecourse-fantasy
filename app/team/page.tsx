@@ -403,12 +403,12 @@ function OfficialTeamStat({
 
 
   return (
-    <div className="min-w-0 bg-white/12 px-4 py-3.5 backdrop-blur-sm">
+    <div className="min-w-0 bg-white/12 px-3 py-3 backdrop-blur-sm sm:px-4 sm:py-3.5">
       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/65">
         {label}
       </p>
 
-      <p className={`mt-1.5 truncate text-lg font-black ${valueClasses}`}>
+      <p className={`mt-1 truncate text-base font-black sm:mt-1.5 sm:text-lg ${valueClasses}`}>
         {value}
       </p>
     </div>
@@ -993,9 +993,9 @@ export default function MyTeamPage() {
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10">
+      <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 md:py-10">
         <header className="overflow-hidden rounded-2xl border border-sky-300 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 text-white shadow-lg">
-          <div className="border-b border-white/20 px-5 py-3 md:px-6">
+          <div className="border-b border-white/20 px-4 py-3 sm:px-5 md:px-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-white/85">
@@ -1022,7 +1022,7 @@ export default function MyTeamPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <span className="rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white shadow-sm backdrop-blur-md">
                   {getStatusLabel(team.status)}
                 </span>
@@ -1033,7 +1033,7 @@ export default function MyTeamPage() {
                     setShareError("");
                     setShareOpen(true);
                   }}
-                  className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
+                  className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-white/30 bg-white/15 px-3 py-2 text-xs font-black text-white shadow-sm backdrop-blur-md transition hover:border-white/50 hover:bg-white/25 sm:min-h-0 sm:flex-none sm:py-1.5"
                 >
                   <Icon name="share" className="mr-1.5 h-3.5 w-3.5" />
                   Share Team
@@ -1042,7 +1042,7 @@ export default function MyTeamPage() {
                 {editButtonVisible && (
                   <Link
                     href="/team/edit"
-                    className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
+                    className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-white/30 bg-white/15 px-3 py-2 text-xs font-black text-white shadow-sm backdrop-blur-md transition hover:border-white/50 hover:bg-white/25 sm:min-h-0 sm:flex-none sm:py-1.5"
                   >
                     <Icon name="edit" className="mr-1.5 h-3.5 w-3.5" />
                     Edit Team
@@ -1053,13 +1053,13 @@ export default function MyTeamPage() {
           </div>
 
           <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(620px,1.5fr)]">
-            <div className="p-5 md:p-6">
+            <div className="p-4 sm:p-5 md:p-6">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
                   My Team
                 </p>
 
-                <h1 className="mt-1 truncate text-2xl font-black tracking-tight md:text-3xl">
+                <h1 className="mt-1 truncate text-xl font-black tracking-tight sm:text-2xl md:text-3xl">
                   {team.team_name?.trim() || "My Team"}
                 </h1>
               </div>
@@ -1080,7 +1080,7 @@ export default function MyTeamPage() {
                 emphasis="amber"
               />
 
-              <div className="hidden lg:block">
+              <div className="hidden lg:contents">
                 <OfficialTeamStat
                   label="Team Salary"
                   value={formatCurrency(salaryUsed)}
@@ -1125,17 +1125,17 @@ export default function MyTeamPage() {
         )}
 
 
-        <section className="mt-7">
+        <section className="mt-5 sm:mt-7">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="min-w-0">
-              <div className="mb-4 flex flex-col gap-2 border-b border-slate-300 pb-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="mb-3 flex flex-col gap-2 border-b border-slate-300 pb-3 sm:mb-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-700">
                     Stable Line-up
                   </p>
 
                   <div className="mt-1">
-                    <h2 className="text-2xl font-black text-slate-950">
+                    <h2 className="text-xl font-black text-slate-950 sm:text-2xl">
                       Selected Horses
                     </h2>
                   </div>
@@ -1190,7 +1190,7 @@ export default function MyTeamPage() {
                             setSelectedHorseId(horse.id);
                           }
                         }}
-                        className={`cursor-pointer overflow-hidden rounded-xl border px-3 py-2.5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                        className={`cursor-pointer overflow-hidden rounded-xl border px-3 py-3 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 sm:py-2.5 ${
                           isScratched
                             ? "border-red-300 bg-red-50 hover:border-red-400 focus:ring-red-500"
                             : selection.is_captain
@@ -1199,12 +1199,12 @@ export default function MyTeamPage() {
                         }`}
                         aria-label={horse ? `View statistics for ${horse.name}` : "Horse statistics unavailable"}
                       >
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                          <div className="flex min-w-0 items-stretch gap-2.5">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
+                          <div className="flex min-w-0 items-stretch gap-2 sm:gap-2.5">
                             {showHorseSilks &&
                               horse?.id &&
                               horseSilks[horse.id] && (
-                                <div className="flex w-10 shrink-0 items-center justify-center self-stretch">
+                                <div className="flex w-9 shrink-0 items-center justify-center self-stretch sm:w-10">
                                   <img
                                     src={horseSilks[horse.id] ?? ""}
                                     alt={`${horse.name} silks`}
@@ -1215,7 +1215,7 @@ export default function MyTeamPage() {
 
                             <div className="min-w-0">
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
-                              <h3 className="truncate text-base font-bold leading-tight text-slate-950 md:text-lg">
+                              <h3 className="truncate text-sm font-bold leading-tight text-slate-950 sm:text-base md:text-lg">
                                 {horse?.name ?? "Unknown horse"}
                               </h3>
 
@@ -1319,7 +1319,7 @@ export default function MyTeamPage() {
                             </div>
                           </div>
 
-                          <div className="flex min-w-[92px] flex-col items-end">
+                          <div className="flex min-w-[76px] flex-col items-end sm:min-w-[92px]">
                             <Icon
                               name="chevron"
                               className="mb-1 hidden h-4 w-4 text-slate-300 sm:block"
@@ -1430,7 +1430,7 @@ export default function MyTeamPage() {
                           key={fixtureRace.id}
                           type="button"
                           onClick={() => setSelectedRaceId(fixtureRace.id)}
-                          className="grid w-full grid-cols-[70px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500"
+                          className="grid w-full grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2 px-3 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-500 sm:grid-cols-[70px_minmax(0,1fr)_auto] sm:gap-3 sm:px-4"
                           aria-label={`View race details for ${fixtureRace.race_name}`}
                         >
                           <p className="text-xs font-bold text-slate-950">
@@ -1462,7 +1462,7 @@ export default function MyTeamPage() {
 
                           <div className="flex items-center gap-2">
                             <span
-                              className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                              className={`hidden rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide sm:inline-flex ${
                                 isComplete
                                   ? "bg-emerald-100 text-emerald-800"
                                   : fixtureRace.status === "running"
@@ -1607,10 +1607,21 @@ export default function MyTeamPage() {
             <div className="max-h-[72vh] overflow-y-auto bg-slate-200 p-3 sm:p-5">
               <div className="mx-auto w-full max-w-[540px] overflow-hidden rounded-xl shadow-xl">
                 <div
-                  ref={shareCardRef}
-                  className="w-[540px] bg-white text-slate-950"
-                  style={{ fontFamily: "Lato, Arial, Helvetica, sans-serif" }}
+                  className="origin-top-left"
+                  style={{
+                    width: "540px",
+                    transform:
+                      typeof window !== "undefined" && window.innerWidth < 580
+                        ? `scale(${Math.min((window.innerWidth - 48) / 540, 1)})`
+                        : "scale(1)",
+                    transformOrigin: "top left",
+                  }}
                 >
+                  <div
+                    ref={shareCardRef}
+                    className="w-[540px] bg-white text-slate-950"
+                    style={{ fontFamily: "Lato, Arial, Helvetica, sans-serif" }}
+                  >
                   {/* Match the visual style used by Best of the Round */}
                   <div className="px-5 pb-4 pt-5">
                     <div className="flex items-center justify-between gap-4 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-400 px-5 py-4 text-slate-950">
@@ -1819,6 +1830,7 @@ export default function MyTeamPage() {
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">
                       Racecourse Fantasy
                     </p>
+                  </div>
                   </div>
                 </div>
               </div>
