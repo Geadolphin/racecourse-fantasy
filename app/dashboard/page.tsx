@@ -2154,7 +2154,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3.5 sm:py-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
-                Best of the Round
+                Season Highlights
               </p>
               <h2 className="mt-1 text-xl font-black text-slate-950">
                 Best of the Round
@@ -2163,7 +2163,7 @@ export default function Dashboard() {
           </div>
 
           <div className="overflow-x-auto px-4 py-4 [scrollbar-width:auto] [scrollbar-color:rgb(148_163_184)_rgb(241_245_249)] [scrollbar-gutter:stable] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400 hover:[&::-webkit-scrollbar-thumb]:bg-slate-500">
-            <div className="flex w-max snap-x snap-mandatory gap-3 pb-2 pr-4">
+            <div className="flex w-max snap-x snap-mandatory gap-3 pb-3 pr-4">
               {horsesOfTheWeek.map((item) => {
                 const hasHorse = Boolean(item.horse_id && item.horse_name);
                 const hasTeam = Boolean(item.top_team_user_id);
@@ -2175,7 +2175,7 @@ export default function Dashboard() {
                 return (
                   <div
                     key={item.round_id}
-                    className="w-[158px] shrink-0 snap-start overflow-hidden rounded-xl border border-slate-200 bg-white sm:w-[148px]"
+                    className="w-[210px] shrink-0 snap-start overflow-hidden rounded-xl border border-slate-200 bg-white sm:w-[148px]"
                   >
                     {hasHorse ? (
                       <Link
@@ -2240,8 +2240,8 @@ export default function Dashboard() {
                       </>
                     )}
 
-                    <div className="border-t border-slate-200 bg-white px-2 py-2">
-                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">
+                    <div className="border-t border-slate-200 bg-cyan-50/60 px-3 py-2.5 sm:bg-white sm:px-2 sm:py-2">
+                      <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-700 sm:text-slate-400">
                         Team of the Round
                       </p>
 
@@ -2249,16 +2249,19 @@ export default function Dashboard() {
                         <button
                           type="button"
                           onClick={() => void openTeamOfRound(item)}
-                          className="mt-1 block w-full rounded-md text-left transition hover:bg-cyan-50"
+                          className="mt-1.5 block w-full rounded-lg border border-cyan-200 bg-white px-2.5 py-2 text-left shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50 sm:mt-1 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:shadow-none"
                         >
                           <p
-                            className="truncate text-xs font-black text-slate-900"
+                            className="truncate text-sm font-black text-slate-950 sm:text-xs sm:text-slate-900"
                             title={teamLabel}
                           >
                             {teamLabel}
                           </p>
-                          <p className="mt-0.5 text-[10px] font-bold text-cyan-700">
+                          <p className="mt-0.5 text-[11px] font-black text-cyan-700 sm:text-[10px] sm:font-bold">
                             {item.top_team_points ?? 0} pts
+                          </p>
+                          <p className="mt-1 text-[9px] font-bold text-slate-400 sm:hidden">
+                            Tap to view team
                           </p>
                         </button>
                       ) : (
