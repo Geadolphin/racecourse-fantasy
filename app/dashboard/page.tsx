@@ -1300,7 +1300,7 @@ export default function Dashboard() {
         : "text-slate-500";
 
   const visibleLeagues =
-    dashboardExtras.leagues.slice(0, 5);
+    dashboardExtras.leagues.slice(0, 10);
 
   if (loading) {
     return (
@@ -1360,30 +1360,24 @@ export default function Dashboard() {
         : "bg-emerald-400/15 text-emerald-200 ring-1 ring-inset ring-emerald-300/30";
 
   return (
-    <main className="min-h-screen bg-slate-100 p-3 sm:p-4 md:p-5">
-      <div className="mx-auto max-w-[1480px]">
-        {errorMessage && (
-          <div className="mb-4 rounded-xl border border-red-300 bg-red-50 p-4 text-red-800">
-            {errorMessage}
-          </div>
-        )}
-
-        {/* Compact top identity / action bar */}
-        <section className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-sm">
-          <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+    <main className="min-h-screen bg-gradient-to-b from-cyan-50/70 via-slate-100 to-slate-100">
+      {/* Full-width dashboard header */}
+      <section className="relative border-b border-cyan-500 bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 text-white shadow-sm">
+        <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 md:py-9">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-300">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">
                   {season.name}
                 </p>
 
                 <span
                   className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
                     roundIsComplete
-                      ? "bg-white/10 text-white"
+                      ? "bg-white/20 text-white"
                       : lockoutHasPassed
-                        ? "bg-red-500/20 text-red-200"
-                        : "bg-emerald-400/15 text-emerald-200"
+                        ? "bg-red-500/25 text-white"
+                        : "border border-white/30 bg-white/20 text-white backdrop-blur-sm"
                   }`}
                 >
                   {roundStatusLabel}
@@ -1395,13 +1389,13 @@ export default function Dashboard() {
                   {displayName}
                 </h1>
 
-                <p className="pb-0.5 text-sm font-semibold text-slate-300">
+                <p className="pb-0.5 text-sm font-semibold text-white/85">
                   Round {round.round_number}
                   {round.name ? ` · ${round.name}` : ""}
                 </p>
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-300">
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/85">
                 <span>
                   Team:{" "}
                   <strong className="text-white">
@@ -1409,16 +1403,16 @@ export default function Dashboard() {
                   </strong>
                 </span>
 
-                <span className="hidden h-4 w-px bg-slate-700 sm:block" />
+                <span className="hidden h-4 w-px bg-white/35 sm:block" />
 
                 <span>
                   {selectedHorseCount}/{season.team_size} horses
                 </span>
 
-                <span className="hidden h-4 w-px bg-slate-700 sm:block" />
+                <span className="hidden h-4 w-px bg-white/35 sm:block" />
 
                 <span className="inline-flex items-center gap-1.5">
-                  <Clock3 className="h-4 w-4 text-amber-300" />
+                  <Clock3 className="h-4 w-4 text-white/85" />
                   {roundIsComplete
                     ? "Round complete"
                     : lockoutHasPassed
@@ -1437,43 +1431,58 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-2 sm:flex">
               <Link
                 href={primaryTeamHref}
-                className="rounded-lg bg-amber-400 px-5 py-2.5 text-center text-sm font-black text-slate-950 transition hover:bg-amber-300"
+                className="rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
               >
                 {primaryTeamLabel}
               </Link>
 
               <Link
+                href="/team"
+                className="rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
+              >
+                My Team
+              </Link>
+
+              <Link
                 href="/leaderboard"
-                className="rounded-lg border border-slate-700 bg-slate-900 px-5 py-2.5 text-center text-sm font-bold text-white transition hover:bg-slate-800"
+                className="col-span-2 rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25 sm:col-span-1"
               >
                 Leaderboard
               </Link>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
+
+      <div className="mx-auto max-w-[1480px] px-3 py-4 sm:px-4 md:px-5">
+        {errorMessage && (
+          <div className="mb-4 rounded-xl border border-red-300 bg-red-50 p-4 text-red-800">
+            {errorMessage}
+          </div>
+        )}
 
         {/* SuperCoach-style score board */}
-        <section className="mt-4 grid gap-3 lg:grid-cols-[1.15fr_1fr_1fr]">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:row-span-2">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-700">
+        <section className="grid gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 p-3 lg:grid-cols-[1.15fr_1fr_1fr]">
+          <div className="rounded-xl border border-white/25 bg-white/10 p-5 text-white shadow-sm backdrop-blur-[2px] lg:row-span-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
               Round {round.round_number} Score
             </p>
 
             <div className="mt-3 flex items-end justify-between gap-4">
               <div>
-                <p className="text-5xl font-black leading-none text-slate-950 sm:text-6xl">
+                <p className="text-5xl font-black leading-none text-white sm:text-6xl">
                   {currentRoundScore}
                 </p>
-                <p className="mt-2 text-sm font-semibold text-slate-500">
+                <p className="mt-2 text-sm font-semibold text-white/75">
                   points
                 </p>
               </div>
 
               <div className="text-right">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
                   Round Rank
                 </p>
-                <p className="mt-1 text-2xl font-black text-slate-950">
+                <p className="mt-1 text-2xl font-black text-white">
                   {rankOfTotal(
                     currentRoundRank,
                     dashboardExtras.round_ranked_count
@@ -1482,13 +1491,13 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="mt-5 border-t border-slate-200 pt-4">
+            <div className="mt-5 border-t border-white/25 pt-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-white/70">
                     Projected
                   </p>
-                  <p className="mt-1 text-2xl font-black text-amber-700">
+                  <p className="mt-1 text-2xl font-black text-white">
                     {team && selectedHorseCount === season.team_size
                       ? projectedRoundScoreAfterPenalty
                       : "—"}
@@ -1496,31 +1505,31 @@ export default function Dashboard() {
                 </div>
 
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-white/70">
                     Horses Ran
                   </p>
-                  <p className="mt-1 text-2xl font-black text-slate-950">
+                  <p className="mt-1 text-2xl font-black text-white">
                     {horsesRanCount}/{season.team_size}
                   </p>
                 </div>
               </div>
 
               {scratchedHorseCount > 0 && (
-                <p className="mt-3 text-xs font-semibold text-red-600">
+                <p className="mt-3 text-xs font-semibold text-red-100">
                   {scratchedHorseCount}{" "}
                   {scratchedHorseCount === 1 ? "horse" : "horses"} scratched
                 </p>
               )}
 
               {autofillPenalty > 0 && (
-                <p className="mt-2 text-xs font-semibold text-red-600">
+                <p className="mt-2 text-xs font-semibold text-red-100">
                   Autofill penalty · −{autofillPenalty} pts
                 </p>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-white/25 bg-white/90 p-4 shadow-sm backdrop-blur-sm">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
               Season Score
             </p>
@@ -1530,7 +1539,7 @@ export default function Dashboard() {
             <p className="mt-1 text-xs text-slate-500">points</p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-white/25 bg-white/90 p-4 shadow-sm backdrop-blur-sm">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
               Overall Rank
             </p>
@@ -1548,37 +1557,41 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
-              Team Value
-            </p>
-            <p className="mt-2 text-2xl font-black text-slate-950">
-              {formatCurrency(salaryUsed)}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {formatCurrency(salaryRemaining)} remaining
-            </p>
-          </div>
+          <div className="rounded-xl border border-white/25 bg-white/10 p-4 text-white shadow-sm backdrop-blur-[2px] lg:col-span-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
+                  Team Value
+                </p>
+                <p className="mt-2 text-2xl font-black text-white">
+                  {formatCurrency(salaryUsed)}
+                </p>
+                <p className="mt-1 text-xs text-white/75">
+                  {formatCurrency(salaryRemaining)} remaining
+                </p>
+              </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-              Team Status
-            </p>
-            <p className="mt-2 text-2xl font-black text-slate-950">
-              {selectedHorseCount}/{season.team_size}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              {getTeamStatusLabel(team?.status ?? null)}
-            </p>
+              <div className="border-l border-white/25 pl-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/75">
+                  Team Status
+                </p>
+                <p className="mt-2 text-2xl font-black text-white">
+                  {selectedHorseCount}/{season.team_size}
+                </p>
+                <p className="mt-1 text-xs text-white/75">
+                  {getTeamStatusLabel(team?.status ?? null)}
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
         {/* FPL-style round status + next race */}
         <section className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 border-t-4 border-t-cyan-500 bg-white shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-teal-700">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
                   Round Status
                 </p>
                 <h2 className="mt-1 text-xl font-black text-slate-950">
@@ -1627,29 +1640,20 @@ export default function Dashboard() {
                 <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                   Your Team
                 </p>
-                <div className="mt-1 flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-2xl font-black text-slate-950">
-                      {selectedHorseCount}/{season.team_size}
-                    </p>
-                    <p className="text-xs text-slate-500">selected</p>
-                  </div>
-
-                  <Link
-                    href={primaryTeamHref}
-                    className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-black text-white hover:bg-teal-700"
-                  >
-                    {primaryTeamLabel}
-                  </Link>
+                <div className="mt-1">
+                  <p className="text-2xl font-black text-slate-950">
+                    {selectedHorseCount}/{season.team_size}
+                  </p>
+                  <p className="text-xs text-slate-500">selected</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 border-t-4 border-t-cyan-500 bg-white shadow-sm">
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
                   Next Race
                 </p>
                 <h2 className="mt-1 text-xl font-black text-slate-950">
@@ -1658,8 +1662,8 @@ export default function Dashboard() {
               </div>
 
               {upcomingRace && (
-                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">
-                  R{upcomingRace.race_number}
+                <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-black text-cyan-800 ring-1 ring-inset ring-cyan-200">
+                  Race {upcomingRace.race_number}
                 </span>
               )}
             </div>
@@ -1700,23 +1704,23 @@ export default function Dashboard() {
                     <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                       Time
                     </p>
-                    <p className="mt-1 font-bold text-slate-800">
+                    <p className="mt-1 text-lg font-black text-slate-950">
                       {formatRaceTime(upcomingRace.scheduled_start)}
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-xl bg-slate-950 px-4 py-3 text-center text-white">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-teal-300">
-                    To Jump
-                  </p>
-                  <p className="mt-1 text-xl font-black">
-                    {formatTimeUntil(
-                      upcomingRace.scheduled_start,
-                      currentTime,
-                      "jump"
-                    ).replace(" until jump", "")}
-                  </p>
+                <div className="mt-4 flex items-center justify-end border-t border-slate-100 pt-3">
+                  <div className="flex items-center gap-2">
+                    <Clock3 className="h-4 w-4 text-cyan-600" />
+                    <span className="text-sm font-bold text-slate-900">
+                      {formatTimeUntil(
+                        upcomingRace.scheduled_start,
+                        currentTime,
+                        "jump"
+                      )}
+                    </span>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1729,10 +1733,10 @@ export default function Dashboard() {
 
         {/* Cup + leagues */}
         <section className="mt-4 grid gap-4 lg:grid-cols-2">
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 border-t-4 border-t-cyan-500 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
               <div>
-                <div className="flex items-center gap-2 text-teal-700">
+                <div className="flex items-center gap-2 text-cyan-700">
                   <Trophy className="h-4 w-4" />
                   <p className="text-[10px] font-black uppercase tracking-[0.18em]">
                     Cup
@@ -1746,7 +1750,7 @@ export default function Dashboard() {
               {cupMatchup && (
                 <Link
                   href={`/cups/${cupMatchup.cup_id}`}
-                  className="text-sm font-bold text-teal-700 hover:text-slate-950"
+                  className="text-sm font-bold text-cyan-700 hover:text-slate-950"
                 >
                   View →
                 </Link>
@@ -1826,10 +1830,10 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 border-t-4 border-t-sky-400 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
               <div>
-                <div className="flex items-center gap-2 text-teal-700">
+                <div className="flex items-center gap-2 text-cyan-700">
                   <Network className="h-4 w-4" />
                   <p className="text-[10px] font-black uppercase tracking-[0.18em]">
                     Your Leagues
@@ -1842,7 +1846,7 @@ export default function Dashboard() {
 
               <Link
                 href="/leagues"
-                className="text-sm font-bold text-teal-700 hover:text-slate-950"
+                className="text-sm font-bold text-cyan-700 hover:text-slate-950"
               >
                 View all →
               </Link>
@@ -1859,7 +1863,7 @@ export default function Dashboard() {
                     <span className="truncate font-bold text-slate-900">
                       {league.league_name}
                     </span>
-                    <span className="shrink-0 font-black text-teal-700">
+                    <span className="shrink-0 font-black text-cyan-700">
                       {ordinal(league.league_rank)} / {league.member_count}
                     </span>
                   </Link>
@@ -1873,22 +1877,22 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* Leaderboard */}
-        <section className="mt-4">
+        {/* Leaderboard + Scoring System */}
+        <section className="mt-4 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
                   Leaderboard
                 </p>
                 <h2 className="mt-1 text-xl font-black text-slate-950">
-                  Top five
+                  Top 10
                 </h2>
               </div>
 
               <Link
                 href="/leaderboard"
-                className="text-sm font-bold text-teal-700 hover:text-slate-950"
+                className="text-sm font-bold text-cyan-700 transition hover:text-sky-600"
               >
                 View all →
               </Link>
@@ -1899,7 +1903,7 @@ export default function Dashboard() {
                 {miniLeaderboard.map((entry) => (
                   <div
                     key={entry.user_id}
-                    className="grid grid-cols-[40px_1fr_auto] items-center gap-3 px-4 py-3"
+                    className="grid grid-cols-[40px_1fr_auto] items-center gap-3 px-4 py-2"
                   >
                     <span className="text-center font-black text-slate-400">
                       {entry.overall_rank}
@@ -1919,6 +1923,92 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-700">
+                  How points work
+                </p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">
+                  Scoring system
+                </h2>
+              </div>
+
+              <span className="text-xs font-bold text-slate-500">
+                Captain scores double
+              </span>
+
+            </div>
+
+            <div className="p-3 sm:p-4">
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <div className="overflow-x-auto">
+                  <table className="w-full table-fixed text-center text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50">
+                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          Finish
+                        </th>
+                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          G1
+                        </th>
+                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          G2
+                        </th>
+                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          G3
+                        </th>
+                        <th className="w-1/5 px-2 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          Listed
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {[
+                        ["1st", 45, 35, 30, 25],
+                        ["2nd", 35, 30, 25, 20],
+                        ["3rd", 30, 25, 20, 18],
+                        ["4th", 25, 20, 18, 16],
+                        ["5th", 20, 18, 16, 14],
+                        ["6th", 18, 16, 14, 12],
+                        ["7th", 16, 14, 12, 10],
+                        ["8th", 14, 12, 10, 8],
+                        ["9th", 12, 10, 8, 6],
+                        ["10th", 10, 8, 6, 4],
+                      ].map(([finish, g1, g2, g3, listed], index) => (
+                        <tr
+                          key={String(finish)}
+                          className={`transition hover:bg-cyan-50/50 ${
+                            index < 3 ? "bg-slate-50/40" : "bg-white"
+                          }`}
+                        >
+                          <td className="w-1/5 px-2 py-2.5 text-center font-black text-slate-950">
+                            {finish}
+                          </td>
+
+                          {[g1, g2, g3, listed].map((points, pointsIndex) => (
+                            <td
+                              key={pointsIndex}
+                              className={`w-1/5 px-2 py-2.5 font-black ${
+                                index === 0
+                                  ? "text-slate-950"
+                                  : "text-slate-700"
+                              }`}
+                            >
+                              {points}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
         </section>
       </div>
 
@@ -1934,7 +2024,7 @@ export default function Dashboard() {
           <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">
                   Cup Matchup
                 </p>
                 <h2 className="mt-1 text-xl font-bold text-slate-950 sm:text-2xl">
@@ -2131,7 +2221,7 @@ function CupCompareTeam({
               </div>
 
               <div className="shrink-0 text-right">
-                <p className="text-lg font-black tabular-nums text-teal-700">
+                <p className="text-lg font-black tabular-nums text-cyan-700">
                   {selection.live_points ?? 0}
                 </p>
 
