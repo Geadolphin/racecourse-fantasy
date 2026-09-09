@@ -1631,7 +1631,7 @@ export default function EditTeamPage() {
 
             <Link
               href="/team"
-              className="mt-7 inline-flex rounded-lg bg-teal-700 px-6 py-3 font-bold text-white hover:bg-teal-800"
+              className="mt-7 inline-flex rounded-lg bg-gradient-to-r from-cyan-500 to-sky-500 px-6 py-3 font-bold text-white shadow-sm transition hover:brightness-105"
             >
               View My Team
             </Link>
@@ -1643,19 +1643,19 @@ export default function EditTeamPage() {
 
   return (
     <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-[1900px] px-3 py-4 sm:px-4 md:px-6">
-        <header className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-white shadow-sm">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mx-auto max-w-[1900px] px-2.5 py-3 sm:px-4 sm:py-4 md:px-6">
+        <header className="rounded-2xl border border-cyan-400/60 bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 px-3 py-3 text-white shadow-lg sm:px-5 sm:py-4">
+          <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-300">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">
                 Team Selection · {season.name}
               </p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <h1 className="text-xl font-bold sm:text-2xl">Edit Team</h1>
-                <span className="text-sm font-semibold text-slate-400">
+              <div className="mt-1 flex flex-col items-start gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+                <h1 className="text-lg font-black sm:text-2xl">Edit Team</h1>
+                <span className="text-sm font-semibold text-white/80">
                   Round {round.round_number}{round.name ? ` — ${round.name}` : ""}
                 </span>
-                <span className="text-sm text-slate-300">
+                <span className="text-sm text-white/85">
                   {nextLockout
                     ? `Next lockout: ${nextLockout.display_name} · ${formatDateTime(nextLockout.lockout_at)}`
                     : "All lockouts have commenced"}
@@ -1663,30 +1663,30 @@ export default function EditTeamPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="rounded-lg bg-slate-900 px-3 py-2">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Selected</p>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <div className="min-w-0 rounded-lg border border-white/25 bg-white/15 px-3 py-2 shadow-sm backdrop-blur-md">
+                <p className="text-[9px] font-black uppercase tracking-wide text-white/65">Selected</p>
                 <p className="text-sm font-semibold">{selectedCount}/{teamSize}</p>
               </div>
-              <div className="rounded-lg bg-slate-900 px-3 py-2">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Remaining</p>
-                <p className={`text-sm font-semibold ${salaryRemaining < 0 ? "text-red-300" : "text-teal-300"}`}>
+              <div className="min-w-0 rounded-lg border border-white/25 bg-white/15 px-3 py-2 shadow-sm backdrop-blur-md">
+                <p className="text-[9px] font-black uppercase tracking-wide text-white/65">Remaining</p>
+                <p className={`text-sm font-semibold ${salaryRemaining < 0 ? "text-red-100" : "text-white"}`}>
                   {formatCurrency(salaryRemaining)}
                 </p>
               </div>
-              <div className="rounded-lg bg-slate-900 px-3 py-2">
-                <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Projected</p>
-                <p className="text-sm font-semibold text-teal-300">
+              <div className="min-w-0 rounded-lg border border-white/25 bg-white/15 px-3 py-2 shadow-sm backdrop-blur-md">
+                <p className="text-[9px] font-black uppercase tracking-wide text-white/65">Projected</p>
+                <p className="text-sm font-semibold text-white">
                   {selectedProjectedPoints} pts
                 </p>
               </div>
               <div
-                className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+                className={`min-h-10 rounded-lg border px-3 py-2 text-center text-xs font-semibold sm:min-h-0 ${
                   autoSaveStatus === "error"
-                    ? "border-red-700 bg-red-950/40 text-red-300"
+                    ? "border-red-200/60 bg-red-500/20 text-white"
                     : autoSaveStatus === "saving"
-                      ? "border-amber-700 bg-amber-950/30 text-amber-300"
-                      : "border-slate-700 bg-slate-900 text-slate-300"
+                      ? "border-amber-200/60 bg-amber-400/20 text-white"
+                      : "border-white/25 bg-white/15 text-white/85 backdrop-blur-md"
                 }`}
                 title="Changes to horses and captain are saved automatically."
               >
@@ -1705,13 +1705,13 @@ export default function EditTeamPage() {
               <button
                 type="button"
                 onClick={() => setShowScoringModal(true)}
-                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-teal-500 hover:text-white"
+                className="rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 w-full sm:w-auto"
               >
                 Scoring System
               </button>
               <Link
                 href="/team"
-                className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold transition hover:bg-slate-900"
+                className="rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 w-full sm:w-auto"
               >
                 Cancel
               </Link>
@@ -1719,7 +1719,7 @@ export default function EditTeamPage() {
                 type="button"
                 onClick={fillTeam}
                 disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting || autoSaveStatus === "saving"}
-                className="rounded-lg border border-teal-500 bg-slate-900 px-3 py-2 text-xs font-semibold text-teal-300 transition hover:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500 disabled:opacity-50"
+                className="w-full rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 disabled:opacity-40 sm:w-auto"
               >
                 Fill Team
               </button>
@@ -1727,7 +1727,7 @@ export default function EditTeamPage() {
                 type="button"
                 onClick={() => void saveDraft()}
                 disabled={saving || submitting || autoSaveStatus === "saving"}
-                className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold transition hover:bg-slate-800 disabled:opacity-50"
+                className="w-full rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 disabled:opacity-40 sm:w-auto"
               >
                 {saving ? "Saving..." : "Save Draft"}
               </button>
@@ -1735,7 +1735,7 @@ export default function EditTeamPage() {
                 type="button"
                 onClick={() => void submitTeam()}
                 disabled={!teamIsComplete || submitting || saving || autoSaveStatus === "saving"}
-                className="rounded-lg bg-teal-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-teal-400 disabled:bg-slate-700 disabled:text-slate-400"
+                className="w-full rounded-lg bg-white px-4 py-2.5 text-xs font-black text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:bg-white/30 disabled:text-white/60 sm:w-auto"
               >
                 {submitting ? "Submitting..." : team?.status === "submitted" ? "Update Team" : "Submit Team"}
               </button>
@@ -1743,8 +1743,9 @@ export default function EditTeamPage() {
           </div>
         </header>
 
-        <section className="mt-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2">
+        <section className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:mt-4">
+          <div className="p-2.5 sm:p-3">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Lockouts</span>
             {roundLockouts.map((lockout) => {
               const isLocked = currentTime >= new Date(lockout.lockout_at).getTime();
@@ -1761,18 +1762,18 @@ export default function EditTeamPage() {
             })}
           </div>
 
-          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <input
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search horse, race or track"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
             />
             <select
               value={raceTypeFilter}
               onChange={(event) => setRaceTypeFilter(event.target.value as RaceTypeFilter)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
             >
               <option value="all">All race types</option>
               <option value="G1">Group 1</option>
@@ -1783,7 +1784,7 @@ export default function EditTeamPage() {
             <select
               value={raceFilter}
               onChange={(event) => setRaceFilter(event.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
             >
               <option value="all">All races</option>
               {raceOptions.map((raceOption) => (
@@ -1801,7 +1802,7 @@ export default function EditTeamPage() {
                     : Number(event.target.value)
                 )
               }
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
               aria-label="Maximum horse price"
             >
               <option value="">Any price</option>
@@ -1818,7 +1819,7 @@ export default function EditTeamPage() {
             <select
               value={sortOption}
               onChange={(event) => setSortOption(event.target.value as SortOption)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
             >
               <option value="race">Race order</option>
               <option value="projected-high">Projected points: highest first</option>
@@ -1826,6 +1827,7 @@ export default function EditTeamPage() {
               <option value="price-low">Price: lowest first</option>
               <option value="name">Horse name</option>
             </select>
+          </div>
           </div>
         </section>
 
@@ -1913,7 +1915,7 @@ export default function EditTeamPage() {
                         <p className="mt-0.5 truncate text-xs text-slate-500">
                           {entry.race ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}` : "Race unavailable"}
                         </p>
-                        <p className="mt-0.5 text-xs font-bold text-teal-700">
+                        <p className="mt-0.5 text-xs font-bold text-sky-700">
                           Projected: {entry.projected_points ?? "—"} pts
                         </p>
                       </div>
@@ -1950,7 +1952,7 @@ export default function EditTeamPage() {
           <section className="min-w-0">
             <div className="flex items-end justify-between border-b border-slate-300 pb-2">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-700">Race Fields</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-700">Race Fields</p>
                 <h2 className="mt-0.5 text-xl font-bold text-slate-950">Select Horses</h2>
               </div>
               <p className="text-xs font-medium text-slate-500">{filteredEntries.length} runners</p>
@@ -2092,7 +2094,7 @@ export default function EditTeamPage() {
                                     <button
                                       type="button"
                                       onClick={() => setSelectedHorseId(entry.horse!.id)}
-                                      className="min-w-0 whitespace-normal break-words text-left text-base font-semibold text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                      className="min-w-0 whitespace-normal break-words text-left text-base font-semibold text-slate-950 underline-offset-2 hover:text-sky-700 hover:underline focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
                                       aria-label={`View statistics for ${entry.horse.name}`}
                                     >
                                       {entry.horse.name}
@@ -2139,7 +2141,7 @@ export default function EditTeamPage() {
                                 <p className="text-sm font-semibold text-slate-950">
                                   {formatCurrency(entry.price_at_entry)}
                                 </p>
-                                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-700">
+                                <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700">
                                   Proj {entry.projected_points ?? "—"} pts
                                 </p>
                                 {wouldExceedBudget && (
@@ -2296,7 +2298,7 @@ export default function EditTeamPage() {
                                   onClick={() =>
                                     setSelectedHorseId(entry.horse!.id)
                                   }
-                                  className="truncate text-left text-lg font-semibold leading-tight text-slate-950 underline-offset-2 hover:text-teal-700 hover:underline focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+                                  className="truncate text-left text-lg font-semibold leading-tight text-slate-950 underline-offset-2 hover:text-sky-700 hover:underline focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
                                   aria-label={`View statistics for ${entry.horse.name}`}
                                 >
                                   {entry.horse.name}
@@ -2344,7 +2346,7 @@ export default function EditTeamPage() {
                                   {formatDateTime(entryLockout.lockout_at)}
                                 </p>
                               )}
-                              <p className="mt-1 text-xs font-bold text-teal-700">
+                              <p className="mt-1 text-xs font-bold text-sky-700">
                                 Projected: {entry.projected_points ?? "—"} pts
                               </p>
                             </div>
@@ -2440,7 +2442,7 @@ export default function EditTeamPage() {
               type="button"
               onClick={fillTeam}
               disabled={!teamIsEditable || selectedCount >= teamSize || saving || submitting || autoSaveStatus === "saving"}
-              className="rounded-lg border border-teal-600 bg-white px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-50 disabled:border-slate-300 disabled:text-slate-400 disabled:opacity-50"
+              className="rounded-lg border border-teal-600 bg-white px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-teal-50 disabled:border-slate-300 disabled:text-slate-400 disabled:opacity-50"
             >
               Fill Team
             </button>
