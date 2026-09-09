@@ -1645,8 +1645,15 @@ export default function EditTeamPage() {
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-[1900px] px-2.5 py-3 sm:px-4 sm:py-4 md:px-6">
         <header className="rounded-2xl border border-cyan-400/60 bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 px-3 py-3 text-white shadow-lg sm:px-5 sm:py-4">
-          <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
+          <div className="relative flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <Link
+              href="/team"
+              className="absolute right-0 top-0 inline-flex min-h-9 items-center justify-center rounded-lg border border-white/30 bg-white/15 px-3 py-2 text-xs font-black text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 sm:hidden"
+            >
+              Cancel
+            </Link>
+
+            <div className="min-w-0 pr-20 sm:pr-0">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">
                 Team Selection · {season.name}
               </p>
@@ -1711,7 +1718,7 @@ export default function EditTeamPage() {
               </button>
               <Link
                 href="/team"
-                className="rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 w-full sm:w-auto"
+                className="hidden rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 sm:inline-flex"
               >
                 Cancel
               </Link>
@@ -1743,7 +1750,7 @@ export default function EditTeamPage() {
           </div>
         </header>
 
-        <section className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:mt-4">
+        <section className="mt-3 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:mt-4 lg:block">
           <div className="p-2.5 sm:p-3">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Lockouts</span>
@@ -1915,6 +1922,11 @@ export default function EditTeamPage() {
                         <p className="mt-0.5 truncate text-xs text-slate-500">
                           {entry.race ? `${getGradeLabel(entry.race.grade)} · ${entry.race.racecourse?.name ?? "Racecourse"} R${entry.race.race_number}` : "Race unavailable"}
                         </p>
+                        {entry.race && (
+                          <p className="mt-0.5 text-[11px] font-semibold text-slate-600">
+                            {formatDateTime(entry.race.scheduled_start)}
+                          </p>
+                        )}
                         <p className="mt-0.5 text-xs font-bold text-sky-700">
                           Projected: {entry.projected_points ?? "—"} pts
                         </p>
@@ -1947,6 +1959,94 @@ export default function EditTeamPage() {
             )}
           </div>
         </details>
+
+        <section className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:hidden">
+          <div className="p-2.5 sm:p-3">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Lockouts</span>
+            {roundLockouts.map((lockout) => {
+              const isLocked = currentTime >= new Date(lockout.lockout_at).getTime();
+              return (
+                <span
+                  key={lockout.id}
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                    isLocked ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {lockout.display_name} · {isLocked ? "Locked" : "Open"}
+                </span>
+              );
+            })}
+          </div>
+
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search horse, race or track"
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+            />
+            <select
+              value={raceTypeFilter}
+              onChange={(event) => setRaceTypeFilter(event.target.value as RaceTypeFilter)}
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+            >
+              <option value="all">All race types</option>
+              <option value="G1">Group 1</option>
+              <option value="G2">Group 2</option>
+              <option value="G3">Group 3</option>
+              <option value="L">Listed</option>
+            </select>
+            <select
+              value={raceFilter}
+              onChange={(event) => setRaceFilter(event.target.value)}
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+            >
+              <option value="all">All races</option>
+              {raceOptions.map((raceOption) => (
+                <option key={raceOption.id} value={raceOption.id}>
+                  {raceOption.racecourse?.name ?? "Racecourse"} R{raceOption.race_number} — {raceOption.race_name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={maxPriceFilter ?? ""}
+              onChange={(event) =>
+                setMaxPriceFilter(
+                  event.target.value === ""
+                    ? null
+                    : Number(event.target.value)
+                )
+              }
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+              aria-label="Maximum horse price"
+            >
+              <option value="">Any price</option>
+              <option value={30000}>Up to $30,000</option>
+              {Array.from(
+                { length: 14 },
+                (_, index) => (index + 1) * 50000
+              ).map((price) => (
+                <option key={price} value={price}>
+                  Up to {formatCurrency(price)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sortOption}
+              onChange={(event) => setSortOption(event.target.value as SortOption)}
+              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+            >
+              <option value="race">Race order</option>
+              <option value="projected-high">Projected points: highest first</option>
+              <option value="price-high">Price: highest first</option>
+              <option value="price-low">Price: lowest first</option>
+              <option value="name">Horse name</option>
+            </select>
+          </div>
+          </div>
+        </section>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)] 2xl:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)_280px]">
           <section className="min-w-0">
@@ -2340,10 +2440,10 @@ export default function EditTeamPage() {
                                   : "Race unavailable"}
                               </p>
 
-                              {entryLockout && (
+                              {entry.race && (
                                 <p className="mt-0.5 truncate text-[10px] font-medium text-slate-700">
-                                  {entryLockout.display_name} ·{" "}
-                                  {formatDateTime(entryLockout.lockout_at)}
+                                  {formatDateTime(entry.race.scheduled_start)}
+                                  {entryLockout ? ` · ${entryLockout.display_name}` : ""}
                                 </p>
                               )}
                               <p className="mt-1 text-xs font-bold text-sky-700">
