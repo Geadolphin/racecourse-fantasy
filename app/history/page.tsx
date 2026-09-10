@@ -211,7 +211,7 @@ function ProgressChart({
 
   if (points.length === 0) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-sky-100 bg-white p-4 sm:p-5 shadow-sm ring-1 ring-sky-100/50">
         <h3 className="text-lg font-bold text-slate-900">{title}</h3>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
         <p className="mt-8 text-sm text-slate-400">
@@ -270,14 +270,15 @@ function ProgressChart({
   });
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border border-sky-100 bg-white p-4 sm:p-5 shadow-sm ring-1 ring-sky-100/50">
       <h3 className="text-lg font-bold text-slate-900">{title}</h3>
       <p className="mt-1 text-sm text-slate-500">{description}</p>
 
-      <div className="mt-4 overflow-x-auto">
+      <div className="mt-3 w-full overflow-hidden">
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="h-auto min-w-[520px] w-full"
+          preserveAspectRatio="xMidYMid meet"
+          className="h-auto w-full"
           role="img"
           aria-label={title}
         >
@@ -307,7 +308,7 @@ function ProgressChart({
             points={polyline}
             fill="none"
             stroke="currentColor"
-            className="text-teal-700"
+            className="text-sky-600"
             strokeWidth="3"
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -324,7 +325,7 @@ function ProgressChart({
                   cy={y}
                   r="5"
                   fill="currentColor"
-                  className="text-teal-700"
+                  className="text-sky-600"
                 >
                   <title>
                     {point.label}: {formatValue(point.value)}
@@ -355,6 +356,141 @@ function ProgressChart({
   );
 }
 
+function RoundScoreBarChart({
+  points,
+}: {
+  points: ProgressPoint[];
+}) {
+  const width = 640;
+  const height = 230;
+  const left = 50;
+  const right = 14;
+  const top = 18;
+  const bottom = 40;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+
+  if (points.length === 0) {
+    return (
+      <div className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm ring-1 ring-sky-100/50 sm:p-5">
+        <h3 className="text-lg font-bold text-slate-900">Round Scores</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Your fantasy score in each completed round.
+        </p>
+        <p className="mt-8 text-sm text-slate-400">
+          No completed round data yet.
+        </p>
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(
+    1,
+    ...points.map((point) => Number(point.value ?? 0))
+  );
+
+  const yMax = Math.ceil(maxValue / 50) * 50 || 50;
+  const yTicks = Array.from({ length: 5 }, (_, index) => {
+    const value = Math.round(yMax - (index / 4) * yMax);
+    return {
+      value,
+      y: top + (index / 4) * plotHeight,
+    };
+  });
+
+  const slotWidth = plotWidth / Math.max(points.length, 1);
+  const barWidth = Math.max(10, Math.min(46, slotWidth * 0.58));
+
+  return (
+    <div className="rounded-2xl border border-sky-100 bg-white p-3 shadow-sm ring-1 ring-sky-100/50 sm:p-5">
+      <div className="mb-2">
+        <h3 className="text-base font-black text-slate-900 sm:text-lg">
+          Round Scores
+        </h3>
+        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+          Your fantasy score in each completed round.
+        </p>
+      </div>
+
+      <div className="w-full overflow-hidden">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="h-auto w-full"
+          role="img"
+          aria-label="Round scores bar graph"
+        >
+          {yTicks.map((tick) => (
+            <g key={tick.value}>
+              <line
+                x1={left}
+                x2={width - right}
+                y1={tick.y}
+                y2={tick.y}
+                stroke="currentColor"
+                className="text-slate-200"
+                strokeWidth="1"
+              />
+              <text
+                x={left - 8}
+                y={tick.y + 4}
+                textAnchor="end"
+                className="fill-slate-500 text-[11px]"
+              >
+                {tick.value}
+              </text>
+            </g>
+          ))}
+
+          {points.map((point, index) => {
+            const x = left + slotWidth * index + slotWidth / 2;
+            const value = Number(point.value ?? 0);
+            const barHeight = (value / yMax) * plotHeight;
+            const y = top + plotHeight - barHeight;
+
+            return (
+              <g key={`${point.round_number}-${value}`}>
+                <rect
+                  x={x - barWidth / 2}
+                  y={y}
+                  width={barWidth}
+                  height={Math.max(barHeight, 1)}
+                  rx="6"
+                  fill="currentColor"
+                  className="text-sky-500"
+                >
+                  <title>
+                    {point.label}: {Math.round(value)} pts
+                  </title>
+                </rect>
+
+                <text
+                  x={x}
+                  y={Math.max(top + 11, y - 5)}
+                  textAnchor="middle"
+                  className="fill-slate-700 text-[10px] font-bold"
+                >
+                  {Math.round(value)}
+                </text>
+
+                <text
+                  x={x}
+                  y={height - 13}
+                  textAnchor="middle"
+                  className="fill-slate-500 text-[11px] font-semibold"
+                >
+                  R{point.round_number}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+
 export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
@@ -369,7 +505,7 @@ export default function HistoryPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [showHorseSilks, setShowHorseSilks] = useState(true);
   const [activeGraph, setActiveGraph] = useState<
-    "score" | "rank" | "roundRank" | "salary" | null
+    "score" | "rank" | "roundRank" | "roundScore" | "salary" | null
   >(null);
   const [overallRankHistory, setOverallRankHistory] = useState<
     Record<number, number>
@@ -1076,6 +1212,14 @@ export default function HistoryPage() {
       .filter((point): point is ProgressPoint => point !== null);
   }, [progressRounds]);
 
+  const roundScoreProgress = useMemo(() => {
+    return progressRounds.map((round) => ({
+      round_number: round.round_number,
+      label: `Round ${round.round_number}`,
+      value: Number(round.round_score ?? 0),
+    }));
+  }, [progressRounds]);
+
   const salaryProgress = useMemo(() => {
     return progressRounds.map((round) => ({
       round_number: round.round_number,
@@ -1170,20 +1314,20 @@ export default function HistoryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm md:p-8">
-          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+    <main className="min-h-screen bg-slate-100">
+      <header className="w-full border-y border-cyan-400/60 bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 text-white shadow-lg">
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 md:px-8 md:py-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-teal-300">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
                 Player history
               </p>
 
-              <h1 className="mt-2 text-3xl font-bold md:text-4xl">
+              <h1 className="mt-1.5 text-3xl font-black leading-tight md:text-4xl">
                 My Season
               </h1>
 
-              <p className="mt-2 max-w-2xl text-slate-300">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
                 {selectedSeason
                   ? `${selectedSeason.name} ${selectedSeason.year} — `
                   : ""}
@@ -1192,11 +1336,11 @@ export default function HistoryPage() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:gap-3">
+              <div className="col-span-2 w-full sm:col-span-1 sm:w-auto">
                 <label
                   htmlFor="my-season-selector"
-                  className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400"
+                  className="mb-1 block text-xs font-bold uppercase tracking-wide text-white/80"
                 >
                   Season
                 </label>
@@ -1209,7 +1353,7 @@ export default function HistoryPage() {
                       event.target.value
                     )
                   }
-                  className="min-w-52 rounded-lg border border-slate-600 bg-slate-800 px-4 py-3 font-semibold text-white outline-none focus:border-teal-400"
+                  className="w-full min-w-0 rounded-lg border border-white/30 bg-white/15 px-4 py-3 font-semibold text-white shadow-sm outline-none backdrop-blur-md transition focus:border-white/70 focus:ring-2 focus:ring-white/25 sm:min-w-52"
                 >
                   {seasons.map((season) => (
                     <option
@@ -1227,32 +1371,34 @@ export default function HistoryPage() {
 
               <Link
                 href="/dashboard"
-                className="rounded-lg border border-slate-600 px-5 py-3 font-bold text-white hover:bg-slate-800"
+                className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/15 px-4 py-3 text-sm font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 sm:px-5 sm:text-base"
               >
                 Dashboard
               </Link>
 
               <Link
                 href="/leaderboard"
-                className="rounded-lg bg-amber-400 px-5 py-3 font-bold text-slate-900 hover:bg-amber-300"
+                className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-black text-sky-700 shadow-sm transition hover:bg-sky-50 sm:px-5 sm:text-base"
               >
                 Leaderboard
               </Link>
             </div>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl bg-teal-700 p-5 text-white shadow-sm">
+      <div className="mx-auto max-w-7xl px-3 pb-8 sm:px-6 md:px-8">
+        <section className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-4 xl:grid-cols-4">
+          <div className="rounded-2xl border border-cyan-300/60 bg-gradient-to-br from-cyan-500 to-sky-500 p-4 sm:p-5 text-white shadow-lg">
             <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-medium text-teal-100">
+              <p className="text-sm font-bold text-white/80">
                 Season Score
               </p>
 
               <button
                 type="button"
                 onClick={() => setActiveGraph("score")}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/20"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-700 transition hover:bg-sky-100"
                 aria-label="View season score graph"
                 title="View graph"
               >
@@ -1260,25 +1406,25 @@ export default function HistoryPage() {
               </button>
             </div>
 
-            <p className="mt-2 text-4xl font-bold">
+            <p className="mt-2 text-3xl font-black sm:text-4xl">
               {seasonScore?.total_points ?? 0}
             </p>
 
-            <p className="mt-1 text-sm text-teal-100">
+            <p className="mt-1 text-sm text-white/75">
               total points
             </p>
           </div>
 
-          <div className="rounded-2xl bg-slate-900 p-5 text-white shadow-sm">
+          <div className="rounded-2xl border border-sky-200 bg-white p-4 sm:p-5 text-slate-950 shadow-sm ring-1 ring-sky-100/60">
             <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-medium text-slate-300">
+              <p className="text-sm font-bold text-slate-500">
                 Overall Rank
               </p>
 
               <button
                 type="button"
                 onClick={() => setActiveGraph("rank")}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition hover:bg-white/20"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-700 transition hover:bg-sky-100"
                 aria-label="View overall rank graph"
                 title="View graph"
               >
@@ -1286,16 +1432,16 @@ export default function HistoryPage() {
               </button>
             </div>
 
-            <p className="mt-2 text-4xl font-bold">
+            <p className="mt-2 text-3xl font-black sm:text-4xl">
               {getRankDisplay(seasonScore?.overall_rank ?? null)}
             </p>
 
-            <p className="mt-1 text-sm text-slate-300">
+            <p className="mt-1 text-sm text-slate-500">
               season position
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-sky-100 bg-white p-5 shadow-sm ring-1 ring-sky-100/50">
             <div className="flex items-start justify-between gap-3">
               <p className="text-sm font-medium text-slate-500">
                 Rounds Played
@@ -1312,7 +1458,7 @@ export default function HistoryPage() {
               </button>
             </div>
 
-            <p className="mt-2 text-4xl font-bold text-slate-900">
+            <p className="mt-2 text-3xl font-black text-slate-900 sm:text-4xl">
               {seasonScore?.rounds_played ?? rounds.length}
             </p>
 
@@ -1321,12 +1467,24 @@ export default function HistoryPage() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">
-              Highest Round
-            </p>
+          <div className="rounded-2xl border border-sky-100 bg-white p-4 shadow-sm ring-1 ring-sky-100/50 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-bold text-slate-500">
+                Highest Round
+              </p>
 
-            <p className="mt-2 text-4xl font-bold text-slate-900">
+              <button
+                type="button"
+                onClick={() => setActiveGraph("roundScore")}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-700 transition hover:bg-sky-100"
+                aria-label="View round scores bar graph"
+                title="View round scores graph"
+              >
+                <LineChart className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="mt-2 text-3xl font-black text-slate-900 sm:text-4xl">
               {seasonScore?.highest_round_score ?? 0}
             </p>
 
@@ -1336,8 +1494,8 @@ export default function HistoryPage() {
           </div>
         </section>
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border bg-white p-5">
+        <section className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-4 lg:grid-cols-4">
+          <div className="rounded-xl border border-sky-100 bg-white p-5 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Round wins
             </p>
@@ -1347,7 +1505,7 @@ export default function HistoryPage() {
             </p>
           </div>
 
-          <div className="rounded-xl border bg-white p-5">
+          <div className="rounded-xl border border-sky-100 bg-white p-5 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Top-ten finishes
             </p>
@@ -1357,7 +1515,7 @@ export default function HistoryPage() {
             </p>
           </div>
 
-          <div className="rounded-xl border bg-white p-5">
+          <div className="rounded-xl border border-sky-100 bg-white p-5 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Total value movement
             </p>
@@ -1375,7 +1533,7 @@ export default function HistoryPage() {
             </p>
           </div>
 
-          <div className="rounded-xl border bg-white p-5">
+          <div className="rounded-xl border border-sky-100 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Current salary
@@ -1402,7 +1560,7 @@ export default function HistoryPage() {
           </div>
         </section>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">
               Round History
@@ -1413,11 +1571,11 @@ export default function HistoryPage() {
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <button
               type="button"
               onClick={expandAll}
-              className="rounded-lg border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 sm:w-auto sm:px-4 sm:py-2"
             >
               Expand All
             </button>
@@ -1425,7 +1583,7 @@ export default function HistoryPage() {
             <button
               type="button"
               onClick={collapseAll}
-              className="rounded-lg border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 sm:w-auto sm:px-4 sm:py-2"
             >
               Collapse All
             </button>
@@ -1447,17 +1605,17 @@ export default function HistoryPage() {
             return (
               <article
                 key={round.round_id}
-                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm ring-1 ring-sky-100/50"
               >
                 <button
                   type="button"
                   onClick={() => toggleRound(round.round_id)}
-                  className="flex w-full flex-col gap-4 p-5 text-left transition hover:bg-slate-50 md:flex-row md:items-center md:justify-between"
+                  className="flex w-full flex-col gap-3 p-4 text-left transition hover:bg-sky-50/60 sm:p-5 md:flex-row md:items-center md:justify-between"
                   aria-expanded={expanded}
                 >
                   <div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-xl font-bold text-slate-900">
+                      <h3 className="text-lg font-black leading-snug text-slate-900 sm:text-xl">
                         {expanded ? "▼" : "▶"} Round{" "}
                         {round.round_number}
                         {round.round_name
@@ -1465,7 +1623,7 @@ export default function HistoryPage() {
                           : ""}
                       </h3>
 
-                      <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">
+                      <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-black text-sky-700">
                         {round.team_status}
                       </span>
                     </div>
@@ -1475,7 +1633,7 @@ export default function HistoryPage() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 sm:gap-x-8">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Score
@@ -1534,8 +1692,8 @@ export default function HistoryPage() {
 
                 {expanded && (
                   <div className="border-t border-slate-200">
-                    <section className="grid gap-4 bg-slate-50 p-5 sm:grid-cols-2 lg:grid-cols-5">
-                      <div className="rounded-xl border bg-white p-4">
+                    <section className="grid grid-cols-2 gap-3 bg-gradient-to-r from-sky-50/70 to-cyan-50/70 p-4 sm:grid-cols-2 sm:gap-4 sm:p-5 lg:grid-cols-5">
+                      <div className="rounded-xl border border-sky-100 bg-white p-4 shadow-sm">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                           Salary cap
                         </p>
@@ -1545,7 +1703,7 @@ export default function HistoryPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-xl border bg-white p-4">
+                      <div className="rounded-xl border border-sky-100 bg-white p-4 shadow-sm">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                           Salary used
                         </p>
@@ -1555,7 +1713,7 @@ export default function HistoryPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-xl border bg-white p-4">
+                      <div className="rounded-xl border border-sky-100 bg-white p-4 shadow-sm">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                           Winners Picked
                         </p>
@@ -1565,7 +1723,7 @@ export default function HistoryPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-xl border bg-white p-4">
+                      <div className="rounded-xl border border-sky-100 bg-white p-4 shadow-sm">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                           Captain bonus
                         </p>
@@ -1575,7 +1733,7 @@ export default function HistoryPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-xl border bg-white p-4">
+                      <div className="rounded-xl border border-sky-100 bg-white p-4 shadow-sm">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                           Autofill penalty
                         </p>
@@ -1601,31 +1759,121 @@ export default function HistoryPage() {
                       </div>
                     </section>
 
-                    <div className="overflow-x-auto">
+                    <div className="space-y-2 p-3 md:hidden">
+                      {round.selections.map((selection) => (
+                        <div
+                          key={selection.race_entry_id}
+                          className={`rounded-xl border p-3 shadow-sm ${
+                            selection.is_captain
+                              ? "border-amber-200 bg-amber-50"
+                              : "border-sky-100 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {showHorseSilks && selection.silks_url && (
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center">
+                                <img
+                                  src={selection.silks_url}
+                                  alt={`${selection.horse_name} silks`}
+                                  className="h-full w-full object-contain"
+                                />
+                              </div>
+                            )}
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <Link
+                                      href={`/horses/${selection.horse_id}`}
+                                      className="truncate font-black text-slate-950 hover:text-sky-700"
+                                    >
+                                      {selection.horse_name}
+                                    </Link>
+
+                                    {selection.is_captain && (
+                                      <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black uppercase text-amber-900">
+                                        C
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                                    {selection.racecourse_name
+                                      ? `${selection.racecourse_name} · `
+                                      : ""}
+                                    R{selection.race_number} · {selection.race_name}
+                                  </p>
+                                </div>
+
+                                <span className="inline-flex min-w-12 shrink-0 justify-center rounded-full bg-sky-100 px-2.5 py-1 text-sm font-black text-sky-700">
+                                  {selection.fantasy_points}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-3 gap-2">
+                                <div className="rounded-lg bg-slate-50 px-2.5 py-2">
+                                  <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                                    Finish
+                                  </p>
+                                  <span
+                                    className={`mt-1 inline-flex min-w-12 justify-center rounded-full px-2 py-0.5 text-xs font-bold ${getFinishClasses(
+                                      selection
+                                    )}`}
+                                  >
+                                    {getFinishLabel(selection)}
+                                  </span>
+                                </div>
+
+                                <div className="rounded-lg bg-slate-50 px-2.5 py-2">
+                                  <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                                    Grade
+                                  </p>
+                                  <p className="mt-1 text-xs font-bold text-slate-700">
+                                    {getGradeLabel(selection.race_grade)}
+                                  </p>
+                                </div>
+
+                                <div className="rounded-lg bg-slate-50 px-2.5 py-2">
+                                  <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+                                    Price
+                                  </p>
+                                  <p className="mt-1 text-xs font-bold text-slate-700">
+                                    {formatCurrency(selection.selected_price)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="hidden overflow-x-auto md:block">
                       <table className="w-full table-fixed divide-y divide-slate-200">
-                        <thead className="bg-slate-100">
+                        <thead className="border-b border-sky-200 bg-gradient-to-r from-sky-50 to-cyan-50">
                           <tr>
-                            <th className="w-[24%] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                            <th className="w-[24%] px-5 py-3 text-left text-xs font-black uppercase tracking-wide text-sky-900">
                               Horse
                             </th>
 
-                            <th className="w-[30%] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                            <th className="w-[30%] px-5 py-3 text-left text-xs font-black uppercase tracking-wide text-sky-900">
                               Race
                             </th>
 
-                            <th className="w-[12%] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                            <th className="w-[12%] px-5 py-3 text-left text-xs font-black uppercase tracking-wide text-sky-900">
                               Grade
                             </th>
 
-                            <th className="w-[10%] px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-600">
+                            <th className="w-[10%] px-5 py-3 text-center text-xs font-black uppercase tracking-wide text-sky-900">
                               Finish
                             </th>
 
-                            <th className="w-[14%] px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+                            <th className="w-[14%] px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-sky-900">
                               Selected Price
                             </th>
 
-                            <th className="w-[10%] px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+                            <th className="w-[10%] px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-sky-900">
                               Points
                             </th>
                           </tr>
@@ -1638,7 +1886,7 @@ export default function HistoryPage() {
                               className={
                                 selection.is_captain
                                   ? "bg-amber-50"
-                                  : "odd:bg-white even:bg-slate-50 hover:bg-slate-100"
+                                  : "odd:bg-white even:bg-slate-50/60 hover:bg-sky-50/60"
                               }
                             >
                               <td className="px-5 py-4">
@@ -1658,7 +1906,7 @@ export default function HistoryPage() {
                                     <div className="flex flex-wrap items-center gap-2">
                                       <Link
                                         href={`/horses/${selection.horse_id}`}
-                                        className="truncate text-base font-bold text-slate-900 hover:text-teal-700 hover:underline"
+                                        className="truncate text-base font-bold text-slate-900 hover:text-sky-700 hover:underline"
                                       >
                                         {selection.horse_name}
                                       </Link>
@@ -1704,7 +1952,7 @@ export default function HistoryPage() {
                               </td>
 
                               <td className="px-5 py-4 text-right">
-                                <span className="inline-flex w-14 justify-center rounded-full bg-teal-100 px-3 py-1 font-bold text-teal-700">
+                                <span className="inline-flex w-14 justify-center rounded-full bg-sky-100 px-3 py-1 font-black text-sky-700">
                                   {selection.fantasy_points}
                                 </span>
                               </td>
@@ -1720,12 +1968,12 @@ export default function HistoryPage() {
           })}
         {activeGraph && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
             onClick={() => setActiveGraph(null)}
             role="presentation"
           >
             <div
-              className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl"
+              className="flex h-[82dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:h-auto sm:max-h-[92vh] sm:rounded-2xl"
               onClick={(event) => event.stopPropagation()}
               role="dialog"
               aria-modal="true"
@@ -1736,12 +1984,14 @@ export default function HistoryPage() {
                     ? "Overall Rank graph"
                     : activeGraph === "roundRank"
                       ? "Round Rank graph"
-                      : "Current Salary graph"
+                      : activeGraph === "roundScore"
+                        ? "Round Scores graph"
+                        : "Current Salary graph"
               }
             >
-              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+              <div className="flex shrink-0 items-center justify-between border-b border-sky-100 bg-gradient-to-r from-sky-50 to-cyan-50 px-4 py-2.5 sm:px-5 sm:py-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-700">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-sky-700">
                     Season Progress
                   </p>
                   <h2 className="mt-1 text-xl font-bold text-slate-900">
@@ -1751,7 +2001,9 @@ export default function HistoryPage() {
                         ? "Overall Rank"
                         : activeGraph === "roundRank"
                           ? "Round Rank"
-                          : "Current Salary"}
+                          : activeGraph === "roundScore"
+                            ? "Round Scores"
+                            : "Current Salary"}
                   </h2>
                 </div>
 
@@ -1765,7 +2017,7 @@ export default function HistoryPage() {
                 </button>
               </div>
 
-              <div className="p-4 sm:p-6">
+              <div className="flex min-h-0 flex-1 items-center overflow-hidden p-2 sm:block sm:overflow-y-auto sm:p-6">
                 {activeGraph === "score" && (
                   <ProgressChart
                     title="Season Score"
@@ -1797,6 +2049,12 @@ export default function HistoryPage() {
                     }
                     invert
                   />
+                )}
+
+                {activeGraph === "roundScore" && (
+                  <div className="w-full">
+                    <RoundScoreBarChart points={roundScoreProgress} />
+                  </div>
                 )}
 
                 {activeGraph === "salary" && (
