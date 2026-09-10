@@ -408,6 +408,7 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(true);
   const [seasonLoading, setSeasonLoading] = useState(false);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
+  const [tabLoading, setTabLoading] = useState(false);
   const [mostSelectedPage, setMostSelectedPage] = useState(0);
   const [roundMostPointsHorse, setRoundMostPointsHorse] =
     useState<RoundSpecialHorse | null>(null);
@@ -558,185 +559,63 @@ export default function StatsPage() {
   }
 
   useEffect(() => {
-    if (activeTab !== "performance") {
-      return;
-    }
-
-    if (!selectedRoundId) {
-      setRoundMostPointsHorse(null);
+    if (activeTab !== "performance" || !selectedRoundId || !selectedSeasonId) {
       return;
     }
 
     let active = true;
 
-    async function loadRoundMostPointsHorse() {
-      const { data: raceRows, error: raceError } =
-        await supabase
-          .from("races")
-          .select("id")
-          .eq("round_id", selectedRoundId);
+    async function loadPerformanceTab() {
+      setTabLoading(true);
 
-      if (!active) return;
-
-      if (raceError) {
-        console.error(
-          "Stats Centre round races load error:",
-          raceError
-        );
-        setRoundMostPointsHorse(null);
-        return;
-      }
-
-      const raceIds = (raceRows ?? []).map((row) =>
-        String(row.id)
-      );
-
-      if (raceIds.length === 0) {
-        setRoundMostPointsHorse(null);
-        return;
-      }
-
-      const { data: entryRows, error: entryError } =
-        await supabase
-          .from("race_entries")
-          .select(
-            `
-              id,
-              horse_id,
-              price_at_entry,
-              horse:horses (
-                id,
-                name
-              )
-            `
-          )
-          .in("race_id", raceIds);
-
-      if (!active) return;
-
-      if (entryError) {
-        console.error(
-          "Stats Centre round entries load error:",
-          entryError
-        );
-        setRoundMostPointsHorse(null);
-        return;
-      }
-
-      const entryIds = (entryRows ?? []).map((row) =>
-        String(row.id)
-      );
-
-      if (entryIds.length === 0) {
-        setRoundMostPointsHorse(null);
-        return;
-      }
-
-      const { data: resultRows, error: resultError } =
-        await supabase
-          .from("race_results")
-          .select("race_entry_id, fantasy_points")
-          .eq("is_official", true)
-          .in("race_entry_id", entryIds);
-
-      if (!active) return;
-
-      if (resultError) {
-        console.error(
-          "Stats Centre round results load error:",
-          resultError
-        );
-        setRoundMostPointsHorse(null);
-        return;
-      }
-
-      const entryById = new Map(
-        (entryRows ?? []).map((row: any) => [
-          String(row.id),
-          row,
-        ])
-      );
-
-      const totalsByHorse = new Map<
-        string,
+      const { data: tabData, error } = await supabase.rpc(
+        "get_stats_performance_tab",
         {
-          horse_id: string;
-          horse_name: string;
-          price: number;
-          round_points: number;
+          p_round_id: selectedRoundId,
+          p_season_id: selectedSeasonId,
         }
-      >();
-
-      for (const result of resultRows ?? []) {
-        const entry = entryById.get(
-          String(result.race_entry_id)
-        );
-
-        if (!entry?.horse_id) {
-          continue;
-        }
-
-        const horseId = String(entry.horse_id);
-        const horseRelation = Array.isArray(entry.horse)
-          ? entry.horse[0]
-          : entry.horse;
-
-        const current =
-          totalsByHorse.get(horseId) ?? {
-            horse_id: horseId,
-            horse_name:
-              horseRelation?.name ?? "Unknown Horse",
-            price: Number(entry.price_at_entry ?? 0),
-            round_points: 0,
-          };
-
-        current.round_points += Number(
-          result.fantasy_points ?? 0
-        );
-
-        totalsByHorse.set(horseId, current);
-      }
-
-      const leader =
-        [...totalsByHorse.values()].sort(
-          (a, b) =>
-            b.round_points - a.round_points ||
-            a.horse_name.localeCompare(b.horse_name)
-        )[0] ?? null;
+      );
 
       if (!active) return;
 
-      if (!leader) {
-        setRoundMostPointsHorse(null);
+      if (error) {
+        console.error("Stats performance tab error:", error);
+        setErrorMessage(
+          error.message || "Horse performance statistics could not be loaded."
+        );
+        setTabLoading(false);
         return;
       }
 
-      const ownershipRow = (
-        data?.most_selected ?? []
-      ).find(
-        (horse) => horse.horse_id === leader.horse_id
+      const result = (tabData ?? {}) as Partial<StatsData>;
+
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              horse_leaders: result.horse_leaders ?? current.horse_leaders,
+              horse_performance:
+                result.horse_performance ?? current.horse_performance,
+              special_stats: result.special_stats ?? current.special_stats,
+            }
+          : current
       );
 
-      setRoundMostPointsHorse({
-        horse_id: leader.horse_id,
-        horse_name: leader.horse_name,
-        price: leader.price,
-        selection_count: Number(
-          ownershipRow?.selection_count ?? 0
-        ),
-        ownership_percentage: Number(
-          ownershipRow?.ownership_percentage ?? 0
-        ),
-        round_points: leader.round_points,
-      });
+      setRoundMostPointsHorse(
+        result.horse_performance?.most_points ?? null
+      );
+
+      setTabLoading(false);
     }
 
-    void loadRoundMostPointsHorse();
+    void loadPerformanceTab();
 
     return () => {
       active = false;
     };
-  }, [activeTab, selectedRoundId, data?.most_selected]);
+  }, [activeTab, selectedRoundId, selectedSeasonId]);
+
+
 
   const sortedHorseLeaders = useMemo(() => {
     const rows = [...(data?.horse_leaders ?? [])];
@@ -845,345 +724,115 @@ export default function StatsPage() {
   ]);
 
   useEffect(() => {
-    if (activeTab !== "round") {
+    if (activeTab !== "round" || !selectedRoundId) {
       return;
     }
 
     let active = true;
 
-    async function loadRoundStatsFallback() {
-      if (!selectedRoundId) {
-        setRoundStatsFallback(null);
-        return;
-      }
+    async function loadRoundTab() {
+      setTabLoading(true);
 
-      const { data: teamsData, error: teamsError } =
-        await supabase
-          .from("teams")
-          .select("id, user_id, salary_used")
-          .eq("round_id", selectedRoundId)
-          .in("status", ["submitted", "locked", "scored"]);
-
-      if (!active) return;
-
-      if (teamsError) {
-        console.error(
-          "Round stats teams load error:",
-          teamsError
-        );
-        setRoundStatsFallback(null);
-        return;
-      }
-
-      const teams = teamsData ?? [];
-
-      if (teams.length === 0) {
-        setRoundStatsFallback(null);
-        return;
-      }
-
-      const teamIds = teams.map((team) => team.id);
-
-      const { data: scoresData, error: scoresError } =
-        await supabase
-          .from("player_round_scores")
-          .select("team_id, total_points")
-          .in("team_id", teamIds);
-
-      if (!active) return;
-
-      if (scoresError) {
-        console.error(
-          "Round stats scores load error:",
-          scoresError
-        );
-        setRoundStatsFallback(null);
-        return;
-      }
-
-      const scoreByTeamId = new Map(
-        (scoresData ?? []).map((score) => [
-          score.team_id,
-          Number(score.total_points ?? 0),
-        ])
+      const { data: tabData, error } = await supabase.rpc(
+        "get_stats_round_tab",
+        {
+          p_round_id: selectedRoundId,
+        }
       );
 
-      const scoredTeams = teams.map((team) => ({
-        ...team,
-        total_points:
-          scoreByTeamId.get(team.id) ?? 0,
-      }));
+      if (!active) return;
 
-      const averageScore =
-        scoredTeams.length > 0
-          ? scoredTeams.reduce(
-              (sum, team) =>
-                sum + team.total_points,
-              0
-            ) / scoredTeams.length
-          : null;
-
-      const highestTeam =
-        scoredTeams.length > 0
-          ? [...scoredTeams].sort(
-              (a, b) =>
-                b.total_points - a.total_points
-            )[0]
-          : null;
-
-      const salaryValues = teams
-        .map((team) =>
-          Number(team.salary_used ?? 0)
-        )
-        .filter((salary) =>
-          Number.isFinite(salary)
+      if (error) {
+        console.error("Stats round tab error:", error);
+        setErrorMessage(
+          error.message || "Round statistics could not be loaded."
         );
-
-      const averageSalaryUsed =
-        salaryValues.length > 0
-          ? salaryValues.reduce(
-              (sum, salary) => sum + salary,
-              0
-            ) / salaryValues.length
-          : null;
-
-      let highestScorePlayerName:
-        | string
-        | null = null;
-
-      if (highestTeam?.user_id) {
-        const {
-          data: profileData,
-          error: profileError,
-        } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", highestTeam.user_id)
-          .maybeSingle();
-
-        if (!active) return;
-
-        if (profileError) {
-          console.error(
-            "Round stats profile load error:",
-            profileError
-          );
-        } else {
-          highestScorePlayerName =
-            profileData?.display_name ?? null;
-        }
+        setTabLoading(false);
+        return;
       }
 
-      setRoundStatsFallback({
-        average_score: averageScore,
-        highest_score:
-          highestTeam?.total_points ?? null,
-        highest_score_player_id:
-          highestTeam?.user_id ?? null,
-        highest_score_player_name:
-          highestScorePlayerName,
-        average_salary_used:
-          averageSalaryUsed,
-      });
+      const result = (tabData ?? {}) as Partial<StatsData>;
+
+      setRoundStatsFallback(result.round_stats ?? null);
+
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              round_stats: result.round_stats ?? current.round_stats,
+              special_stats: result.special_stats ?? current.special_stats,
+            }
+          : current
+      );
+
+      setTabLoading(false);
     }
 
-    void loadRoundStatsFallback();
+    void loadRoundTab();
 
     return () => {
       active = false;
     };
   }, [activeTab, selectedRoundId]);
 
+
+
   useEffect(() => {
-    if (activeTab !== "season") {
+    if (activeTab !== "season" || !selectedSeasonId) {
       return;
     }
 
     let active = true;
 
-    async function loadBestCaptainFallback() {
-      if (!selectedSeasonId) {
-        setBestCaptainFallback(null);
-        return;
-      }
+    async function loadSeasonTab() {
+      setTabLoading(true);
 
-      const {
-        data: seasonRounds,
-        error: roundsError,
-      } = await supabase
-        .from("rounds")
-        .select("id")
-        .eq("season_id", selectedSeasonId);
-
-      if (!active) return;
-
-      if (roundsError) {
-        console.error(
-          "Best captain rounds load error:",
-          roundsError
-        );
-        setBestCaptainFallback(null);
-        return;
-      }
-
-      const roundIds = (seasonRounds ?? []).map(
-        (round) => round.id
-      );
-
-      if (roundIds.length === 0) {
-        setBestCaptainFallback(null);
-        return;
-      }
-
-      const {
-        data: seasonTeams,
-        error: teamsError,
-      } = await supabase
-        .from("teams")
-        .select("id, user_id")
-        .in("round_id", roundIds)
-        .in("status", [
-          "submitted",
-          "locked",
-          "scored",
-        ]);
-
-      if (!active) return;
-
-      if (teamsError) {
-        console.error(
-          "Best captain teams load error:",
-          teamsError
-        );
-        setBestCaptainFallback(null);
-        return;
-      }
-
-      const teams = seasonTeams ?? [];
-      const teamIds = teams.map((team) => team.id);
-
-      if (teamIds.length === 0) {
-        setBestCaptainFallback(null);
-        return;
-      }
-
-      const userByTeamId = new Map(
-        teams.map((team) => [
-          team.id,
-          team.user_id,
-        ])
-      );
-
-      const {
-        data: captainSelections,
-        error: captainError,
-      } = await supabase
-        .from("team_selections")
-        .select("team_id, fantasy_points")
-        .in("team_id", teamIds)
-        .eq("is_captain", true);
-
-      if (!active) return;
-
-      if (captainError) {
-        console.error(
-          "Best captain selections load error:",
-          captainError
-        );
-        setBestCaptainFallback(null);
-        return;
-      }
-
-      const totalsByUser = new Map<
-        string,
+      const { data: tabData, error } = await supabase.rpc(
+        "get_stats_season_tab",
         {
-          total: number;
-          rounds: number;
+          p_season_id: selectedSeasonId,
         }
-      >();
-
-      for (const selection of captainSelections ?? []) {
-        const userId = userByTeamId.get(
-          selection.team_id
-        );
-
-        if (!userId) {
-          continue;
-        }
-
-        const doubledCaptainPoints =
-          Number(selection.fantasy_points ?? 0) *
-          2;
-
-        const current =
-          totalsByUser.get(userId) ?? {
-            total: 0,
-            rounds: 0,
-          };
-
-        current.total += doubledCaptainPoints;
-        current.rounds += 1;
-
-        totalsByUser.set(userId, current);
-      }
-
-      const bestCaptain = Array.from(
-        totalsByUser.entries()
-      )
-        .map(([userId, record]) => ({
-          userId,
-          rounds: record.rounds,
-          average:
-            record.rounds > 0
-              ? record.total / record.rounds
-              : 0,
-        }))
-        .filter((record) => record.rounds > 0)
-        .sort(
-          (a, b) =>
-            b.average - a.average ||
-            b.rounds - a.rounds
-        )[0];
-
-      if (!bestCaptain) {
-        setBestCaptainFallback(null);
-        return;
-      }
-
-      const {
-        data: profileData,
-        error: profileError,
-      } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", bestCaptain.userId)
-        .maybeSingle();
+      );
 
       if (!active) return;
 
-      if (profileError) {
-        console.error(
-          "Best captain profile load error:",
-          profileError
+      if (error) {
+        console.error("Stats season tab error:", error);
+        setErrorMessage(
+          error.message || "Season records could not be loaded."
         );
+        setTabLoading(false);
+        return;
       }
 
-      setBestCaptainFallback({
-        user_id: bestCaptain.userId,
-        display_name:
-          profileData?.display_name ??
-          "Player",
-        value: bestCaptain.average,
-        rounds: bestCaptain.rounds,
-      });
+      const result = (tabData ?? {}) as Partial<StatsData>;
+
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              player_leaders: result.player_leaders ?? current.player_leaders,
+              season_records:
+                result.season_records ?? current.season_records,
+            }
+          : current
+      );
+
+      setBestCaptainFallback(
+        result.season_records?.best_captain ?? null
+      );
+
+      setTabLoading(false);
     }
 
-    void loadBestCaptainFallback();
+    void loadSeasonTab();
 
     return () => {
       active = false;
     };
   }, [activeTab, selectedSeasonId]);
+
+
 
   function changeHorseSort(nextKey: HorseSortKey) {
     if (horseSortKey === nextKey) {
@@ -1612,6 +1261,16 @@ export default function StatsPage() {
             ))}
           </div>
         </div>
+
+        {tabLoading && activeTab !== "ownership" && (
+          <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">
+            Loading {activeTab === "performance"
+              ? "horse performance"
+              : activeTab === "round"
+                ? "round statistics"
+                : "season records"}...
+          </div>
+        )}
 
         {activeTab === "ownership" && (
           <section className="mt-5">
