@@ -558,6 +558,10 @@ export default function StatsPage() {
   }
 
   useEffect(() => {
+    if (activeTab !== "performance") {
+      return;
+    }
+
     if (!selectedRoundId) {
       setRoundMostPointsHorse(null);
       return;
@@ -732,7 +736,7 @@ export default function StatsPage() {
     return () => {
       active = false;
     };
-  }, [selectedRoundId, data?.most_selected]);
+  }, [activeTab, selectedRoundId, data?.most_selected]);
 
   const sortedHorseLeaders = useMemo(() => {
     const rows = [...(data?.horse_leaders ?? [])];
@@ -841,6 +845,10 @@ export default function StatsPage() {
   ]);
 
   useEffect(() => {
+    if (activeTab !== "round") {
+      return;
+    }
+
     let active = true;
 
     async function loadRoundStatsFallback() {
@@ -984,9 +992,13 @@ export default function StatsPage() {
     return () => {
       active = false;
     };
-  }, [selectedRoundId]);
+  }, [activeTab, selectedRoundId]);
 
   useEffect(() => {
+    if (activeTab !== "season") {
+      return;
+    }
+
     let active = true;
 
     async function loadBestCaptainFallback() {
@@ -1171,7 +1183,7 @@ export default function StatsPage() {
     return () => {
       active = false;
     };
-  }, [selectedSeasonId]);
+  }, [activeTab, selectedSeasonId]);
 
   function changeHorseSort(nextKey: HorseSortKey) {
     if (horseSortKey === nextKey) {
