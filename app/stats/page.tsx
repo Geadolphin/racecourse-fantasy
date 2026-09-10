@@ -587,7 +587,11 @@ export default function StatsPage() {
         return;
       }
 
-      const result = (tabData ?? {}) as Partial<StatsData>;
+      const result = (tabData ?? {}) as {
+        horse_leaders?: HorseLeader[];
+        horse_performance?: HorsePerformanceStats;
+        special_stats?: RoundSpecialStats;
+      };
 
       setData((current) =>
         current
@@ -596,7 +600,8 @@ export default function StatsPage() {
               horse_leaders: result.horse_leaders ?? current.horse_leaders,
               horse_performance:
                 result.horse_performance ?? current.horse_performance,
-              special_stats: result.special_stats ?? current.special_stats,
+              special_stats:
+                result.special_stats ?? current.special_stats,
             }
           : current
       );
@@ -751,7 +756,10 @@ export default function StatsPage() {
         return;
       }
 
-      const result = (tabData ?? {}) as Partial<StatsData>;
+      const result = (tabData ?? {}) as {
+        round_stats?: RoundSummaryStats;
+        special_stats?: RoundSpecialStats;
+      };
 
       setRoundStatsFallback(result.round_stats ?? null);
 
@@ -759,8 +767,10 @@ export default function StatsPage() {
         current
           ? {
               ...current,
-              round_stats: result.round_stats ?? current.round_stats,
-              special_stats: result.special_stats ?? current.special_stats,
+              round_stats:
+                result.round_stats ?? current.round_stats,
+              special_stats:
+                result.special_stats ?? current.special_stats,
             }
           : current
       );
@@ -805,13 +815,17 @@ export default function StatsPage() {
         return;
       }
 
-      const result = (tabData ?? {}) as Partial<StatsData>;
+      const result = (tabData ?? {}) as {
+        player_leaders?: PlayerLeader[];
+        season_records?: SeasonRecordsStats;
+      };
 
       setData((current) =>
         current
           ? {
               ...current,
-              player_leaders: result.player_leaders ?? current.player_leaders,
+              player_leaders:
+                result.player_leaders ?? current.player_leaders,
               season_records:
                 result.season_records ?? current.season_records,
             }
