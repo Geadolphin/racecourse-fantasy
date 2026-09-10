@@ -120,7 +120,6 @@ type SeasonRecordsStats = {
   highest_round_score?: SeasonRecordStat | null;
   most_round_wins?: SeasonRecordStat | null;
   best_captain?: SeasonRecordStat | null;
-  biggest_rank_rise?: SeasonRecordStat | null;
 };
 
 type OwnershipRound = {
@@ -219,7 +218,7 @@ function SpecialHorseCard({
 }) {
   return (
     <section className="rounded-2xl border bg-white p-5 shadow-sm">
-      <p className="text-xs font-black uppercase tracking-[0.16em] text-teal-700">
+      <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">
         {title}
       </p>
 
@@ -229,7 +228,7 @@ function SpecialHorseCard({
         <div className="mt-5">
           <Link
             href={`/horses/${horse.horse_id}`}
-            className="text-xl font-black text-slate-950 hover:text-teal-700 hover:underline"
+            className="text-xl font-black text-slate-950 hover:text-sky-700 hover:underline"
           >
             {horse.horse_name}
           </Link>
@@ -239,7 +238,7 @@ function SpecialHorseCard({
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Points
               </p>
-              <p className="mt-1 text-lg font-black text-teal-700">
+              <p className="mt-1 text-lg font-black text-sky-700">
                 {horse.round_points}
               </p>
             </div>
@@ -289,7 +288,7 @@ function MetricCard({
       ? "text-amber-700"
       : accent === "slate"
         ? "text-slate-950"
-        : "text-teal-700";
+        : "text-sky-700";
 
   return (
     <section className="rounded-2xl border bg-white p-5 shadow-sm">
@@ -313,7 +312,7 @@ function TeamPanel({
 }) {
   return (
     <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-      <div className="border-b bg-slate-50 px-5 py-4">
+      <div className="border-b border-sky-100 bg-gradient-to-r from-sky-50 to-cyan-50 px-5 py-4">
         <h3 className="text-xl font-black text-slate-950">{title}</h3>
         <p className="mt-1 text-sm text-slate-500">{description}</p>
       </div>
@@ -325,7 +324,7 @@ function TeamPanel({
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Team Score
               </p>
-              <p className="mt-1 text-xl font-black text-teal-700">
+              <p className="mt-1 text-xl font-black text-sky-700">
                 {team.total_points}
               </p>
             </div>
@@ -354,7 +353,7 @@ function TeamPanel({
                   <div className="flex min-w-0 items-center gap-2">
                     <Link
                       href={`/horses/${horse.horse_id}`}
-                      className="truncate font-bold text-slate-950 hover:text-teal-700 hover:underline"
+                      className="truncate font-bold text-slate-950 hover:text-sky-700 hover:underline"
                     >
                       {horse.horse_name}
                     </Link>
@@ -374,7 +373,7 @@ function TeamPanel({
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="font-black text-teal-700">
+                  <span className="font-black text-sky-700">
                     {horse.is_captain
                       ? horse.round_points * 2
                       : horse.round_points}{" "}
@@ -429,9 +428,6 @@ export default function StatsPage() {
     useState<RoundSummaryStats | null>(null);
 
   const [bestCaptainFallback, setBestCaptainFallback] =
-    useState<SeasonRecordStat | null>(null);
-
-  const [biggestRankRiseFallback, setBiggestRankRiseFallback] =
     useState<SeasonRecordStat | null>(null);
 
   const [teamView, setTeamView] =
@@ -1177,245 +1173,6 @@ export default function StatsPage() {
     };
   }, [selectedSeasonId]);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadBiggestRankRiseFallback() {
-      if (!selectedSeasonId) {
-        setBiggestRankRiseFallback(null);
-        return;
-      }
-
-      const { data: roundRows, error: roundsError } =
-        await supabase
-          .from("rounds")
-          .select("id, round_number, status")
-          .eq("season_id", selectedSeasonId)
-          .eq("status", "completed")
-          .order("round_number", { ascending: true });
-
-      if (!active) return;
-
-      if (roundsError) {
-        console.error(
-          "Biggest rank rise rounds load error:",
-          roundsError
-        );
-        setBiggestRankRiseFallback(null);
-        return;
-      }
-
-      const completedRounds = (roundRows ?? []).map((round: any) => ({
-        id: String(round.id),
-        round_number: Number(round.round_number ?? 0),
-      }));
-
-      if (completedRounds.length < 2) {
-        setBiggestRankRiseFallback(null);
-        return;
-      }
-
-      const roundIds = completedRounds.map((round) => round.id);
-
-      // Fetch teams in pages because the project's Supabase API
-      // can cap a single response at 100 rows.
-      const teams: Array<{
-        id: string;
-        user_id: string;
-        round_id: string;
-      }> = [];
-      const teamPageSize = 100;
-      let teamFrom = 0;
-
-      while (true) {
-        const { data: teamPage, error: teamsError } =
-          await supabase
-            .from("teams")
-            .select("id, user_id, round_id")
-            .in("round_id", roundIds)
-            .range(teamFrom, teamFrom + teamPageSize - 1);
-
-        if (!active) return;
-
-        if (teamsError) {
-          console.error(
-            "Biggest rank rise teams load error:",
-            teamsError
-          );
-          setBiggestRankRiseFallback(null);
-          return;
-        }
-
-        const page = (teamPage ?? []).map((team: any) => ({
-          id: String(team.id),
-          user_id: String(team.user_id),
-          round_id: String(team.round_id),
-        }));
-
-        teams.push(...page);
-
-        if (page.length < teamPageSize) break;
-        teamFrom += teamPageSize;
-      }
-
-      if (teams.length === 0) {
-        setBiggestRankRiseFallback(null);
-        return;
-      }
-
-      const teamById = new Map(
-        teams.map((team) => [team.id, team])
-      );
-      const teamIds = teams.map((team) => team.id);
-
-      const scores: Array<{
-        team_id: string;
-        round_rank: number;
-      }> = [];
-      const scorePageSize = 100;
-      let scoreFrom = 0;
-
-      while (true) {
-        const { data: scorePage, error: scoresError } =
-          await supabase
-            .from("player_round_scores")
-            .select("team_id, round_rank")
-            .in("team_id", teamIds)
-            .not("round_rank", "is", null)
-            .range(scoreFrom, scoreFrom + scorePageSize - 1);
-
-        if (!active) return;
-
-        if (scoresError) {
-          console.error(
-            "Biggest rank rise scores load error:",
-            scoresError
-          );
-          setBiggestRankRiseFallback(null);
-          return;
-        }
-
-        const page = (scorePage ?? []).map((score: any) => ({
-          team_id: String(score.team_id),
-          round_rank: Number(score.round_rank),
-        }));
-
-        scores.push(...page);
-
-        if (page.length < scorePageSize) break;
-        scoreFrom += scorePageSize;
-      }
-
-      const rankByUserAndRound = new Map<string, number>();
-
-      for (const score of scores) {
-        const team = teamById.get(score.team_id);
-
-        if (
-          !team ||
-          !Number.isFinite(score.round_rank) ||
-          score.round_rank <= 0
-        ) {
-          continue;
-        }
-
-        rankByUserAndRound.set(
-          `${team.user_id}:${team.round_id}`,
-          score.round_rank
-        );
-      }
-
-      let best:
-        | {
-            user_id: string;
-            rise: number;
-            from_rank: number;
-            to_rank: number;
-          }
-        | null = null;
-
-      const userIds = Array.from(
-        new Set(teams.map((team) => team.user_id))
-      );
-
-      for (const userId of userIds) {
-        for (let index = 1; index < completedRounds.length; index += 1) {
-          const previousRound = completedRounds[index - 1];
-          const currentRound = completedRounds[index];
-
-          const previousRank = rankByUserAndRound.get(
-            `${userId}:${previousRound.id}`
-          );
-          const currentRank = rankByUserAndRound.get(
-            `${userId}:${currentRound.id}`
-          );
-
-          if (
-            previousRank == null ||
-            currentRank == null
-          ) {
-            continue;
-          }
-
-          const rise = previousRank - currentRank;
-
-          if (
-            rise > 0 &&
-            (
-              best == null ||
-              rise > best.rise ||
-              (
-                rise === best.rise &&
-                currentRank < best.to_rank
-              )
-            )
-          ) {
-            best = {
-              user_id: userId,
-              rise,
-              from_rank: previousRank,
-              to_rank: currentRank,
-            };
-          }
-        }
-      }
-
-      if (!best) {
-        setBiggestRankRiseFallback(null);
-        return;
-      }
-
-      const { data: profileData, error: profileError } =
-        await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("id", best.user_id)
-          .maybeSingle();
-
-      if (!active) return;
-
-      if (profileError) {
-        console.error(
-          "Biggest rank rise profile load error:",
-          profileError
-        );
-      }
-
-      setBiggestRankRiseFallback({
-        user_id: best.user_id,
-        display_name:
-          profileData?.display_name ?? "Player",
-        value: best.rise,
-      });
-    }
-
-    void loadBiggestRankRiseFallback();
-
-    return () => {
-      active = false;
-    };
-  }, [selectedSeasonId]);
-
   function changeHorseSort(nextKey: HorseSortKey) {
     if (horseSortKey === nextKey) {
       setHorseSortDirection((current) =>
@@ -1456,9 +1213,9 @@ export default function StatsPage() {
     }
 
     return direction === "asc" ? (
-      <ArrowUp className="h-4 w-4 text-teal-700" />
+      <ArrowUp className="h-4 w-4 text-sky-700" />
     ) : (
-      <ArrowDown className="h-4 w-4 text-teal-700" />
+      <ArrowDown className="h-4 w-4 text-sky-700" />
     );
   }
 
@@ -1551,10 +1308,6 @@ export default function StatsPage() {
   const bestCaptainRecord =
     data.season_records?.best_captain ??
     bestCaptainFallback;
-
-  const biggestRankRiseRecord =
-    data.season_records?.biggest_rank_rise ??
-    biggestRankRiseFallback;
 
   const mostRoundWinsRecord =
     data.season_records?.most_round_wins ??
@@ -1714,12 +1467,12 @@ export default function StatsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="rounded-2xl bg-slate-950 p-6 text-white shadow-sm md:p-8">
+    <main className="min-h-screen bg-slate-100">
+      <header className="w-full border-y border-cyan-400/60 bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 text-white shadow-lg">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 md:px-8 md:py-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-teal-300">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
                 {data.season.name}
               </p>
 
@@ -1727,7 +1480,7 @@ export default function StatsPage() {
                 Stats Centre
               </h1>
 
-              <p className="mt-3 max-w-2xl text-slate-300">
+              <p className="mt-3 max-w-2xl text-white/85">
                 Explore the season's leading horses, managers, ownership
                 trends and biggest price movements.
               </p>
@@ -1736,7 +1489,7 @@ export default function StatsPage() {
             <div className="w-full lg:w-80">
               <label
                 htmlFor="stats-season"
-                className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-300"
+                className="mb-2 block text-xs font-bold uppercase tracking-wide text-white/80"
               >
                 Season
               </label>
@@ -1748,7 +1501,7 @@ export default function StatsPage() {
                   void changeSeason(event.target.value)
                 }
                 disabled={seasonLoading || seasons.length === 0}
-                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 font-semibold text-white outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg border border-white/30 bg-white/15 px-4 py-3 font-semibold text-white shadow-sm outline-none backdrop-blur-md transition focus:border-white/70 focus:ring-2 focus:ring-white/25 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {seasons.length === 0 ? (
                   <option value="">No seasons available</option>
@@ -1763,16 +1516,18 @@ export default function StatsPage() {
               </select>
 
               {selectedSeason && (
-                <p className="mt-2 text-xs text-slate-400">
+                <p className="mt-2 text-xs text-white/70">
                   Viewing {selectedSeason.name} {selectedSeason.year}
                 </p>
               )}
             </div>
           </div>
-        </header>
+        </div>
+      </header>
 
+      <div className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 md:px-8">
         {seasonLoading && (
-          <div className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-800">
+          <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">
             Loading season statistics...
           </div>
         )}
@@ -1780,7 +1535,7 @@ export default function StatsPage() {
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <Flag className="h-5 w-5 text-teal-700" />
+              <Flag className="h-5 w-5 text-sky-700" />
               <p className="text-sm font-bold text-slate-700">
                 Completed Rounds
               </p>
@@ -1792,7 +1547,7 @@ export default function StatsPage() {
 
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <Trophy className="h-5 w-5 text-teal-700" />
+              <Trophy className="h-5 w-5 text-sky-700" />
               <p className="text-sm font-bold text-slate-700">
                 Official Races
               </p>
@@ -1804,7 +1559,7 @@ export default function StatsPage() {
 
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <Users className="h-5 w-5 text-teal-700" />
+              <Users className="h-5 w-5 text-sky-700" />
               <p className="text-sm font-bold text-slate-700">
                 Players
               </p>
@@ -1816,7 +1571,7 @@ export default function StatsPage() {
 
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
-              <BarChart3 className="h-5 w-5 text-teal-700" />
+              <BarChart3 className="h-5 w-5 text-sky-700" />
               <p className="text-sm font-bold text-slate-700">
                 Highest Round
               </p>
@@ -1908,7 +1663,7 @@ export default function StatsPage() {
                             <div className="flex items-center justify-between gap-4 text-sm">
                               <Link
                                 href={`/horses/${horse.horse_id}`}
-                                className="font-bold text-slate-950 hover:text-teal-700"
+                                className="font-bold text-slate-950 hover:text-sky-700"
                               >
                                 {overallIndex + 1}. {horse.horse_name}
                               </Link>
@@ -2000,7 +1755,7 @@ export default function StatsPage() {
                         return (
                           <div key={horse.horse_id}>
                             <div className="flex items-center justify-between gap-4 text-sm">
-                              <Link href={`/horses/${horse.horse_id}`} className="font-bold text-slate-950 hover:text-teal-700">
+                              <Link href={`/horses/${horse.horse_id}`} className="font-bold text-slate-950 hover:text-sky-700">
                                 {index + 1}. {horse.horse_name}
                               </Link>
                               <div className="text-right">
@@ -2146,11 +1901,11 @@ export default function StatsPage() {
             <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
               <h2 className="text-xl font-black text-slate-950">Season Records</h2>
               <p className="mt-1 text-sm text-slate-600">
-                Highest Round Score, Most Round Wins, Best Captain and Biggest Rank Rise.
+                Highest Round Score, Most Round Wins and Best Captain.
               </p>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-5 md:grid-cols-3">
               <MetricCard
                 title="Highest Round Score"
                 value={highestRoundRecord?.value == null ? "—" : `${highestRoundRecord.value} pts`}
@@ -2184,19 +1939,6 @@ export default function StatsPage() {
                       }`
                     : "Highest average captain score"
                 }
-              />
-              <MetricCard
-                title="Biggest Rank Rise"
-                value={
-                  biggestRankRiseRecord?.value == null
-                    ? "—"
-                    : `+${biggestRankRiseRecord.value}`
-                }
-                subtitle={
-                  biggestRankRiseRecord?.display_name ??
-                  "Largest rise between rounds"
-                }
-                accent="slate"
               />
             </div>
           </section>

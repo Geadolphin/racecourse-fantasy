@@ -321,12 +321,12 @@ export default function ResultsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <section className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm md:p-8">
-          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+    <main className="min-h-screen bg-slate-100">
+      <section className="w-full border-y border-cyan-400/60 bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 text-white shadow-lg">
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 md:px-8 md:py-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-teal-300">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
                 Racecourse Fantasy
               </p>
 
@@ -335,13 +335,13 @@ export default function ResultsPage() {
               </h1>
 
               {currentRound.name && (
-                <p className="mt-2 text-emerald-100">
+                <p className="mt-2 text-white/85">
                   {currentRound.name}
                 </p>
               )}
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-teal-600 px-3 py-1 text-sm font-bold">
+                <span className="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-sm font-bold text-white shadow-sm backdrop-blur-md">
                   {officialRaceCount} of {races.length} races official
                 </span>
 
@@ -350,31 +350,33 @@ export default function ResultsPage() {
                 </span>
 
                 {teamStatus && (
-                  <span className="rounded-full bg-amber-400 px-3 py-1 text-sm font-bold capitalize text-emerald-950">
+                  <span className="rounded-full border border-amber-300 bg-amber-300 px-3 py-1 text-sm font-black capitalize text-amber-950 shadow-sm">
                     Team: {teamStatus}
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
               <Link
                 href="/dashboard"
-                className="rounded-lg border border-teal-500 px-5 py-3 font-bold text-white transition hover:bg-slate-800"
+                className="rounded-lg border border-white/30 bg-white/15 px-5 py-3 font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25"
               >
                 Dashboard
               </Link>
 
               <Link
                 href="/team"
-                className="rounded-lg bg-amber-400 px-5 py-3 font-bold text-emerald-950 transition hover:bg-amber-300"
+                className="rounded-lg bg-white px-5 py-3 font-black text-sky-700 shadow-sm transition hover:bg-sky-50"
               >
                 My Team
               </Link>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
+      <div className="mx-auto max-w-7xl px-3 pb-4 sm:px-4 md:px-8 md:pb-8">
         {errorMessage && (
           <div className="mt-6 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
             {errorMessage}
@@ -411,7 +413,10 @@ export default function ResultsPage() {
           <div className="mt-6">
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">
+                  Round Results
+                </p>
+                <h2 className="mt-0.5 text-xl font-black text-slate-950">
                   Race Results
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
@@ -423,7 +428,7 @@ export default function ResultsPage() {
                 <button
                   type="button"
                   onClick={expandAllRaces}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-200"
                 >
                   Expand all
                 </button>
@@ -431,7 +436,7 @@ export default function ResultsPage() {
                 <button
                   type="button"
                   onClick={collapseAllRaces}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-200"
                 >
                   Collapse all
                 </button>
@@ -454,7 +459,7 @@ export default function ResultsPage() {
                     <button
                       type="button"
                       onClick={() => toggleRace(race.id)}
-                      className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-slate-50 sm:px-5"
+                      className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-sky-50/60 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sky-200 sm:px-5"
                       aria-expanded={expanded}
                     >
                       <div className="flex min-w-0 items-center gap-3">
@@ -475,7 +480,7 @@ export default function ResultsPage() {
                             <span
                               className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${
                                 race.status === "official"
-                                  ? "bg-green-100 text-green-800"
+                                  ? "bg-emerald-100 text-emerald-800"
                                   : race.status === "running"
                                     ? "bg-amber-100 text-amber-800"
                                     : race.status === "cancelled" ||
