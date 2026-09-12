@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronsUpDown,
   Minus,
 } from "lucide-react";
 
@@ -19,6 +20,9 @@ type Props = {
   type: "round" | "season";
   rows?: RoundLeaderboardRow[] | SeasonLeaderboardRow[] | null;
 };
+
+type RoundSortKey = "points" | "projected" | "runners" | "salary";
+type SortDirection = "asc" | "desc";
 
 function RankChange({
   value,
@@ -86,6 +90,11 @@ export default function LeaderboardTable({
 
   const [currentTime, setCurrentTime] =
     useState(() => Date.now());
+
+  const [roundSortKey, setRoundSortKey] =
+    useState<RoundSortKey | null>(null);
+  const [roundSortDirection, setRoundSortDirection] =
+    useState<SortDirection>("desc");
 
   const safeRows = useMemo<
     RoundLeaderboardRow[] | SeasonLeaderboardRow[]
@@ -209,6 +218,89 @@ export default function LeaderboardTable({
     showProjectedScores ||
     (showSpecialTeamProjections && hasEarlyProjectionAccess);
 
+  function handleRoundSort(key: RoundSortKey) {
+    if (type !== "round") return;
+    if (key === "projected" && !projectionsVisible) return;
+
+    if (roundSortKey === key) {
+      setRoundSortDirection((current) =>
+        current === "desc" ? "asc" : "desc"
+      );
+      return;
+    }
+
+    setRoundSortKey(key);
+    setRoundSortDirection("desc");
+  }
+
+  const displayedRows = useMemo(() => {
+    if (type !== "round" || roundSortKey === null) {
+      return safeRows;
+    }
+
+    if (roundSortKey === "projected" && !projectionsVisible) {
+      return safeRows;
+    }
+
+    const sortedRows = [...safeRows] as RoundLeaderboardRow[];
+
+    sortedRows.sort((a, b) => {
+      let aValue = 0;
+      let bValue = 0;
+
+      switch (roundSortKey) {
+        case "points":
+          aValue = Number(a.total_points ?? 0);
+          bValue = Number(b.total_points ?? 0);
+          break;
+        case "projected":
+          aValue = Number(a.projected_score ?? 0);
+          bValue = Number(b.projected_score ?? 0);
+          break;
+        case "runners":
+          aValue = Number(a.runners_used ?? 0);
+          bValue = Number(b.runners_used ?? 0);
+          break;
+        case "salary":
+          aValue = Number(a.salary_used ?? 0);
+          bValue = Number(b.salary_used ?? 0);
+          break;
+      }
+
+      const difference =
+        roundSortDirection === "desc"
+          ? bValue - aValue
+          : aValue - bValue;
+
+      if (difference !== 0) return difference;
+
+      return (
+        Number(a.round_rank ?? Number.MAX_SAFE_INTEGER) -
+        Number(b.round_rank ?? Number.MAX_SAFE_INTEGER)
+      );
+    });
+
+    return sortedRows;
+  }, [
+    safeRows,
+    type,
+    roundSortKey,
+    roundSortDirection,
+    projectionsVisible,
+  ]);
+
+  function SortIcon({ column }: { column: RoundSortKey }) {
+    if (roundSortKey !== column) {
+      return <ChevronsUpDown className="h-3.5 w-3.5 opacity-50" />;
+    }
+
+    return roundSortDirection === "desc" ? (
+      <ArrowDown className="h-3.5 w-3.5" />
+    ) : (
+      <ArrowUp className="h-3.5 w-3.5" />
+    );
+  }
+
   if (safeRows.length === 0) {
     return (
       <div className="rounded-xl border bg-white p-10 text-center">
@@ -238,27 +330,72 @@ export default function LeaderboardTable({
             </th>
 
             <th className="px-4 py-3 text-right">
-              Points
+              {type === "round" ? (
+                <button
+                  type="button"
+                  onClick={() => handleRoundSort("points")}
+                  className="inline-flex w-full items-center justify-end gap-1.5 font-semibold hover:text-teal-700"
+                  title="Sort by points"
+                >
+                  <span>Points</span>
+                  <SortIcon column="points" />
+                </button>
+              ) : (
+                "Points"
+              )}
             </th>
 
             {type === "round" && (
               <>
                 <th className="px-4 py-3 text-right">
-                  Projected
+                  <button
+                    type="button"
+                    onClick={() => handleRoundSort("projected")}
+                    disabled={!projectionsVisible}
+                    className={`inline-flex w-full items-center justify-end gap-1.5 font-semibold ${
+                      projectionsVisible
+                        ? "hover:text-teal-700"
+                        : "cursor-default opacity-60"
+                    }`}
+                    title={
+                      projectionsVisible
+                        ? "Sort by projected score"
+                        : "Projected scores are hidden"
+                    }
+                  >
+                    <span>Projected</span>
+                    {projectionsVisible && (
+                      <SortIcon column="projected" />
+                    )}
+                  </button>
                 </th>
 
                 <th className="px-4 py-3">
                   <div className="inline-grid w-full grid-cols-[48px_28px] items-center justify-end gap-2">
-                    <span className="text-right">
-                      Runners
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRoundSort("runners")}
+                      className="inline-flex items-center justify-end gap-1 font-semibold hover:text-teal-700"
+                      title="Sort by runners used"
+                    >
+                      <span>Runners</span>
+                      <SortIcon column="runners" />
+                    </button>
 
                     <span className="w-7" />
                   </div>
                 </th>
 
                 <th className="px-4 py-3 text-right">
-                  Salary Used
+                  <button
+                    type="button"
+                    onClick={() => handleRoundSort("salary")}
+                    className="inline-flex w-full items-center justify-end gap-1.5 font-semibold hover:text-teal-700"
+                    title="Sort by salary used"
+                  >
+                    <span>Salary Used</span>
+                    <SortIcon column="salary" />
+                  </button>
                 </th>
               </>
             )}
@@ -286,7 +423,7 @@ export default function LeaderboardTable({
         </thead>
 
         <tbody>
-          {safeRows.map((row, index) => {
+          {displayedRows.map((row, index) => {
             const rank =
               type === "round"
                 ? (row as RoundLeaderboardRow).round_rank
