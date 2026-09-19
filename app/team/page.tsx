@@ -420,6 +420,8 @@ export default function MyTeamPage() {
   const [round, setRound] = useState<Round | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
   const [salaryCap, setSalaryCap] = useState(0);
+  const [roundRank, setRoundRank] = useState<number | null>(null);
+  const [overallRank, setOverallRank] = useState<number | null>(null);
 
   const [showProjectedScores, setShowProjectedScores] = useState(false);
 
@@ -637,6 +639,51 @@ export default function MyTeamPage() {
     setRound(teamData.round);
     setSeason(teamData.season);
     setTeam(teamData.team);
+
+    // Load the user's round and overall ranks for the share card.
+    setRoundRank(null);
+    setOverallRank(null);
+
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+
+    if (authError) {
+      console.error("My Team rank auth error:", authError);
+    } else if (authData.user) {
+      const [roundRankResult, overallRankResult] = await Promise.all([
+        supabase
+          .from("round_leaderboard")
+          .select("round_rank")
+          .eq("round_id", teamData.round.id)
+          .eq("user_id", authData.user.id)
+          .maybeSingle(),
+        supabase
+          .from("season_leaderboard")
+          .select("overall_rank")
+          .eq("season_id", teamData.season.id)
+          .eq("user_id", authData.user.id)
+          .maybeSingle(),
+      ]);
+
+      if (roundRankResult.error) {
+        console.error("My Team round rank load error:", roundRankResult.error);
+      } else {
+        setRoundRank(
+          roundRankResult.data?.round_rank == null
+            ? null
+            : Number(roundRankResult.data.round_rank)
+        );
+      }
+
+      if (overallRankResult.error) {
+        console.error("My Team overall rank load error:", overallRankResult.error);
+      } else {
+        setOverallRank(
+          overallRankResult.data?.overall_rank == null
+            ? null
+            : Number(overallRankResult.data.overall_rank)
+        );
+      }
+    }
 
     const {
       data: playerSalaryCap,
@@ -1773,23 +1820,36 @@ export default function MyTeamPage() {
                       </div>
 
                       <div className="flex items-center gap-4 text-right">
-                        <div>
-                          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
-                            Projected
-                          </p>
-                          <p className="mt-0.5 text-[14px] font-black text-amber-600">
-                            {projectionsVisible ? liveProjectedScore : "Hidden"}
-                          </p>
-                        </div>
+                        {lockoutHasStarted ? (
+                          <>
+                            <div>
+                              <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                Rd Rank
+                              </p>
+                              <p className="mt-0.5 text-[14px] font-black text-sky-700">
+                                {roundRank === null ? "—" : `#${roundRank}`}
+                              </p>
+                            </div>
 
-                        <div>
-                          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
-                            Salary
-                          </p>
-                          <p className="mt-0.5 text-[14px] font-black text-slate-800">
-                            {formatCurrency(salaryUsed)}
-                          </p>
-                        </div>
+                            <div>
+                              <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                                Overall Rank
+                              </p>
+                              <p className="mt-0.5 text-[14px] font-black text-slate-800">
+                                {overallRank === null ? "—" : `#${overallRank}`}
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <div>
+                            <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+                              Projected
+                            </p>
+                            <p className="mt-0.5 text-[14px] font-black text-amber-600">
+                              {projectionsVisible ? liveProjectedScore : "Hidden"}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
