@@ -991,145 +991,61 @@ export default function HistoryPage() {
     let active = true;
 
     async function loadOverallRankHistory() {
-      const seasonRounds = historyData?.rounds ?? [];
-
-      if (!selectedSeasonId || seasonRounds.length === 0) {
+      if (!selectedSeasonId) {
         setOverallRankHistory({});
         return;
       }
 
-      const orderedRounds = [...seasonRounds].sort(
-        (a, b) => a.round_number - b.round_number
-      );
-      const roundIds = orderedRounds.map((round) => round.round_id);
-      const ownTeamIds = new Set(
-        orderedRounds.map((round) => round.team_id)
-      );
-
-      const allTeams: Array<{
-        id: string;
-        user_id: string;
-        round_id: string;
-      }> = [];
-      const pageSize = 100;
-      let from = 0;
-
-      while (true) {
-        const { data: page, error } = await supabase
-          .from("teams")
-          .select("id, user_id, round_id")
-          .in("round_id", roundIds)
-          .range(from, from + pageSize - 1);
-
-        if (!active) return;
-
-        if (error) {
-          console.error("My Season rank history teams error:", error);
-          setOverallRankHistory({});
-          return;
-        }
-
-        const rows = (page ?? []).map((team: any) => ({
-          id: String(team.id),
-          user_id: String(team.user_id),
-          round_id: String(team.round_id),
-        }));
-
-        allTeams.push(...rows);
-
-        if (rows.length < pageSize) break;
-        from += pageSize;
-      }
-
-      const ownTeam = allTeams.find((team) =>
-        ownTeamIds.has(team.id)
-      );
-
-      if (!ownTeam || allTeams.length === 0) {
-        setOverallRankHistory({});
-        return;
-      }
-
-      const teamById = new Map(
-        allTeams.map((team) => [team.id, team])
-      );
-      const teamIds = allTeams.map((team) => team.id);
-
-      const allScores: Array<{
-        team_id: string;
-        total_points: number;
-      }> = [];
-      from = 0;
-
-      while (true) {
-        const { data: page, error } = await supabase
-          .from("player_round_scores")
-          .select("team_id, total_points")
-          .in("team_id", teamIds)
-          .range(from, from + pageSize - 1);
-
-        if (!active) return;
-
-        if (error) {
-          console.error("My Season rank history scores error:", error);
-          setOverallRankHistory({});
-          return;
-        }
-
-        const rows = (page ?? []).map((score: any) => ({
-          team_id: String(score.team_id),
-          total_points: Number(score.total_points ?? 0),
-        }));
-
-        allScores.push(...rows);
-
-        if (rows.length < pageSize) break;
-        from += pageSize;
-      }
-
-      const scoreByTeamId = new Map(
-        allScores.map((score) => [
-          score.team_id,
-          score.total_points,
-        ])
-      );
-
-      const cumulativeByUser = new Map<string, number>();
-      const rankHistory: Record<number, number> = {};
-
-      for (const round of orderedRounds) {
-        const teamsThisRound = allTeams.filter(
-          (team) => team.round_id === round.round_id
-        );
-
-        for (const team of teamsThisRound) {
-          const roundPoints = scoreByTeamId.get(team.id);
-
-          if (roundPoints == null) continue;
-
-          cumulativeByUser.set(
-            team.user_id,
-            (cumulativeByUser.get(team.user_id) ?? 0) +
-              roundPoints
-          );
-        }
-
-        const standings = [...cumulativeByUser.entries()].sort(
-          (a, b) => b[1] - a[1]
-        );
-
-        const ownPoints = cumulativeByUser.get(ownTeam.user_id);
-
-        if (ownPoints == null) continue;
-
-        const betterScores = standings.filter(
-          ([, points]) => points > ownPoints
-        ).length;
-
-        rankHistory[round.round_number] = betterScores + 1;
-      }
+      const { data: authData, error: authError } =
+        await supabase.auth.getUser();
 
       if (!active) return;
+
+      if (authError || !authData.user) {
+        console.error(
+          "My Season rank history auth error:",
+          authError
+        );
+        setOverallRankHistory({});
+        return;
+      }
+
+      const { data, error } = await supabase.rpc(
+        "get_player_overall_rank_history",
+        {
+          p_user_id: authData.user.id,
+          p_season_id: selectedSeasonId,
+        }
+      );
+
+      if (!active) return;
+
+      if (error) {
+        console.error(
+          "My Season overall rank history RPC error:",
+          error
+        );
+        setOverallRankHistory({});
+        return;
+      }
+
+      const rankHistory = (data ?? []).reduce(
+        (history: Record<number, number>, row: any) => {
+          const roundNumber = Number(row.round_number);
+          const overallRank = Number(row.overall_rank);
+
+          if (
+            Number.isFinite(roundNumber) &&
+            Number.isFinite(overallRank)
+          ) {
+            history[roundNumber] = overallRank;
+          }
+
+          return history;
+        },
+        {}
+      );
+
       setOverallRankHistory(rankHistory);
     }
 
@@ -1138,7 +1054,7 @@ export default function HistoryPage() {
     return () => {
       active = false;
     };
-  }, [historyData, selectedSeasonId]);
+  }, [selectedSeasonId]);
 
   const selectedSeason = useMemo(() => {
     return seasons.find(
