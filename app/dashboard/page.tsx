@@ -1735,12 +1735,14 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:flex">
-              <Link
-                href={primaryTeamHref}
-                className="rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
-              >
-                {primaryTeamLabel}
-              </Link>
+              {!lockoutHasPassed && (
+                <Link
+                  href={primaryTeamHref}
+                  className="rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
+                >
+                  {primaryTeamLabel}
+                </Link>
+              )}
 
               <Link
                 href="/team"
@@ -1751,7 +1753,7 @@ export default function Dashboard() {
 
               <Link
                 href="/leaderboard"
-                className="col-span-2 rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25 sm:col-span-1"
+                className={`${lockoutHasPassed ? "" : "col-span-2 "}rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25 sm:col-span-1`}
               >
                 Leaderboard
               </Link>
