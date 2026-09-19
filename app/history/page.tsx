@@ -200,6 +200,9 @@ function ProgressChart({
   formatValue: (value: number) => string;
   invert?: boolean;
 }) {
+  const [hoveredPointIndex, setHoveredPointIndex] = useState<number | null>(null);
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null);
+
   const width = 640;
   const height = 230;
   const left = 58;
@@ -325,26 +328,79 @@ function ProgressChart({
           {points.map((point, index) => {
             const x = xFor(index);
             const y = yFor(point.value);
+            const isActive =
+              hoveredPointIndex === index || selectedPointIndex === index;
+
+            const tooltipText = `R${point.round_number}: ${formatValue(point.value)}`;
+            const tooltipWidth = Math.max(78, tooltipText.length * 7 + 18);
+            const tooltipX = Math.min(
+              width - right - tooltipWidth,
+              Math.max(left, x - tooltipWidth / 2)
+            );
+            const tooltipY = Math.max(4, y - 38);
 
             return (
-              <g key={`${point.round_number}-${point.value}`}>
+              <g
+                key={`${point.round_number}-${point.value}`}
+                onMouseEnter={() => setHoveredPointIndex(index)}
+                onMouseLeave={() => setHoveredPointIndex(null)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setSelectedPointIndex((current) =>
+                    current === index ? null : index
+                  );
+                }}
+                className="cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={`${point.label}: ${formatValue(point.value)}`}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedPointIndex((current) =>
+                      current === index ? null : index
+                    );
+                  }
+                }}
+              >
+                {/* Larger transparent hit target makes hover/click easier. */}
+                <circle cx={x} cy={y} r="14" fill="transparent" />
+
                 <circle
                   cx={x}
                   cy={y}
-                  r="5"
+                  r={isActive ? 6.5 : 5}
                   fill="currentColor"
                   className="text-sky-600"
-                >
-                  <title>
-                    {point.label}: {formatValue(point.value)}
-                  </title>
-                </circle>
+                />
+
+                {isActive && (
+                  <g pointerEvents="none">
+                    <rect
+                      x={tooltipX}
+                      y={tooltipY}
+                      width={tooltipWidth}
+                      height="26"
+                      rx="7"
+                      className="fill-slate-900"
+                    />
+                    <text
+                      x={tooltipX + tooltipWidth / 2}
+                      y={tooltipY + 17}
+                      textAnchor="middle"
+                      className="fill-white text-[11px] font-semibold"
+                    >
+                      {tooltipText}
+                    </text>
+                  </g>
+                )}
 
                 <text
                   x={x}
                   y={height - 14}
                   textAnchor="middle"
                   className="fill-slate-500 text-[11px] font-semibold"
+                  pointerEvents="none"
                 >
                   R{point.round_number}
                 </text>
