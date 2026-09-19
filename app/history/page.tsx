@@ -225,7 +225,15 @@ function ProgressChart({
   let minValue = Math.min(...values);
   let maxValue = Math.max(...values);
 
-  if (minValue === maxValue) {
+  if (invert) {
+    // Rank charts must use #1 as the exact top of the plotting area.
+    // Do not pad above #1, otherwise a #1 result appears below the #1 gridline.
+    minValue = 1;
+
+    // Keep a little useful range below the worst rank while using whole ranks.
+    // This only affects the bottom of the chart; plotted ranks remain exact.
+    maxValue = Math.max(2, Math.ceil(maxValue));
+  } else if (minValue === maxValue) {
     const padding = Math.max(Math.abs(minValue) * 0.08, 1);
     minValue -= padding;
     maxValue += padding;
@@ -233,10 +241,10 @@ function ProgressChart({
     const padding = (maxValue - minValue) * 0.12;
     minValue -= padding;
     maxValue += padding;
-  }
 
-  if (!invert && minValue > 0) {
-    minValue = Math.max(0, minValue);
+    if (minValue > 0) {
+      minValue = Math.max(0, minValue);
+    }
   }
 
   const xFor = (index: number) =>
