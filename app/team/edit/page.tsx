@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import HorseProfileModal from "@/components/HorseProfileModal";
-import { useSeason } from "@/components/SeasonProvider";
 
 import { supabase } from "@/lib/supabase";
 
@@ -254,7 +253,6 @@ function getEntryStatusLabel(status: EntryStatus) {
 
 export default function EditTeamPage() {
   const router = useRouter();
-  const { selectedSeasonId, loadingSeasons } = useSeason();
 
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
@@ -386,27 +384,6 @@ export default function EditTeamPage() {
     setSuccessMessage("");
     setAutoSaveStatus("idle");
 
-    // The navbar season selector is the source of truth for this page.
-    // Wait for SeasonProvider to finish hydrating before querying a round.
-    if (loadingSeasons) {
-      return;
-    }
-
-    if (!selectedSeasonId) {
-      setSeason(null);
-      setRound(null);
-      setTeam(null);
-      setEntries([]);
-      setRoundLockouts([]);
-      setSelectedEntryIds([]);
-      setSavedSelections([]);
-      setCaptainEntryId(null);
-      setSalaryCap(0);
-      setErrorMessage("Select a season from the Change Season menu.");
-      setLoading(false);
-      return;
-    }
-
     const {
       data: { user },
       error: userError,
@@ -443,7 +420,6 @@ export default function EditTeamPage() {
           lockout_at
         `
       )
-      .eq("season_id", selectedSeasonId)
       .in("status", ["open", "locked"])
       .order("lockout_at", {
         ascending: true,
@@ -749,15 +725,11 @@ export default function EditTeamPage() {
     hasHydratedTeamRef.current = true;
 
     setLoading(false);
-  }, [loadingSeasons, selectedSeasonId]);
+  }, []);
 
   useEffect(() => {
-    if (loadingSeasons) {
-      return;
-    }
-
     void loadPage();
-  }, [loadPage, loadingSeasons]);
+  }, [loadPage]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {

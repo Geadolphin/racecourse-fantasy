@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "../../lib/supabase";
+import { useSeason } from "@/components/SeasonProvider";
 
 type Round = {
   id: string;
@@ -339,6 +340,11 @@ function getTeamStatusClasses(
 
 export default function Dashboard() {
   const router = useRouter();
+  const {
+    selectedSeasonId,
+    selectedSeason,
+    loadingSeasons,
+  } = useSeason();
 
   const [displayName, setDisplayName] =
     useState("");
@@ -504,6 +510,38 @@ export default function Dashboard() {
     let active = true;
 
     async function loadDashboard() {
+      if (loadingSeasons) {
+        return;
+      }
+
+      if (!selectedSeasonId) {
+        setRound(null);
+        setSeason(null);
+        setTeam(null);
+        setCurrentRoundSalaryCap(null);
+        setRoundScore(null);
+        setLiveRoundScore(null);
+        setSeasonScore(null);
+        setProjectedRoundScore(0);
+        setHorsesRanCount(0);
+        setScratchedHorseCount(0);
+        setSelectedHorseCount(0);
+        setAutofilledHorseCount(0);
+        setPreviousOverallRank(null);
+        setUpcomingRace(null);
+        setMiniLeaderboard([]);
+        setHorsesOfTheWeek([]);
+        setDashboardExtras({
+          round_ranked_count: 0,
+          season_ranked_count: 0,
+          leagues: [],
+        });
+        setCupMatchup(null);
+        setErrorMessage("Please select a season.");
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setErrorMessage("");
 
@@ -550,7 +588,10 @@ export default function Dashboard() {
         data,
         error,
       } = await supabase.rpc(
-        "get_dashboard_data"
+        "get_dashboard_data",
+        {
+          p_season_id: selectedSeasonId,
+        }
       );
 
       if (!active) {
@@ -576,6 +617,39 @@ export default function Dashboard() {
         data as DashboardData | null;
 
       if (
+        dashboardData?.season?.id &&
+        dashboardData.season.id !== selectedSeasonId
+      ) {
+        setRound(null);
+        setSeason(null);
+        setTeam(null);
+        setCurrentRoundSalaryCap(null);
+        setRoundScore(null);
+        setLiveRoundScore(null);
+        setSeasonScore(null);
+        setProjectedRoundScore(0);
+        setHorsesRanCount(0);
+        setScratchedHorseCount(0);
+        setSelectedHorseCount(0);
+        setAutofilledHorseCount(0);
+        setPreviousOverallRank(null);
+        setUpcomingRace(null);
+        setMiniLeaderboard([]);
+        setHorsesOfTheWeek([]);
+        setDashboardExtras({
+          round_ranked_count: 0,
+          season_ranked_count: 0,
+          leagues: [],
+        });
+        setCupMatchup(null);
+        setErrorMessage(
+          "The dashboard returned data for a different season."
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (
         !dashboardData?.round ||
         !dashboardData.season
       ) {
@@ -594,6 +668,7 @@ export default function Dashboard() {
         setPreviousOverallRank(null);
         setUpcomingRace(null);
         setMiniLeaderboard([]);
+        setHorsesOfTheWeek([]);
         setDashboardExtras({
           round_ranked_count: 0,
           season_ranked_count: 0,
@@ -703,8 +778,16 @@ export default function Dashboard() {
           )
       );
 
-      const { data: horseWeekData, error: horseWeekError } =
-        await supabase.rpc("get_horses_of_the_week");
+      const [
+        { data: horseWeekData, error: horseWeekError },
+        { data: seasonRounds, error: seasonRoundsError },
+      ] = await Promise.all([
+        supabase.rpc("get_horses_of_the_week"),
+        supabase
+          .from("rounds")
+          .select("id")
+          .eq("season_id", selectedSeasonId),
+      ]);
 
       if (!active) {
         return;
@@ -713,8 +796,22 @@ export default function Dashboard() {
       if (horseWeekError) {
         console.error("Horse of the Round RPC error:", horseWeekError);
         setHorsesOfTheWeek([]);
+      } else if (seasonRoundsError) {
+        console.error(
+          "Dashboard season rounds error:",
+          seasonRoundsError
+        );
+        setHorsesOfTheWeek([]);
       } else if (Array.isArray(horseWeekData)) {
-        setHorsesOfTheWeek(horseWeekData as HorseOfTheWeek[]);
+        const seasonRoundIds = new Set(
+          (seasonRounds ?? []).map((item) => item.id)
+        );
+
+        setHorsesOfTheWeek(
+          (horseWeekData as HorseOfTheWeek[]).filter((item) =>
+            seasonRoundIds.has(item.round_id)
+          )
+        );
       }
 
       setLoading(false);
@@ -1290,7 +1387,7 @@ export default function Dashboard() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, selectedSeasonId, loadingSeasons]);
 
   async function openTeamOfRound(item: HorseOfTheWeek) {
     if (!item.top_team_user_id) {
@@ -1618,7 +1715,9 @@ export default function Dashboard() {
     return (
       <main className="min-h-screen bg-slate-100 p-6">
         <div className="mx-auto max-w-7xl rounded-xl border bg-white p-10 text-center text-slate-500 shadow-sm">
-          Loading dashboard...
+          {loadingSeasons
+            ? "Loading seasons..."
+            : `Loading ${selectedSeason?.name ?? "dashboard"}...`}
         </div>
       </main>
     );

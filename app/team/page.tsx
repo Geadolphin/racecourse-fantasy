@@ -1000,9 +1000,13 @@ export default function MyTeamPage() {
     round !== null &&
     currentTime >= new Date(round.lockout_at).getTime();
 
+  const isSpecialRacedaysSeason =
+    season?.name.trim().toLowerCase() === "special racedays";
+
   const projectionsVisible =
-    showProjectedScores ||
-    (showSpecialTeamProjections && hasEarlyProjectionAccess);
+    !isSpecialRacedaysSeason &&
+    (showProjectedScores ||
+      (showSpecialTeamProjections && hasEarlyProjectionAccess));
 
   const editButtonVisible =
     round !== null &&
@@ -1243,11 +1247,13 @@ export default function MyTeamPage() {
                 emphasis="teal"
               />
 
-              <OfficialTeamStat
-                label="Projected Score"
-                value={projectionsVisible ? `${liveProjectedScore} pts` : "Hidden"}
-                emphasis="amber"
-              />
+              {!isSpecialRacedaysSeason && (
+                <OfficialTeamStat
+                  label="Projected Score"
+                  value={projectionsVisible ? `${liveProjectedScore} pts` : "Hidden"}
+                  emphasis="amber"
+                />
+              )}
 
               <div className="hidden lg:contents">
                 <OfficialTeamStat
@@ -1500,7 +1506,8 @@ export default function MyTeamPage() {
                                     <p className="text-lg font-black uppercase leading-none text-red-700">
                                       Scratched
                                     </p>                                  </>
-                                ) : !projectionsVisible ? (
+                                ) : isSpecialRacedaysSeason ? null
+                                : !projectionsVisible ? (
                                   <>
                                     <p className="text-sm font-black leading-none text-slate-500">
                                       Hidden
