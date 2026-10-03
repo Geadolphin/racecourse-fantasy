@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toBlob } from "html-to-image";
 
 import HorseProfileModal from "@/components/HorseProfileModal";
+import { useSeason } from "@/components/SeasonProvider";
 
 import { supabase } from "@/lib/supabase";
 
@@ -416,6 +417,8 @@ function OfficialTeamStat({
 }
 
 export default function MyTeamPage() {
+  const { selectedSeasonId, loadingSeasons } = useSeason();
+
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
@@ -587,11 +590,34 @@ export default function MyTeamPage() {
   }, []);
 
   const loadTeam = useCallback(async () => {
+    if (loadingSeasons) {
+      return;
+    }
+
     setLoading(true);
     setErrorMessage("");
 
+    if (!selectedSeasonId) {
+      setRound(null);
+      setSeason(null);
+      setTeam(null);
+      setSalaryCap(0);
+      setSelections([]);
+      setCurrentHorsePrices({});
+      setProjectedPointsByEntryId({});
+      setFixtureRaces([]);
+      setLatestResultRace(null);
+      setLatestRaceResults([]);
+      setErrorMessage("No season is currently selected.");
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase.rpc(
-      "get_my_team_data"
+      "get_my_team_data",
+      {
+        p_season_id: selectedSeasonId,
+      }
     );
 
     if (error) {
@@ -744,11 +770,15 @@ export default function MyTeamPage() {
     setLatestRaceResults(teamData.latest_race_results ?? []);
 
     setLoading(false);
-  }, []);
+  }, [loadingSeasons, selectedSeasonId]);
 
   useEffect(() => {
+    if (loadingSeasons) {
+      return;
+    }
+
     void loadTeam();
-  }, [loadTeam]);
+  }, [loadTeam, loadingSeasons]);
 
   useEffect(() => {
     let active = true;
