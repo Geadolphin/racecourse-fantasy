@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Analytics } from "@vercel/analytics/next";
 import { Lato } from "next/font/google";
+
 import "./globals.css";
+
 import Navbar from "../components/Navbar";
+import { SeasonProvider } from "../components/SeasonProvider";
 
 const lato = Lato({
   subsets: ["latin"],
@@ -35,9 +38,11 @@ export default function RootLayout({
       <body
         className={`${lato.variable} min-h-screen bg-slate-50 text-slate-950`}
       >
-        <Navbar />
+        <SeasonProvider>
+          <Navbar />
 
-        {children}
+          {children}
+        </SeasonProvider>
 
         <footer className="border-t border-slate-200 bg-white">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-slate-500 md:flex-row">

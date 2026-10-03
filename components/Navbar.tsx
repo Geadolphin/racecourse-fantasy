@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "../lib/supabase";
-
+import { useSeason } from "./SeasonProvider";
 
 function PodiumIcon({
   className = "",
@@ -58,6 +58,14 @@ function PodiumIcon({
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
+
+  const {
+    seasons,
+    selectedSeason,
+    selectedSeasonId,
+    selectSeason,
+    loadingSeasons,
+  } = useSeason();
 
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -167,17 +175,19 @@ export default function Navbar() {
   }
 
   function desktopLinkClasses(href: string) {
-    return `flex items-center gap-2 transition ${isActive(href)
-      ? "text-teal-300"
-      : "text-white hover:text-teal-300"
-      }`;
+    return `flex items-center gap-2 transition ${
+      isActive(href)
+        ? "text-teal-300"
+        : "text-white hover:text-teal-300"
+    }`;
   }
 
   function mobileLinkClasses(href: string) {
-    return `flex items-center gap-3 rounded-lg px-3 py-3 font-medium transition ${isActive(href)
-      ? "bg-slate-800 text-teal-300"
-      : "text-white hover:bg-slate-800 hover:text-teal-300"
-      }`;
+    return `flex items-center gap-3 rounded-lg px-3 py-3 font-medium transition ${
+      isActive(href)
+        ? "bg-slate-800 text-teal-300"
+        : "text-white hover:bg-slate-800 hover:text-teal-300"
+    }`;
   }
 
   const navbarWidthClass =
@@ -187,10 +197,16 @@ export default function Navbar() {
 
   return (
     <header className="relative z-50 border-b border-slate-800 bg-slate-900 text-white">
-      <nav className={`mx-auto flex w-full ${navbarWidthClass} items-center justify-between px-4 py-4 sm:px-6`}>
+      <nav
+        className={`mx-auto flex w-full ${navbarWidthClass} items-center justify-between px-4 py-4 sm:px-6`}
+      >
         <Link
           href={user ? "/dashboard" : "/"}
-          aria-label={user ? "Racecourse Fantasy dashboard" : "Racecourse Fantasy home"}
+          aria-label={
+            user
+              ? "Racecourse Fantasy dashboard"
+              : "Racecourse Fantasy home"
+          }
           className="shrink-0 text-lg font-bold tracking-tight text-white transition hover:text-teal-300 sm:text-xl"
         >
           RACECOURSE FANTASY
@@ -242,19 +258,23 @@ export default function Navbar() {
               <div ref={moreMenuRef} className="relative">
                 <button
                   type="button"
-                  onClick={() => setMoreOpen((current) => !current)}
+                  onClick={() =>
+                    setMoreOpen((current) => !current)
+                  }
                   aria-expanded={moreOpen}
                   aria-haspopup="menu"
-                  className={`flex items-center gap-2 transition ${moreOpen
-                    ? "text-teal-300"
-                    : "text-white hover:text-teal-300"
-                    }`}
+                  className={`flex items-center gap-2 transition ${
+                    moreOpen
+                      ? "text-teal-300"
+                      : "text-white hover:text-teal-300"
+                  }`}
                 >
                   <span>More</span>
 
                   <ChevronDown
-                    className={`h-4 w-4 transition-transform ${moreOpen ? "rotate-180" : ""
-                      }`}
+                    className={`h-4 w-4 transition-transform ${
+                      moreOpen ? "rotate-180" : ""
+                    }`}
                   />
                 </button>
 
@@ -352,13 +372,60 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
+
+              <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/70 px-2.5 py-1.5">
+                <CalendarDays className="h-4 w-4 shrink-0 text-teal-300" />
+
+                <select
+                  value={selectedSeasonId ?? ""}
+                  onChange={(event) =>
+                    selectSeason(event.target.value)
+                  }
+                  disabled={
+                    loadingSeasons || seasons.length <= 1
+                  }
+                  aria-label="Select season"
+                  title={
+                    selectedSeason
+                      ? `Current season: ${selectedSeason.name}`
+                      : "Select season"
+                  }
+                  className="max-w-44 cursor-pointer bg-transparent text-sm font-semibold text-white outline-none disabled:cursor-default disabled:opacity-70"
+                >
+                  {loadingSeasons ? (
+                    <option value="">
+                      Loading seasons...
+                    </option>
+                  ) : seasons.length === 0 ? (
+                    <option value="">
+                      No active seasons
+                    </option>
+                  ) : (
+                    seasons.map((season) => (
+                      <option
+                        key={season.id}
+                        value={season.id}
+                        className="bg-slate-900 text-white"
+                      >
+                        {season.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
             </div>
 
             <button
               type="button"
-              onClick={() => setMobileOpen((current) => !current)}
+              onClick={() =>
+                setMobileOpen((current) => !current)
+              }
               aria-expanded={mobileOpen}
-              aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+              aria-label={
+                mobileOpen
+                  ? "Close navigation"
+                  : "Open navigation"
+              }
               className="rounded-lg border border-slate-700 p-2 transition hover:bg-slate-800 lg:hidden"
             >
               {mobileOpen ? (
@@ -393,7 +460,9 @@ export default function Navbar() {
               className="flex items-center gap-2 rounded-lg bg-amber-400 px-3 py-2 font-semibold text-emerald-950 transition hover:bg-amber-300 sm:px-4"
             >
               <UserPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">Register</span>
+              <span className="hidden sm:inline">
+                Register
+              </span>
             </Link>
           </div>
         )}
@@ -401,7 +470,50 @@ export default function Navbar() {
 
       {!loading && user && mobileOpen && (
         <div className="border-t border-slate-800 bg-slate-900 px-4 pb-4 pt-3 lg:hidden">
-          <div className={`mx-auto w-full ${navbarWidthClass} space-y-1`}>
+          <div
+            className={`mx-auto w-full ${navbarWidthClass} space-y-1`}
+          >
+            <div className="mb-3 rounded-xl border border-slate-700 bg-slate-800/70 p-3">
+              <label
+                htmlFor="mobile-season-selector"
+                className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-300"
+              >
+                <CalendarDays className="h-4 w-4 text-teal-300" />
+                Season
+              </label>
+
+              <select
+                id="mobile-season-selector"
+                value={selectedSeasonId ?? ""}
+                onChange={(event) =>
+                  selectSeason(event.target.value)
+                }
+                disabled={
+                  loadingSeasons || seasons.length <= 1
+                }
+                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm font-semibold text-white outline-none focus:border-teal-400 disabled:cursor-default disabled:opacity-70"
+              >
+                {loadingSeasons ? (
+                  <option value="">
+                    Loading seasons...
+                  </option>
+                ) : seasons.length === 0 ? (
+                  <option value="">
+                    No active seasons
+                  </option>
+                ) : (
+                  seasons.map((season) => (
+                    <option
+                      key={season.id}
+                      value={season.id}
+                    >
+                      {season.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
             <Link
               href="/team"
               className={mobileLinkClasses("/team")}
