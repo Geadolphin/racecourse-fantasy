@@ -1,23 +1,18 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import { Trophy } from "lucide-react";
-
 import { supabase } from "@/lib/supabase";
-
+import { useSeason } from "@/components/SeasonProvider";
 import LeaderboardTable from "./LeaderboardTable";
-
 import type {
   RoundLeaderboardRow,
   SeasonLeaderboardRow,
 } from "./types";
-
 type LeaderboardData = {
   success?: boolean;
   round_leaderboard?: RoundLeaderboardRow[];
   season_leaderboard?: SeasonLeaderboardRow[];
 };
-
 type RoundOption = {
   id: string;
   season_id: string;
@@ -25,51 +20,43 @@ type RoundOption = {
   name: string | null;
   status: string;
 };
-
 type SeasonOption = {
   id: string;
   name: string;
   year: number;
   is_active: boolean;
 };
-
 export default function LeaderboardPage() {
-  const [loading, setLoading] = useState(true);
+  const {
+    selectedSeasonId: siteSelectedSeasonId,
+    loadingSeasons,
+  } = useSeason();
 
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] =
     useState<"round" | "season">("round");
-
   const [rounds, setRounds] =
     useState<RoundOption[]>([]);
-
   const [selectedRoundId, setSelectedRoundId] =
     useState("");
-
   const [seasons, setSeasons] =
     useState<SeasonOption[]>([]);
-
   const [selectedSeasonId, setSelectedSeasonId] =
     useState("");
-
   const [
     roundLeaderboard,
     setRoundLeaderboard,
   ] = useState<RoundLeaderboardRow[]>([]);
-
   const [
     seasonLeaderboard,
     setSeasonLeaderboard,
   ] = useState<SeasonLeaderboardRow[]>([]);
-
   const [error, setError] = useState("");
-
   useEffect(() => {
     let active = true;
-
     async function loadLeaderboard() {
       setLoading(true);
       setError("");
-
       const [
         {
           data: leaderboardDataRaw,
@@ -85,7 +72,6 @@ export default function LeaderboardPage() {
         },
       ] = await Promise.all([
         supabase.rpc("get_leaderboard_data"),
-
         supabase
           .from("rounds")
           .select(
@@ -94,7 +80,6 @@ export default function LeaderboardPage() {
           .order("round_number", {
             ascending: false,
           }),
-
         supabase
           .from("seasons")
           .select(
@@ -104,11 +89,9 @@ export default function LeaderboardPage() {
             ascending: false,
           }),
       ]);
-
       if (!active) {
         return;
       }
-
       if (
         rpcError ||
         roundsError ||
@@ -119,34 +102,26 @@ export default function LeaderboardPage() {
           roundsError,
           seasonsError,
         });
-
         setError(
           rpcError?.message ||
             roundsError?.message ||
             seasonsError?.message ||
             "Unable to load leaderboard."
         );
-
         setRounds([]);
         setSelectedRoundId("");
-
         setSeasons([]);
         setSelectedSeasonId("");
-
         setRoundLeaderboard([]);
         setSeasonLeaderboard([]);
-
         setLoading(false);
-
         return;
       }
-
       const leaderboardData =
         leaderboardDataRaw as
           | LeaderboardData
           | null
           | undefined;
-
       /*
        * Defensive array checks.
        *
@@ -160,7 +135,6 @@ export default function LeaderboardPage() {
         )
           ? leaderboardData.round_leaderboard
           : [];
-
       const loadedSeasonLeaderboard:
         SeasonLeaderboardRow[] =
         Array.isArray(
@@ -168,19 +142,16 @@ export default function LeaderboardPage() {
         )
           ? leaderboardData.season_leaderboard
           : [];
-
       const safeRoundsData:
         RoundOption[] =
         Array.isArray(roundsData)
           ? (roundsData as RoundOption[])
           : [];
-
       const safeSeasonsData:
         SeasonOption[] =
         Array.isArray(seasonsData)
           ? (seasonsData as SeasonOption[])
           : [];
-
       const leaderboardRoundIds =
         new Set(
           loadedRoundLeaderboard
@@ -191,7 +162,6 @@ export default function LeaderboardPage() {
                 roundId.length > 0
             )
         );
-
       /*
        * Only show rounds that currently have
        * leaderboard rows.
@@ -203,38 +173,29 @@ export default function LeaderboardPage() {
         safeRoundsData.filter((round) =>
           leaderboardRoundIds.has(round.id)
         );
-
       setRounds(availableRounds);
-
       setRoundLeaderboard(
         loadedRoundLeaderboard
       );
-
       setSeasonLeaderboard(
         loadedSeasonLeaderboard
       );
-
       const loadedSeasons =
         safeSeasonsData;
-
       setSeasons(loadedSeasons);
-
       /*
-       * Prefer active season.
-       * Otherwise use most recent season.
+       * Use the season selected in the site navbar.
+       * Fall back to the first loaded season only if needed.
        */
       const preferredSeason =
         loadedSeasons.find(
-          (season) => season.is_active
+          (season) => season.id === siteSelectedSeasonId
         ) ?? loadedSeasons[0];
-
       const preferredSeasonId =
         preferredSeason?.id ?? "";
-
       setSelectedSeasonId(
         preferredSeasonId
       );
-
       /*
        * Prefer current open/locked round
        * within the selected season.
@@ -245,27 +206,28 @@ export default function LeaderboardPage() {
             round.season_id ===
             preferredSeasonId
         );
-
       const preferredRound =
         seasonRounds.find((round) =>
           ["open", "locked"].includes(
             round.status
           )
         ) ?? seasonRounds[0];
-
       setSelectedRoundId(
         preferredRound?.id ?? ""
       );
-
       setLoading(false);
     }
-
     void loadLeaderboard();
-
     return () => {
       active = false;
     };
-  }, []);
+  }, [siteSelectedSeasonId]);
+  useEffect(() => {
+    if (loadingSeasons || !siteSelectedSeasonId) {
+      return;
+    }
+    setSelectedSeasonId(siteSelectedSeasonId);
+  }, [siteSelectedSeasonId, loadingSeasons]);
 
   /*
    * All rounds for the selected season.
@@ -274,19 +236,16 @@ export default function LeaderboardPage() {
     if (!selectedSeasonId) {
       return [];
     }
-
     const safeRounds =
       Array.isArray(rounds)
         ? rounds
         : [];
-
     return safeRounds.filter(
       (round) =>
         round.season_id ===
         selectedSeasonId
     );
   }, [rounds, selectedSeasonId]);
-
   /*
    * If the user changes season,
    * ensure the selected round belongs
@@ -301,24 +260,20 @@ export default function LeaderboardPage() {
       setSelectedRoundId("");
       return;
     }
-
     const currentRoundStillValid =
       seasonRounds.some(
         (round) =>
           round.id === selectedRoundId
       );
-
     if (currentRoundStillValid) {
       return;
     }
-
     const preferredRound =
       seasonRounds.find((round) =>
         ["open", "locked"].includes(
           round.status
         )
       ) ?? seasonRounds[0];
-
     setSelectedRoundId(
       preferredRound?.id ?? ""
     );
@@ -327,7 +282,6 @@ export default function LeaderboardPage() {
     seasonRounds,
     selectedRoundId,
   ]);
-
   /*
    * Current round metadata.
    */
@@ -335,7 +289,6 @@ export default function LeaderboardPage() {
     if (!Array.isArray(seasonRounds)) {
       return undefined;
     }
-
     return seasonRounds.find(
       (round) =>
         round.id === selectedRoundId
@@ -344,7 +297,6 @@ export default function LeaderboardPage() {
     seasonRounds,
     selectedRoundId,
   ]);
-
   /*
    * Round leaderboard rows.
    */
@@ -354,14 +306,12 @@ export default function LeaderboardPage() {
         if (!selectedRoundId) {
           return [];
         }
-
         const safeRoundLeaderboard =
           Array.isArray(
             roundLeaderboard
           )
             ? roundLeaderboard
             : [];
-
         return safeRoundLeaderboard
           .filter(
             (row) =>
@@ -383,7 +333,6 @@ export default function LeaderboardPage() {
         selectedRoundId,
       ]
     );
-
   /*
    * Current season metadata.
    */
@@ -393,7 +342,6 @@ export default function LeaderboardPage() {
         Array.isArray(seasons)
           ? seasons
           : [];
-
       return safeSeasons.find(
         (season) =>
           season.id ===
@@ -403,7 +351,6 @@ export default function LeaderboardPage() {
       seasons,
       selectedSeasonId,
     ]);
-
   /*
    * Season leaderboard rows.
    */
@@ -413,14 +360,12 @@ export default function LeaderboardPage() {
         if (!selectedSeasonId) {
           return [];
         }
-
         const safeSeasonLeaderboard =
           Array.isArray(
             seasonLeaderboard
           )
             ? seasonLeaderboard
             : [];
-
         return safeSeasonLeaderboard
           .filter(
             (row) =>
@@ -442,7 +387,6 @@ export default function LeaderboardPage() {
         selectedSeasonId,
       ]
     );
-
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-100">
@@ -454,7 +398,6 @@ export default function LeaderboardPage() {
       </main>
     );
   }
-
   return (
     <main className="min-h-screen bg-slate-100 pb-10">
       {/* Full-width branded hero */}
@@ -468,20 +411,16 @@ export default function LeaderboardPage() {
                   Racecourse Fantasy
                 </p>
               </div>
-
               <p className="mt-5 text-xs font-black uppercase tracking-[0.18em] text-white/80">
                 Official Rankings
               </p>
-
               <h1 className="mt-1 text-4xl font-black tracking-tight md:text-5xl">
                 Leaderboard
               </h1>
-
               <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-white/90 sm:text-base">
                 See how your team ranks across each round and the full season.
               </p>
             </div>
-
             <div className="w-full rounded-xl border border-white/30 bg-white/15 px-4 py-3 shadow-sm backdrop-blur-md md:w-auto md:min-w-[320px]">
               <label
                 htmlFor="leaderboard-viewing"
@@ -489,7 +428,6 @@ export default function LeaderboardPage() {
               >
                 Viewing
               </label>
-
               <select
                 id="leaderboard-viewing"
                 value={
@@ -544,14 +482,12 @@ export default function LeaderboardPage() {
           </div>
         </div>
       </header>
-
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 md:py-8">
         {error && (
           <div className="mb-6 rounded-xl border border-red-300 bg-red-50 p-4 font-medium text-red-700">
             {error}
           </div>
         )}
-
         {/* Round / Overall switch */}
         <div className="mb-5 grid max-w-md grid-cols-2 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
           <button
@@ -565,7 +501,6 @@ export default function LeaderboardPage() {
           >
             Round
           </button>
-
           <button
             type="button"
             onClick={() => setTab("season")}
@@ -578,7 +513,6 @@ export default function LeaderboardPage() {
             Overall
           </button>
         </div>
-
         {/* Stronger context heading */}
         <div className="mb-4">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-600">
@@ -594,7 +528,6 @@ export default function LeaderboardPage() {
                 : "Season Rankings"}
           </h2>
         </div>
-
         <LeaderboardTable
           type={tab}
           rows={
