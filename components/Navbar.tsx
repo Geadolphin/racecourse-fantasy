@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -23,11 +22,10 @@ import {
   Menu,
   X,
   GitCompareArrows,
+  Check,
 } from "lucide-react";
-
 import { supabase } from "../lib/supabase";
 import { useSeason } from "./SeasonProvider";
-
 function PodiumIcon({
   className = "",
 }: {
@@ -54,11 +52,9 @@ function PodiumIcon({
     </svg>
   );
 }
-
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
-
   const {
     seasons,
     selectedSeason,
@@ -66,78 +62,63 @@ export default function Navbar() {
     selectSeason,
     loadingSeasons,
   } = useSeason();
-
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-
   const [moreOpen, setMoreOpen] = useState(false);
+  const [seasonOpen, setSeasonOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
-
+  const seasonMenuRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     let active = true;
     let loadedUserId: string | null = null;
-
     async function loadProfile(userId: string) {
       if (loadedUserId === userId) {
         return;
       }
-
       loadedUserId = userId;
-
       const { data, error } = await supabase
         .from("profiles")
         .select("is_admin")
         .eq("id", userId)
         .single();
-
       if (!active) {
         return;
       }
-
       if (error) {
         console.error("Could not load profile:", error.message);
         setIsAdmin(false);
         return;
       }
-
       setIsAdmin(Boolean(data?.is_admin));
     }
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const currentUser = session?.user ?? null;
-
       if (!active) {
         return;
       }
-
       setUser(currentUser);
-
       if (currentUser) {
         void loadProfile(currentUser.id);
       } else {
         loadedUserId = null;
         setIsAdmin(false);
       }
-
       setLoading(false);
     });
-
     return () => {
       active = false;
       subscription.unsubscribe();
     };
   }, []);
-
   useEffect(() => {
     setMoreOpen(false);
+    setSeasonOpen(false);
     setMobileOpen(false);
   }, [pathname]);
-
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
       if (
@@ -146,72 +127,59 @@ export default function Navbar() {
       ) {
         setMoreOpen(false);
       }
+
+      if (
+        seasonMenuRef.current &&
+        !seasonMenuRef.current.contains(event.target as Node)
+      ) {
+        setSeasonOpen(false);
+      }
     }
-
     document.addEventListener("mousedown", handleOutsideClick);
-
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, []);
-
   async function handleLogout() {
     setMoreOpen(false);
     setMobileOpen(false);
-
     const { error } = await supabase.auth.signOut();
-
     if (error) {
       console.error("Logout failed:", error.message);
       return;
     }
-
     router.push("/");
     router.refresh();
   }
-
   function isActive(href: string) {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
-
   function desktopLinkClasses(href: string) {
-    return `flex items-center gap-2 transition ${
-      isActive(href)
-        ? "text-teal-300"
-        : "text-white hover:text-teal-300"
-    }`;
+    return `flex items-center gap-2 transition ${isActive(href)
+      ? "text-teal-300"
+      : "text-white hover:text-teal-300"
+      }`;
   }
-
   function mobileLinkClasses(href: string) {
-    return `flex items-center gap-3 rounded-lg px-3 py-3 font-medium transition ${
-      isActive(href)
-        ? "bg-slate-800 text-teal-300"
-        : "text-white hover:bg-slate-800 hover:text-teal-300"
-    }`;
+    return `flex items-center gap-3 rounded-lg px-3 py-3 font-medium transition ${isActive(href)
+      ? "bg-slate-800 text-teal-300"
+      : "text-white hover:bg-slate-800 hover:text-teal-300"
+      }`;
   }
-
   const navbarWidthClass =
     pathname === "/dashboard" || pathname.startsWith("/dashboard/")
       ? "max-w-[1480px]"
       : "max-w-7xl";
-
   return (
     <header className="relative z-50 border-b border-slate-800 bg-slate-900 text-white">
-      <nav
-        className={`mx-auto flex w-full ${navbarWidthClass} items-center justify-between px-4 py-4 sm:px-6`}
-      >
+      <nav className={`mx-auto flex w-full ${navbarWidthClass} items-center justify-between px-4 py-4 sm:px-6`}>
         <Link
           href={user ? "/dashboard" : "/"}
-          aria-label={
-            user
-              ? "Racecourse Fantasy dashboard"
-              : "Racecourse Fantasy home"
-          }
+          aria-label={user ? "Racecourse Fantasy dashboard" : "Racecourse Fantasy home"}
           className="shrink-0 text-lg font-bold tracking-tight text-white transition hover:text-teal-300 sm:text-xl"
         >
           RACECOURSE FANTASY
         </Link>
-
         {!loading && user && (
           <>
             <div className="hidden items-center gap-5 text-sm font-medium lg:flex">
@@ -222,7 +190,6 @@ export default function Navbar() {
                 <Users className="h-4 w-4" />
                 <span>My Team</span>
               </Link>
-
               <Link
                 href="/results"
                 className={desktopLinkClasses("/results")}
@@ -230,7 +197,6 @@ export default function Navbar() {
                 <Medal className="h-4 w-4" />
                 <span>Results</span>
               </Link>
-
               <Link
                 href="/leaderboard"
                 className={desktopLinkClasses("/leaderboard")}
@@ -238,7 +204,6 @@ export default function Navbar() {
                 <PodiumIcon className="h-4 w-4" />
                 <span>Leaderboard</span>
               </Link>
-
               <Link
                 href="/stats"
                 className={desktopLinkClasses("/stats")}
@@ -246,7 +211,6 @@ export default function Navbar() {
                 <BarChart3 className="h-4 w-4" />
                 <span>Stats</span>
               </Link>
-
               <Link
                 href="/cups"
                 className={desktopLinkClasses("/cups")}
@@ -254,30 +218,26 @@ export default function Navbar() {
                 <Trophy className="h-4 w-4" />
                 <span>Cups</span>
               </Link>
-
               <div ref={moreMenuRef} className="relative">
                 <button
                   type="button"
-                  onClick={() =>
-                    setMoreOpen((current) => !current)
-                  }
+                  onClick={() => {
+                    setSeasonOpen(false);
+                    setMoreOpen((current) => !current);
+                  }}
                   aria-expanded={moreOpen}
                   aria-haspopup="menu"
-                  className={`flex items-center gap-2 transition ${
-                    moreOpen
-                      ? "text-teal-300"
-                      : "text-white hover:text-teal-300"
-                  }`}
+                  className={`flex items-center gap-2 transition ${moreOpen
+                    ? "text-teal-300"
+                    : "text-white hover:text-teal-300"
+                    }`}
                 >
                   <span>More</span>
-
                   <ChevronDown
-                    className={`h-4 w-4 transition-transform ${
-                      moreOpen ? "rotate-180" : ""
-                    }`}
+                    className={`h-4 w-4 transition-transform ${moreOpen ? "rotate-180" : ""
+                      }`}
                   />
                 </button>
-
                 {moreOpen && (
                   <div
                     role="menu"
@@ -291,7 +251,6 @@ export default function Navbar() {
                       <History className="h-4 w-4" />
                       <span>My Season</span>
                     </Link>
-
                     <Link
                       href="/horses"
                       role="menuitem"
@@ -300,7 +259,6 @@ export default function Navbar() {
                       <ChessKnight className="h-4 w-4" />
                       <span>Horses</span>
                     </Link>
-
                     <Link
                       href="/leagues"
                       role="menuitem"
@@ -309,7 +267,6 @@ export default function Navbar() {
                       <Network className="h-4 w-4" />
                       <span>Leagues</span>
                     </Link>
-
                     <Link
                       href="/calendar"
                       role="menuitem"
@@ -318,7 +275,6 @@ export default function Navbar() {
                       <CalendarDays className="h-4 w-4" />
                       <span>Calendar</span>
                     </Link>
-
                     <Link
                       href="/compare"
                       role="menuitem"
@@ -327,7 +283,6 @@ export default function Navbar() {
                       <GitCompareArrows className="h-4 w-4" />
                       <span>Compare Teams</span>
                     </Link>
-
                     <Link
                       href="/rules"
                       role="menuitem"
@@ -336,7 +291,6 @@ export default function Navbar() {
                       <BookOpen className="h-4 w-4" />
                       <span>Rules</span>
                     </Link>
-
                     <Link
                       href="/account"
                       role="menuitem"
@@ -345,7 +299,6 @@ export default function Navbar() {
                       <UserCog className="h-4 w-4" />
                       <span>Account</span>
                     </Link>
-
                     {isAdmin && (
                       <Link
                         href="/admin"
@@ -357,9 +310,7 @@ export default function Navbar() {
                         <span>Admin</span>
                       </Link>
                     )}
-
                     <div className="my-2 border-t border-slate-700" />
-
                     <button
                       type="button"
                       role="menuitem"
@@ -373,59 +324,80 @@ export default function Navbar() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/70 px-2.5 py-1.5">
-                <CalendarDays className="h-4 w-4 shrink-0 text-teal-300" />
+              {seasons.length > 1 && (
+                <div ref={seasonMenuRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setSeasonOpen((current) => !current);
+                    }}
+                    disabled={loadingSeasons}
+                    aria-expanded={seasonOpen}
+                    aria-haspopup="menu"
+                    title={
+                      selectedSeason
+                        ? `Current season: ${selectedSeason.name}`
+                        : "Change season"
+                    }
+                    className={`flex items-center gap-2 transition disabled:cursor-default disabled:opacity-60 ${
+                      seasonOpen
+                        ? "text-teal-300"
+                        : "text-white hover:text-teal-300"
+                    }`}
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    <span>Change Season</span>
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${
+                        seasonOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
 
-                <select
-                  value={selectedSeasonId ?? ""}
-                  onChange={(event) =>
-                    selectSeason(event.target.value)
-                  }
-                  disabled={
-                    loadingSeasons || seasons.length <= 1
-                  }
-                  aria-label="Select season"
-                  title={
-                    selectedSeason
-                      ? `Current season: ${selectedSeason.name}`
-                      : "Select season"
-                  }
-                  className="max-w-44 cursor-pointer bg-transparent text-sm font-semibold text-white outline-none disabled:cursor-default disabled:opacity-70"
-                >
-                  {loadingSeasons ? (
-                    <option value="">
-                      Loading seasons...
-                    </option>
-                  ) : seasons.length === 0 ? (
-                    <option value="">
-                      No active seasons
-                    </option>
-                  ) : (
-                    seasons.map((season) => (
-                      <option
-                        key={season.id}
-                        value={season.id}
-                        className="bg-slate-900 text-white"
-                      >
-                        {season.name}
-                      </option>
-                    ))
+                  {seasonOpen && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-full mt-3 w-60 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 py-2 shadow-2xl"
+                    >
+                      {seasons.map((season) => {
+                        const isSelected = season.id === selectedSeasonId;
+
+                        return (
+                          <button
+                            key={season.id}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={isSelected}
+                            onClick={() => {
+                              selectSeason(season.id);
+                              setSeasonOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition ${
+                              isSelected
+                                ? "bg-slate-800 font-semibold text-teal-300"
+                                : "text-white hover:bg-slate-800 hover:text-teal-300"
+                            }`}
+                          >
+                            <span className="min-w-0 truncate">
+                              {season.name}
+                            </span>
+                            {isSelected && (
+                              <Check className="h-4 w-4 shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
-                </select>
-              </div>
+                </div>
+              )}
             </div>
-
             <button
               type="button"
-              onClick={() =>
-                setMobileOpen((current) => !current)
-              }
+              onClick={() => setMobileOpen((current) => !current)}
               aria-expanded={mobileOpen}
-              aria-label={
-                mobileOpen
-                  ? "Close navigation"
-                  : "Open navigation"
-              }
+              aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
               className="rounded-lg border border-slate-700 p-2 transition hover:bg-slate-800 lg:hidden"
             >
               {mobileOpen ? (
@@ -436,7 +408,6 @@ export default function Navbar() {
             </button>
           </>
         )}
-
         {!loading && !user && (
           <div className="flex items-center gap-3 text-sm font-medium">
             <Link
@@ -446,7 +417,6 @@ export default function Navbar() {
               <PodiumIcon className="h-4 w-4" />
               <span>Leaderboard</span>
             </Link>
-
             <Link
               href="/login"
               className="flex items-center gap-2 transition hover:text-teal-300"
@@ -454,66 +424,55 @@ export default function Navbar() {
               <LogIn className="h-4 w-4" />
               <span>Log in</span>
             </Link>
-
             <Link
               href="/register"
               className="flex items-center gap-2 rounded-lg bg-amber-400 px-3 py-2 font-semibold text-emerald-950 transition hover:bg-amber-300 sm:px-4"
             >
               <UserPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">
-                Register
-              </span>
+              <span className="hidden sm:inline">Register</span>
             </Link>
           </div>
         )}
       </nav>
-
       {!loading && user && mobileOpen && (
         <div className="border-t border-slate-800 bg-slate-900 px-4 pb-4 pt-3 lg:hidden">
-          <div
-            className={`mx-auto w-full ${navbarWidthClass} space-y-1`}
-          >
-            <div className="mb-3 rounded-xl border border-slate-700 bg-slate-800/70 p-3">
-              <label
-                htmlFor="mobile-season-selector"
-                className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-300"
-              >
-                <CalendarDays className="h-4 w-4 text-teal-300" />
-                Season
-              </label>
+          <div className={`mx-auto w-full ${navbarWidthClass} space-y-1`}>
+              {seasons.length > 1 && (
+                <div className="pb-3">
+                  <div className="mb-2 flex items-center gap-2 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <CalendarDays className="h-4 w-4 text-teal-300" />
+                    <span>Change Season</span>
+                  </div>
+                  <div className="overflow-hidden rounded-lg border border-slate-700 bg-slate-800">
+                    {seasons.map((season) => {
+                      const isSelected = season.id === selectedSeasonId;
 
-              <select
-                id="mobile-season-selector"
-                value={selectedSeasonId ?? ""}
-                onChange={(event) =>
-                  selectSeason(event.target.value)
-                }
-                disabled={
-                  loadingSeasons || seasons.length <= 1
-                }
-                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm font-semibold text-white outline-none focus:border-teal-400 disabled:cursor-default disabled:opacity-70"
-              >
-                {loadingSeasons ? (
-                  <option value="">
-                    Loading seasons...
-                  </option>
-                ) : seasons.length === 0 ? (
-                  <option value="">
-                    No active seasons
-                  </option>
-                ) : (
-                  seasons.map((season) => (
-                    <option
-                      key={season.id}
-                      value={season.id}
-                    >
-                      {season.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-
+                      return (
+                        <button
+                          key={season.id}
+                          type="button"
+                          onClick={() => {
+                            selectSeason(season.id);
+                            setMobileOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between gap-3 px-3 py-3 text-left text-sm transition ${
+                            isSelected
+                              ? "bg-slate-700 font-semibold text-teal-300"
+                              : "text-white hover:bg-slate-700 hover:text-teal-300"
+                          }`}
+                        >
+                          <span className="min-w-0 truncate">
+                            {season.name}
+                          </span>
+                          {isSelected && (
+                            <Check className="h-4 w-4 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             <Link
               href="/team"
               className={mobileLinkClasses("/team")}
@@ -521,7 +480,6 @@ export default function Navbar() {
               <Users className="h-5 w-5" />
               <span>My Team</span>
             </Link>
-
             <Link
               href="/results"
               className={mobileLinkClasses("/results")}
@@ -529,7 +487,6 @@ export default function Navbar() {
               <Medal className="h-5 w-5" />
               <span>Results</span>
             </Link>
-
             <Link
               href="/leaderboard"
               className={mobileLinkClasses("/leaderboard")}
@@ -537,7 +494,6 @@ export default function Navbar() {
               <PodiumIcon className="h-5 w-5" />
               <span>Leaderboard</span>
             </Link>
-
             <Link
               href="/leagues"
               className={mobileLinkClasses("/leagues")}
@@ -545,7 +501,6 @@ export default function Navbar() {
               <Network className="h-5 w-5" />
               <span>Leagues</span>
             </Link>
-
             <Link
               href="/cups"
               className={mobileLinkClasses("/cups")}
@@ -553,7 +508,6 @@ export default function Navbar() {
               <Trophy className="h-5 w-5" />
               <span>Cups</span>
             </Link>
-
             <Link
               href="/history"
               className={mobileLinkClasses("/history")}
@@ -561,7 +515,6 @@ export default function Navbar() {
               <History className="h-5 w-5" />
               <span>My Season</span>
             </Link>
-
             <Link
               href="/horses"
               className={mobileLinkClasses("/horses")}
@@ -569,7 +522,6 @@ export default function Navbar() {
               <ChessKnight className="h-5 w-5" />
               <span>Horses</span>
             </Link>
-
             <Link
               href="/stats"
               className={mobileLinkClasses("/stats")}
@@ -577,7 +529,6 @@ export default function Navbar() {
               <BarChart3 className="h-5 w-5" />
               <span>Stats</span>
             </Link>
-
             <Link
               href="/calendar"
               className={mobileLinkClasses("/calendar")}
@@ -585,7 +536,6 @@ export default function Navbar() {
               <CalendarDays className="h-5 w-5" />
               <span>Calendar</span>
             </Link>
-
             <Link
               href="/compare"
               className={mobileLinkClasses("/compare")}
@@ -593,7 +543,6 @@ export default function Navbar() {
               <GitCompareArrows className="h-5 w-5" />
               <span>Compare Teams</span>
             </Link>
-
             <Link
               href="/rules"
               className={mobileLinkClasses("/rules")}
@@ -601,7 +550,6 @@ export default function Navbar() {
               <BookOpen className="h-5 w-5" />
               <span>Rules</span>
             </Link>
-
             <Link
               href="/account"
               className={mobileLinkClasses("/account")}
@@ -609,7 +557,6 @@ export default function Navbar() {
               <UserCog className="h-5 w-5" />
               <span>Account</span>
             </Link>
-
             {isAdmin && (
               <Link
                 href="/admin"
@@ -620,7 +567,6 @@ export default function Navbar() {
                 <span>Admin</span>
               </Link>
             )}
-
             <div className="pt-2">
               <button
                 type="button"
