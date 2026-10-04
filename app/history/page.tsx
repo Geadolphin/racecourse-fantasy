@@ -1,16 +1,36 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { LineChart, X } from "lucide-react";
+import { ChevronDown, ChevronRight, LineChart, X } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import { useSeason } from "@/components/SeasonProvider";
 
-type SeasonOption = {
+type AllSeasonsRound = {
+  id: string;
+  round_number: number;
+  name: string | null;
+  status: string;
+  round_date: string | null;
+  rank: number | null;
+  score: number;
+};
+
+type AllSeasonsSeason = {
   id: string;
   name: string;
   year: number;
-  is_active: boolean;
+  starts_on: string | null;
+  ends_on: string | null;
+  overall_rank: number | null;
+  total_points: number;
+  rounds: AllSeasonsRound[];
+};
+
+type AllSeasonsData = {
+  success: boolean;
+  seasons: AllSeasonsSeason[];
 };
 
 type SeasonScore = {
@@ -556,11 +576,29 @@ function RoundScoreBarChart({
 
 
 export default function HistoryPage() {
+  const {
+    selectedSeason,
+    selectedSeasonId,
+    loadingSeasons,
+  } = useSeason();
+
+  const [activeView, setActiveView] = useState<
+    "detail" | "all"
+  >("detail");
+
   const [loading, setLoading] = useState(true);
-  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
-  const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [historyData, setHistoryData] =
     useState<SeasonHistoryData | null>(null);
+
+  const [allSeasonsLoading, setAllSeasonsLoading] =
+    useState(true);
+  const [allSeasonsError, setAllSeasonsError] =
+    useState("");
+  const [allSeasons, setAllSeasons] = useState<
+    AllSeasonsSeason[]
+  >([]);
+  const [expandedSeasonIds, setExpandedSeasonIds] =
+    useState<Set<string>>(new Set());
 
   const [expandedRoundIds, setExpandedRoundIds] = useState<Set<string>>(
     new Set()
@@ -614,56 +652,69 @@ export default function HistoryPage() {
   useEffect(() => {
     let active = true;
 
-    async function loadPage() {
-      setLoading(true);
-      setErrorMessage("");
+    async function loadAllSeasonsHistory() {
+      setAllSeasonsLoading(true);
+      setAllSeasonsError("");
 
-      const { data: seasonsData, error: seasonsError } =
-        await supabase
-          .from("seasons")
-          .select("id, name, year, is_active")
-          .order("year", { ascending: false });
+      const { data, error } = await supabase.rpc(
+        "get_my_all_seasons_history"
+      );
 
       if (!active) {
         return;
       }
 
-      if (seasonsError) {
+      if (error) {
         console.error(
-          "My Season seasons error:",
-          seasonsError
+          "All seasons history RPC error:",
+          error
         );
-
-        setErrorMessage(
-          seasonsError.message ||
-            "The season list could not be loaded."
+        setAllSeasons([]);
+        setAllSeasonsError(
+          error.message ||
+            "Your season history could not be loaded."
         );
-        setLoading(false);
+        setAllSeasonsLoading(false);
         return;
       }
 
-      const loadedSeasons =
-        (seasonsData ?? []) as SeasonOption[];
+      const loadedData = data as AllSeasonsData | null;
+      const loadedSeasons = loadedData?.seasons ?? [];
 
-      setSeasons(loadedSeasons);
-
-      const preferredSeason =
-        loadedSeasons.find(
-          (season) => season.is_active
-        ) ?? loadedSeasons[0];
-
-      if (!preferredSeason) {
-        setHistoryData(null);
-        setSelectedSeasonId("");
-        setLoading(false);
-        return;
-      }
-
-      setSelectedSeasonId(preferredSeason.id);
-      await loadHistoryForSeason(preferredSeason.id);
+      setAllSeasons(loadedSeasons);
+      setExpandedSeasonIds(new Set());
+      setAllSeasonsLoading(false);
     }
 
-    async function loadHistoryForSeason(seasonId: string) {
+    void loadAllSeasonsHistory();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    if (loadingSeasons) {
+      setLoading(true);
+      return () => {
+        active = false;
+      };
+    }
+
+    if (!selectedSeasonId) {
+      setHistoryData(null);
+      setExpandedRoundIds(new Set());
+      setErrorMessage("");
+      setLoading(false);
+
+      return () => {
+        active = false;
+      };
+    }
+
+    async function loadSelectedSeasonHistory(seasonId: string) {
       setLoading(true);
       setErrorMessage("");
 
@@ -836,12 +887,13 @@ export default function HistoryPage() {
       setLoading(false);
     }
 
-    void loadPage();
+
+    void loadSelectedSeasonHistory(selectedSeasonId);
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [selectedSeasonId, loadingSeasons]);
 
   async function hydrateRoundSilks(
     roundsToHydrate: RoundHistory[]
@@ -893,163 +945,6 @@ export default function HistoryPage() {
     }));
   }
 
-  async function changeSeason(
-    seasonId: string
-  ) {
-    setSelectedSeasonId(seasonId);
-    setLoading(true);
-    setErrorMessage("");
-
-    const { data, error } = await supabase.rpc(
-      "get_my_season_history",
-      {
-        p_season_id: seasonId,
-      }
-    );
-
-    if (error) {
-      console.error(
-        "Season history RPC error:",
-        error
-      );
-
-      setErrorMessage(
-        error.message ||
-          "Your season history could not be loaded."
-      );
-
-      setLoading(false);
-      return;
-    }
-
-    const loadedData =
-      data as SeasonHistoryData | null;
-
-    const loadedRounds =
-      loadedData?.rounds ?? [];
-
-    const roundIds = loadedRounds.map(
-      (round) => round.round_id
-    );
-
-    let roundsWithRaceCounts =
-      loadedRounds;
-
-    if (roundIds.length > 0) {
-      const {
-        data: raceCountData,
-        error: raceCountError,
-      } = await supabase
-        .from("races")
-        .select("round_id")
-        .in("round_id", roundIds);
-
-      if (!raceCountError) {
-        const raceCounts = (
-          raceCountData ?? []
-        ).reduce(
-          (
-            counts: Record<string, number>,
-            race
-          ) => {
-            const roundId =
-              String(race.round_id);
-
-            counts[roundId] =
-              (counts[roundId] ?? 0) + 1;
-
-            return counts;
-          },
-          {}
-        );
-
-        roundsWithRaceCounts =
-          loadedRounds.map((round) => ({
-            ...round,
-            total_races:
-              raceCounts[round.round_id] ?? 0,
-          }));
-      }
-    }
-
-    let roundsWithAutofillPenalty =
-      roundsWithRaceCounts;
-
-    const teamIds = roundsWithRaceCounts
-      .map((round) => round.team_id)
-      .filter(Boolean);
-
-    if (teamIds.length > 0) {
-      const {
-        data: teamPenaltyData,
-        error: teamPenaltyError,
-      } = await supabase
-        .from("teams")
-        .select("id, autofilled_horse_count")
-        .in("id", teamIds);
-
-      if (teamPenaltyError) {
-        console.error(
-          "Season history autofill penalty error:",
-          teamPenaltyError
-        );
-      } else {
-        const autofillByTeamId = new Map(
-          (teamPenaltyData ?? []).map((team: any) => [
-            String(team.id),
-            Number(team.autofilled_horse_count ?? 0),
-          ])
-        );
-
-        roundsWithAutofillPenalty =
-          roundsWithRaceCounts.map((round) => {
-            const autofilledHorseCount =
-              autofillByTeamId.get(round.team_id) ?? 0;
-
-            return {
-              ...round,
-              autofilled_horse_count:
-                autofilledHorseCount,
-              autofill_penalty:
-                autofilledHorseCount * 3,
-            };
-          });
-      }
-    }
-
-    const roundsWithSilks =
-      await hydrateRoundSilks(
-        roundsWithAutofillPenalty
-      );
-
-    setHistoryData(
-      loadedData
-        ? {
-            ...loadedData,
-            rounds: roundsWithSilks,
-          }
-        : null
-    );
-
-    if (roundsWithSilks.length > 0) {
-      const latestRound = [
-        ...roundsWithSilks,
-      ].sort(
-        (a, b) =>
-          b.round_number - a.round_number
-      )[0];
-
-      setExpandedRoundIds(
-        latestRound
-          ? new Set([latestRound.round_id])
-          : new Set()
-      );
-    } else {
-      setExpandedRoundIds(new Set());
-    }
-
-    setLoading(false);
-  }
 
   useEffect(() => {
     let active = true;
@@ -1120,12 +1015,6 @@ export default function HistoryPage() {
     };
   }, [selectedSeasonId]);
 
-  const selectedSeason = useMemo(() => {
-    return seasons.find(
-      (season) =>
-        season.id === selectedSeasonId
-    ) ?? null;
-  }, [seasons, selectedSeasonId]);
 
   const rounds = useMemo(() => {
     return [...(historyData?.rounds ?? [])].sort(
@@ -1226,6 +1115,20 @@ export default function HistoryPage() {
     });
   }
 
+  function toggleSeason(seasonId: string) {
+    setExpandedSeasonIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(seasonId)) {
+        next.delete(seasonId);
+      } else {
+        next.add(seasonId);
+      }
+
+      return next;
+    });
+  }
+
   function expandAll() {
     setExpandedRoundIds(
       new Set(rounds.map((round) => round.round_id))
@@ -1236,17 +1139,17 @@ export default function HistoryPage() {
     setExpandedRoundIds(new Set());
   }
 
-  if (loading) {
+  if (activeView === "detail" && loading) {
     return (
       <main className="min-h-screen bg-slate-100 p-6">
         <div className="mx-auto max-w-7xl rounded-xl border bg-white p-10 text-center text-slate-500">
-          Loading season history...
+          Loading selected season...
         </div>
       </main>
     );
   }
 
-  if (errorMessage) {
+  if (activeView === "detail" && errorMessage) {
     return (
       <main className="min-h-screen bg-slate-100 p-4 md:p-8">
         <div className="mx-auto max-w-4xl rounded-xl border bg-white p-8">
@@ -1269,7 +1172,10 @@ export default function HistoryPage() {
     );
   }
 
-  if (!historyData?.season_id || rounds.length === 0) {
+  if (
+    activeView === "detail" &&
+    (!historyData?.season_id || rounds.length === 0)
+  ) {
     return (
       <main className="min-h-screen bg-slate-100 p-4 md:p-8">
         <div className="mx-auto max-w-4xl rounded-xl border bg-white p-8 text-center">
@@ -1279,7 +1185,9 @@ export default function HistoryPage() {
 
           <p className="mt-4 text-slate-600">
             {historyData?.message ||
-              "No completed round history is available yet."}
+              (selectedSeason
+                ? `No completed round history is available for ${selectedSeason.name} ${selectedSeason.year} yet.`
+                : "No completed round history is available yet.")}
           </p>
 
           <Link
@@ -1288,6 +1196,194 @@ export default function HistoryPage() {
           >
             Return to Dashboard
           </Link>
+        </div>
+      </main>
+    );
+  }
+
+  if (activeView === "all") {
+    return (
+      <main className="min-h-screen bg-slate-100">
+        <header className="w-full border-y border-cyan-400/60 bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 text-white shadow-lg">
+          <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 md:px-8 md:py-8">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
+                  Player history
+                </p>
+                <h1 className="mt-1.5 text-3xl font-black leading-tight md:text-4xl">
+                  My Season
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-white/85 sm:text-base">
+                  Review every season you have competed in, with your
+                  overall finish and round-by-round results.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+</div>
+            </div>
+          </div>
+        </header>
+
+        <div className="mx-auto max-w-7xl px-3 pb-8 sm:px-6 md:px-8">
+          <div className="mt-4 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:mt-6">
+            <button
+              type="button"
+              onClick={() => setActiveView("detail")}
+              className="rounded-lg px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-100"
+            >
+              Season Detail
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-black text-white shadow-sm"
+            >
+              All Seasons
+            </button>
+          </div>
+
+          <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
+              <h2 className="text-xl font-black text-slate-900">
+                Career History
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Select a season to view each round&apos;s rank and score.
+              </p>
+            </div>
+
+            {allSeasonsLoading ? (
+              <div className="p-10 text-center text-slate-500">
+                Loading all seasons...
+              </div>
+            ) : allSeasonsError ? (
+              <div className="p-8 text-center text-red-700">
+                {allSeasonsError}
+              </div>
+            ) : allSeasons.length === 0 ? (
+              <div className="p-10 text-center text-slate-500">
+                No competed seasons are available yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] border-collapse">
+                  <thead className="bg-slate-50 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="w-12 px-4 py-3" />
+                      <th className="px-4 py-3">Season</th>
+                      <th className="px-4 py-3 text-right">
+                        Overall Rank
+                      </th>
+                      <th className="px-4 py-3 text-right">
+                        Total Points
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {allSeasons.map((season) => {
+                      const expanded =
+                        expandedSeasonIds.has(season.id);
+
+                      return (
+                        <Fragment key={season.id}>
+                          <tr
+                            className="cursor-pointer bg-white transition hover:bg-slate-50"
+                            onClick={() => toggleSeason(season.id)}
+                          >
+                            <td className="px-4 py-4 text-slate-500">
+                              {expanded ? (
+                                <ChevronDown className="h-5 w-5" />
+                              ) : (
+                                <ChevronRight className="h-5 w-5" />
+                              )}
+                            </td>
+                            <td className="px-4 py-4">
+                              <p className="font-black text-slate-900">
+                                {season.name}
+                              </p>
+                              <p className="mt-0.5 text-sm text-slate-500">
+                                {season.year}
+                              </p>
+                            </td>
+                            <td className="px-4 py-4 text-right text-lg font-black tabular-nums text-slate-900">
+                              {season.overall_rank
+                                ? `#${season.overall_rank}`
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-4 text-right text-lg font-black tabular-nums text-sky-700">
+                              {Number(
+                                season.total_points ?? 0
+                              ).toLocaleString("en-AU")}
+                            </td>
+                          </tr>
+
+                          {expanded && (
+                            <tr key={`${season.id}-rounds`}>
+                              <td
+                                colSpan={4}
+                                className="bg-slate-50 px-4 py-4 sm:px-8"
+                              >
+                                {season.rounds.length === 0 ? (
+                                  <p className="py-3 text-sm text-slate-500">
+                                    No round results are recorded for this season.
+                                  </p>
+                                ) : (
+                                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                    <table className="w-full">
+                                      <thead className="bg-slate-100 text-left text-xs font-black uppercase tracking-wide text-slate-500">
+                                        <tr>
+                                          <th className="px-4 py-3">
+                                            Round
+                                          </th>
+                                          <th className="px-4 py-3">
+                                            Round Name
+                                          </th>
+                                          <th className="px-4 py-3 text-right">
+                                            Rank
+                                          </th>
+                                          <th className="px-4 py-3 text-right">
+                                            Score
+                                          </th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100">
+                                        {season.rounds.map((round) => (
+                                          <tr key={round.id}>
+                                            <td className="px-4 py-3 font-bold text-slate-700">
+                                              Round {round.round_number}
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-700">
+                                              {round.name ||
+                                                `Round ${round.round_number}`}
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-black tabular-nums text-slate-900">
+                                              {round.rank
+                                                ? `#${round.rank}`
+                                                : "—"}
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-black tabular-nums text-sky-700">
+                                              {Number(
+                                                round.score ?? 0
+                                              ).toLocaleString("en-AU")}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       </main>
     );
@@ -1317,57 +1413,34 @@ export default function HistoryPage() {
             </div>
 
             <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-end sm:gap-3">
-              <div className="col-span-2 w-full sm:col-span-1 sm:w-auto">
-                <label
-                  htmlFor="my-season-selector"
-                  className="mb-1 block text-xs font-bold uppercase tracking-wide text-white/80"
-                >
-                  Season
-                </label>
-
-                <select
-                  id="my-season-selector"
-                  value={selectedSeasonId}
-                  onChange={(event) =>
-                    void changeSeason(
-                      event.target.value
-                    )
-                  }
-                  className="w-full min-w-0 rounded-lg border border-white/30 bg-white/15 px-4 py-3 font-semibold text-white shadow-sm outline-none backdrop-blur-md transition focus:border-white/70 focus:ring-2 focus:ring-white/25 sm:min-w-52"
-                >
-                  {seasons.map((season) => (
-                    <option
-                      key={season.id}
-                      value={season.id}
-                    >
-                      {season.name} {season.year}
-                      {season.is_active
-                        ? " — Active"
-                        : ""}
-                    </option>
-                  ))}
-                </select>
+              <div className="col-span-2 flex min-h-[48px] items-center rounded-lg border border-white/30 bg-white/15 px-4 py-3 text-sm font-bold text-white shadow-sm backdrop-blur-md sm:col-span-1 sm:text-base">
+                {selectedSeason
+                  ? `${selectedSeason.name} ${selectedSeason.year}`
+                  : "No season selected"}
               </div>
 
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center justify-center rounded-lg border border-white/30 bg-white/15 px-4 py-3 text-sm font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 sm:px-5 sm:text-base"
-              >
-                Dashboard
-              </Link>
-
-              <Link
-                href="/leaderboard"
-                className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-3 text-sm font-black text-sky-700 shadow-sm transition hover:bg-sky-50 sm:px-5 sm:text-base"
-              >
-                Leaderboard
-              </Link>
-            </div>
+</div>
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-7xl px-3 pb-8 sm:px-6 md:px-8">
+        <div className="mt-4 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:mt-6">
+          <button
+            type="button"
+            className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-black text-white shadow-sm"
+          >
+            Season Detail
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveView("all")}
+            className="rounded-lg px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-100"
+          >
+            All Seasons
+          </button>
+        </div>
+
         <section className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-4 xl:grid-cols-4">
           <div className="rounded-2xl border border-cyan-300/60 bg-gradient-to-br from-cyan-500 to-sky-500 p-4 sm:p-5 text-white shadow-lg">
             <div className="flex items-start justify-between gap-3">
@@ -1603,14 +1676,8 @@ export default function HistoryPage() {
                           : ""}
                       </h3>
 
-                      <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-black text-sky-700">
-                        {round.team_status}
-                      </span>
                     </div>
 
-                    <p className="mt-2 text-sm text-slate-500">
-                      {round.selections.length} horses selected
-                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 sm:gap-x-8">

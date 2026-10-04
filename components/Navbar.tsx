@@ -205,18 +205,11 @@ export default function Navbar() {
                 <span>Leaderboard</span>
               </Link>
               <Link
-                href="/stats"
-                className={desktopLinkClasses("/stats")}
+                href="/leagues"
+                className={desktopLinkClasses("/leagues")}
               >
-                <BarChart3 className="h-4 w-4" />
-                <span>Stats</span>
-              </Link>
-              <Link
-                href="/cups"
-                className={desktopLinkClasses("/cups")}
-              >
-                <Trophy className="h-4 w-4" />
-                <span>Cups</span>
+                <Network className="h-4 w-4" />
+                <span>Leagues</span>
               </Link>
               <div ref={moreMenuRef} className="relative">
                 <button
@@ -260,12 +253,20 @@ export default function Navbar() {
                       <span>Horses</span>
                     </Link>
                     <Link
-                      href="/leagues"
+                      href="/stats"
                       role="menuitem"
                       className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-teal-300"
                     >
-                      <Network className="h-4 w-4" />
-                      <span>Leagues</span>
+                      <BarChart3 className="h-4 w-4" />
+                      <span>Stats</span>
+                    </Link>
+                    <Link
+                      href="/cups"
+                      role="menuitem"
+                      className="flex items-center gap-3 px-4 py-3 text-sm transition hover:bg-slate-800 hover:text-teal-300"
+                    >
+                      <Trophy className="h-4 w-4" />
+                      <span>Cups</span>
                     </Link>
                     <Link
                       href="/calendar"

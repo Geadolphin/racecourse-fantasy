@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -13,16 +12,13 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-
 import { supabase } from "@/lib/supabase";
-
 type SeasonOption = {
   id: string;
   name: string;
   year: number;
   is_active: boolean;
 };
-
 type SeasonSummary = {
   rounds: number;
   completed_rounds: number;
@@ -31,7 +27,6 @@ type SeasonSummary = {
   players: number;
   highest_round_score: number;
 };
-
 type HorseLeader = {
   horse_id: string;
   horse_name: string;
@@ -40,7 +35,6 @@ type HorseLeader = {
   eligible_starts: number;
   average_points: number;
 };
-
 type PlayerLeader = {
   user_id: string;
   display_name: string;
@@ -51,7 +45,6 @@ type PlayerLeader = {
   highest_round_score: number;
   top_ten_finishes: number;
 };
-
 type SelectionLeader = {
   horse_id: string;
   horse_name: string;
@@ -60,7 +53,6 @@ type SelectionLeader = {
   ownership_percentage?: number;
   captain_percentage?: number;
 };
-
 type RoundSpecialHorse = {
   horse_id: string;
   horse_name: string;
@@ -70,7 +62,6 @@ type RoundSpecialHorse = {
   round_points: number;
   is_captain?: boolean;
 };
-
 type RoundSpecialTeam = {
   horses: RoundSpecialHorse[];
   total_price: number;
@@ -85,7 +76,6 @@ type RoundSpecialTeam = {
     doubled_points: number;
   } | null;
 };
-
 type RoundSpecialStats = {
   best_pod: RoundSpecialHorse | null;
   popular_flop: RoundSpecialHorse | null;
@@ -95,12 +85,10 @@ type RoundSpecialStats = {
   salary_cap: number;
   team_size: number;
 };
-
 type HorsePerformanceStats = {
   most_points?: RoundSpecialHorse | null;
   best_value?: (RoundSpecialHorse & { value_score?: number }) | null;
 };
-
 type RoundSummaryStats = {
   average_score?: number | null;
   highest_score?: number | null;
@@ -108,20 +96,17 @@ type RoundSummaryStats = {
   highest_score_player_name?: string | null;
   average_salary_used?: number | null;
 };
-
 type SeasonRecordStat = {
   user_id?: string | null;
   display_name?: string | null;
   value?: number | null;
   rounds?: number | null;
 };
-
 type SeasonRecordsStats = {
   highest_round_score?: SeasonRecordStat | null;
   most_round_wins?: SeasonRecordStat | null;
   best_captain?: SeasonRecordStat | null;
 };
-
 type OwnershipRound = {
   id: string;
   round_number: number;
@@ -129,14 +114,12 @@ type OwnershipRound = {
   round_date: string | null;
   status: string;
 };
-
 type PriceLeader = {
   horse_id: string;
   horse_name: string;
   total_change: number;
   current_price: number;
 };
-
 type StatsData = {
   success: boolean;
   message?: string;
@@ -160,18 +143,14 @@ type StatsData = {
   price_risers: PriceLeader[];
   price_fallers: PriceLeader[];
 };
-
 type Tab = "ownership" | "performance" | "round" | "season";
-
 type SortDirection = "asc" | "desc";
-
 type HorseSortKey =
   | "horse_name"
   | "season_points"
   | "eligible_starts"
   | "average_points"
   | "current_price";
-
 type PlayerSortKey =
   | "overall_rank"
   | "display_name"
@@ -180,7 +159,6 @@ type PlayerSortKey =
   | "round_wins"
   | "top_ten_finishes"
   | "highest_round_score";
-
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -188,25 +166,19 @@ function formatCurrency(value: number) {
     maximumFractionDigits: 0,
   }).format(value);
 }
-
 function formatSignedCurrency(value: number) {
   const formatted = formatCurrency(Math.abs(value));
-
   if (value > 0) return `+${formatted}`;
   if (value < 0) return `-${formatted}`;
   return formatted;
 }
-
 function rankDisplay(rank: number | null, index: number) {
   const resolvedRank = rank ?? index + 1;
-
   if (resolvedRank === 1) return "🥇";
   if (resolvedRank === 2) return "🥈";
   if (resolvedRank === 3) return "🥉";
-
   return `#${resolvedRank}`;
 }
-
 function SpecialHorseCard({
   title,
   description,
@@ -221,9 +193,7 @@ function SpecialHorseCard({
       <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">
         {title}
       </p>
-
-      <p className="mt-1 text-sm text-slate-500">{description}</p>
-
+      <p className="mt-0.5 text-xs leading-4 text-slate-500">{description}</p>
       {horse ? (
         <div className="mt-5">
           <Link
@@ -232,7 +202,6 @@ function SpecialHorseCard({
           >
             {horse.horse_name}
           </Link>
-
           <div className="mt-4 grid grid-cols-3 gap-2">
             <div className="rounded-lg bg-slate-100 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
@@ -242,7 +211,6 @@ function SpecialHorseCard({
                 {horse.round_points}
               </p>
             </div>
-
             <div className="rounded-lg bg-slate-100 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Owned
@@ -251,7 +219,6 @@ function SpecialHorseCard({
                 {Number(horse.ownership_percentage).toFixed(1)}%
               </p>
             </div>
-
             <div className="rounded-lg bg-slate-100 p-3">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Price
@@ -270,8 +237,6 @@ function SpecialHorseCard({
     </section>
   );
 }
-
-
 function MetricCard({
   title,
   value,
@@ -289,7 +254,6 @@ function MetricCard({
       : accent === "slate"
         ? "text-slate-950"
         : "text-sky-700";
-
   return (
     <section className="rounded-2xl border bg-white p-5 shadow-sm">
       <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
@@ -300,7 +264,6 @@ function MetricCard({
     </section>
   );
 }
-
 function TeamPanel({
   title,
   description,
@@ -311,53 +274,48 @@ function TeamPanel({
   team: RoundSpecialTeam | null;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-      <div className="border-b border-sky-100 bg-gradient-to-r from-sky-50 to-cyan-50 px-5 py-4">
-        <h3 className="text-xl font-black text-slate-950">{title}</h3>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
+    <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-white shadow-sm">
+      <div className="border-b border-sky-100 bg-gradient-to-r from-sky-50 to-cyan-50 px-4 py-2.5">
+        <h3 className="text-base font-black text-slate-950">{title}</h3>
+        <p className="mt-0.5 text-xs leading-4 text-slate-500">{description}</p>
       </div>
-
       {team ? (
         <>
           <div className="grid grid-cols-2 gap-px bg-slate-200">
-            <div className="bg-white px-4 py-3">
+            <div className="bg-white px-3 py-2">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Team Score
               </p>
-              <p className="mt-1 text-xl font-black text-sky-700">
+              <p className="mt-0.5 text-base font-black text-sky-700">
                 {team.total_points}
               </p>
             </div>
-
-            <div className="bg-white px-4 py-3">
+            <div className="bg-white px-3 py-2">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 Salary
               </p>
-              <p className="mt-1 text-base font-black text-slate-950">
+              <p className="mt-0.5 text-sm font-black text-slate-950">
                 {formatCurrency(team.total_price)}
               </p>
             </div>
-
           </div>
-
-          <div className="divide-y">
+          <div className="flex-1 divide-y">
             {team.horses.map((horse, index) => (
               <div
                 key={horse.horse_id}
-                className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 px-5 py-3"
+                className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 px-3 py-1.5"
               >
-                <span className="text-sm font-black text-slate-400">
+                <span className="text-xs font-black text-slate-400">
                   {index + 1}
                 </span>
                 <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-1.5">
                     <Link
                       href={`/horses/${horse.horse_id}`}
-                      className="truncate font-bold text-slate-950 hover:text-sky-700 hover:underline"
+                      className="truncate text-sm font-bold text-slate-950 hover:text-sky-700 hover:underline"
                     >
                       {horse.horse_name}
                     </Link>
-
                     {horse.is_captain && (
                       <span
                         className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-800"
@@ -367,19 +325,18 @@ function TeamPanel({
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <p className="text-[11px] leading-4 text-slate-500">
                     {Number(horse.ownership_percentage).toFixed(1)}% owned ·{" "}
                     {formatCurrency(horse.price)}
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="font-black text-sky-700">
+                  <span className="text-sm font-black text-sky-700">
                     {horse.is_captain
                       ? horse.round_points * 2
                       : horse.round_points}{" "}
                     pts
                   </span>
-
                   {horse.is_captain && (
                     <p className="mt-0.5 text-[10px] font-bold text-amber-700">
                       {horse.round_points} × 2
@@ -391,14 +348,13 @@ function TeamPanel({
           </div>
         </>
       ) : (
-        <div className="p-8 text-center text-slate-500">
+        <div className="p-4 text-center text-sm text-slate-500">
           No valid team is available yet.
         </div>
       )}
     </section>
   );
 }
-
 export default function StatsPage() {
   const [data, setData] = useState<StatsData | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("ownership");
@@ -412,35 +368,24 @@ export default function StatsPage() {
   const [mostSelectedPage, setMostSelectedPage] = useState(0);
   const [roundMostPointsHorse, setRoundMostPointsHorse] =
     useState<RoundSpecialHorse | null>(null);
-
   const [horseSortKey, setHorseSortKey] =
     useState<HorseSortKey>("season_points");
   const [horseSortDirection, setHorseSortDirection] =
     useState<SortDirection>("desc");
-
   const [playerSortKey, setPlayerSortKey] =
     useState<PlayerSortKey>("overall_rank");
   const [playerSortDirection, setPlayerSortDirection] =
     useState<SortDirection>("asc");
-
   const [errorMessage, setErrorMessage] = useState("");
-
   const [roundStatsFallback, setRoundStatsFallback] =
     useState<RoundSummaryStats | null>(null);
-
   const [bestCaptainFallback, setBestCaptainFallback] =
     useState<SeasonRecordStat | null>(null);
-
-  const [teamView, setTeamView] =
-    useState<"perfect" | "template">("perfect");
-
   useEffect(() => {
     let active = true;
-
     async function loadInitialStats() {
       setLoading(true);
       setErrorMessage("");
-
       const [
         { data: seasonsData, error: seasonsError },
         { data: statsData, error: statsError },
@@ -454,15 +399,12 @@ export default function StatsPage() {
           p_season_id: null,
         }),
       ]);
-
       if (!active) return;
-
       if (seasonsError || statsError) {
         console.error("Stats page load error:", {
           seasonsError,
           statsError,
         });
-
         setErrorMessage(
           statsError?.message ||
             seasonsError?.message ||
@@ -474,10 +416,8 @@ export default function StatsPage() {
         setLoading(false);
         return;
       }
-
       const loadedData = statsData as unknown as StatsData;
       const loadedSeasons = (seasonsData ?? []) as SeasonOption[];
-
       setData(loadedData);
       setSeasons(loadedSeasons);
       setSelectedSeasonId(
@@ -489,20 +429,16 @@ export default function StatsPage() {
       setSelectedRoundId(loadedData.selected_round_id ?? "");
       setLoading(false);
     }
-
     void loadInitialStats();
-
     return () => {
       active = false;
     };
   }, []);
-
   async function changeSeason(seasonId: string) {
     setSelectedSeasonId(seasonId);
     setMostSelectedPage(0);
     setSeasonLoading(true);
     setErrorMessage("");
-
     const { data: statsData, error } = await supabase.rpc(
       "get_stats_page_data",
       {
@@ -510,7 +446,6 @@ export default function StatsPage() {
         p_season_id: seasonId || null,
       }
     );
-
     if (error) {
       console.error("Stats season change error:", error);
       setErrorMessage(
@@ -519,21 +454,17 @@ export default function StatsPage() {
       setSeasonLoading(false);
       return;
     }
-
     const loadedData = statsData as unknown as StatsData;
-
     setData(loadedData);
     setSelectedSeasonId(loadedData.season?.id ?? seasonId);
     setSelectedRoundId(loadedData.selected_round_id ?? "");
     setSeasonLoading(false);
   }
-
   async function changeOwnershipRound(roundId: string) {
     setSelectedRoundId(roundId);
     setMostSelectedPage(0);
     setOwnershipLoading(true);
     setErrorMessage("");
-
     const { data: statsData, error } = await supabase.rpc(
       "get_stats_page_data",
       {
@@ -541,7 +472,6 @@ export default function StatsPage() {
         p_season_id: selectedSeasonId || null,
       }
     );
-
     if (error) {
       console.error("Ownership round RPC error:", error);
       setErrorMessage(
@@ -550,24 +480,18 @@ export default function StatsPage() {
       setOwnershipLoading(false);
       return;
     }
-
     const loadedData = statsData as unknown as StatsData;
-
     setData(loadedData);
     setSelectedRoundId(loadedData.selected_round_id ?? roundId);
     setOwnershipLoading(false);
   }
-
   useEffect(() => {
     if (activeTab !== "performance" || !selectedRoundId || !selectedSeasonId) {
       return;
     }
-
     let active = true;
-
     async function loadPerformanceTab() {
       setTabLoading(true);
-
       const { data: tabData, error } = await supabase.rpc(
         "get_stats_performance_tab",
         {
@@ -575,9 +499,7 @@ export default function StatsPage() {
           p_season_id: selectedSeasonId,
         }
       );
-
       if (!active) return;
-
       if (error) {
         console.error("Stats performance tab error:", error);
         setErrorMessage(
@@ -586,13 +508,11 @@ export default function StatsPage() {
         setTabLoading(false);
         return;
       }
-
       const result = (tabData ?? {}) as {
         horse_leaders?: HorseLeader[];
         horse_performance?: HorsePerformanceStats;
         special_stats?: RoundSpecialStats;
       };
-
       setData((current) =>
         current
           ? {
@@ -605,64 +525,47 @@ export default function StatsPage() {
             }
           : current
       );
-
       setRoundMostPointsHorse(
         result.horse_performance?.most_points ?? null
       );
-
       setTabLoading(false);
     }
-
     void loadPerformanceTab();
-
     return () => {
       active = false;
     };
   }, [activeTab, selectedRoundId, selectedSeasonId]);
-
-
-
   const sortedHorseLeaders = useMemo(() => {
     const rows = [...(data?.horse_leaders ?? [])];
-
     rows.sort((a, b) => {
       let comparison = 0;
-
       switch (horseSortKey) {
         case "horse_name":
           comparison = a.horse_name.localeCompare(b.horse_name);
           break;
-
         case "season_points":
           comparison = a.season_points - b.season_points;
           break;
-
         case "eligible_starts":
           comparison = a.eligible_starts - b.eligible_starts;
           break;
-
         case "average_points":
           comparison =
             Number(a.average_points) - Number(b.average_points);
           break;
-
         case "current_price":
           comparison = a.current_price - b.current_price;
           break;
       }
-
       if (comparison === 0) {
         comparison = a.horse_name.localeCompare(b.horse_name);
       }
-
       return horseSortDirection === "asc"
         ? comparison
         : -comparison;
     });
-
     return rows;
   }, [data, horseSortDirection, horseSortKey]);
-
   const participatingPlayerLeaders = useMemo(
     () =>
       (data?.player_leaders ?? []).filter(
@@ -670,13 +573,10 @@ export default function StatsPage() {
       ),
     [data]
   );
-
   const sortedPlayerLeaders = useMemo(() => {
     const rows = [...participatingPlayerLeaders];
-
     rows.sort((a, b) => {
       let comparison = 0;
-
       switch (playerSortKey) {
         case "overall_rank": {
           const rankA = a.overall_rank ?? Number.MAX_SAFE_INTEGER;
@@ -684,69 +584,54 @@ export default function StatsPage() {
           comparison = rankA - rankB;
           break;
         }
-
         case "display_name":
           comparison = a.display_name.localeCompare(b.display_name);
           break;
-
         case "total_points":
           comparison = a.total_points - b.total_points;
           break;
-
         case "rounds_played":
           comparison = a.rounds_played - b.rounds_played;
           break;
-
         case "round_wins":
           comparison = a.round_wins - b.round_wins;
           break;
-
         case "top_ten_finishes":
           comparison =
             a.top_ten_finishes - b.top_ten_finishes;
           break;
-
         case "highest_round_score":
           comparison =
             a.highest_round_score - b.highest_round_score;
           break;
       }
-
       if (comparison === 0) {
         comparison = a.display_name.localeCompare(b.display_name);
       }
-
       return playerSortDirection === "asc"
         ? comparison
         : -comparison;
     });
-
     return rows;
   }, [
     participatingPlayerLeaders,
     playerSortDirection,
     playerSortKey,
   ]);
-
   useEffect(() => {
     if (activeTab !== "round" || !selectedRoundId) {
       return;
     }
-
     let active = true;
-
     async function loadRoundTab() {
       setTabLoading(true);
-
       const { data: tabData, error } = await supabase.rpc(
         "get_stats_round_tab",
         {
           p_round_id: selectedRoundId,
         }
       );
-
       if (!active) return;
-
       if (error) {
         console.error("Stats round tab error:", error);
         setErrorMessage(
@@ -755,14 +640,11 @@ export default function StatsPage() {
         setTabLoading(false);
         return;
       }
-
       const result = (tabData ?? {}) as {
         round_stats?: RoundSummaryStats;
         special_stats?: RoundSpecialStats;
       };
-
       setRoundStatsFallback(result.round_stats ?? null);
-
       setData((current) =>
         current
           ? {
@@ -774,38 +656,27 @@ export default function StatsPage() {
             }
           : current
       );
-
       setTabLoading(false);
     }
-
     void loadRoundTab();
-
     return () => {
       active = false;
     };
   }, [activeTab, selectedRoundId]);
-
-
-
   useEffect(() => {
     if (activeTab !== "season" || !selectedSeasonId) {
       return;
     }
-
     let active = true;
-
     async function loadSeasonTab() {
       setTabLoading(true);
-
       const { data: tabData, error } = await supabase.rpc(
         "get_stats_season_tab",
         {
           p_season_id: selectedSeasonId,
         }
       );
-
       if (!active) return;
-
       if (error) {
         console.error("Stats season tab error:", error);
         setErrorMessage(
@@ -814,12 +685,10 @@ export default function StatsPage() {
         setTabLoading(false);
         return;
       }
-
       const result = (tabData ?? {}) as {
         player_leaders?: PlayerLeader[];
         season_records?: SeasonRecordsStats;
       };
-
       setData((current) =>
         current
           ? {
@@ -831,23 +700,16 @@ export default function StatsPage() {
             }
           : current
       );
-
       setBestCaptainFallback(
         result.season_records?.best_captain ?? null
       );
-
       setTabLoading(false);
     }
-
     void loadSeasonTab();
-
     return () => {
       active = false;
     };
   }, [activeTab, selectedSeasonId]);
-
-
-
   function changeHorseSort(nextKey: HorseSortKey) {
     if (horseSortKey === nextKey) {
       setHorseSortDirection((current) =>
@@ -855,13 +717,11 @@ export default function StatsPage() {
       );
       return;
     }
-
     setHorseSortKey(nextKey);
     setHorseSortDirection(
       nextKey === "horse_name" ? "asc" : "desc"
     );
   }
-
   function changePlayerSort(nextKey: PlayerSortKey) {
     if (playerSortKey === nextKey) {
       setPlayerSortDirection((current) =>
@@ -869,7 +729,6 @@ export default function StatsPage() {
       );
       return;
     }
-
     setPlayerSortKey(nextKey);
     setPlayerSortDirection(
       nextKey === "overall_rank" ||
@@ -878,7 +737,6 @@ export default function StatsPage() {
         : "desc"
     );
   }
-
   function sortIcon(
     active: boolean,
     direction: SortDirection
@@ -886,14 +744,12 @@ export default function StatsPage() {
     if (!active) {
       return <ArrowUpDown className="h-4 w-4 text-slate-400" />;
     }
-
     return direction === "asc" ? (
       <ArrowUp className="h-4 w-4 text-sky-700" />
     ) : (
       <ArrowDown className="h-4 w-4 text-sky-700" />
     );
   }
-
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-100 p-6">
@@ -903,7 +759,6 @@ export default function StatsPage() {
       </main>
     );
   }
-
   if (errorMessage) {
     return (
       <main className="min-h-screen bg-slate-100 p-4 md:p-8">
@@ -911,13 +766,11 @@ export default function StatsPage() {
           <h1 className="text-3xl font-black text-slate-950">
             Stats Centre
           </h1>
-
           <p className="mt-4 text-red-700">{errorMessage}</p>
         </div>
       </main>
     );
   }
-
   if (!data?.season || !data.season_summary) {
     return (
       <main className="min-h-screen bg-slate-100 p-4 md:p-8">
@@ -925,7 +778,6 @@ export default function StatsPage() {
           <h1 className="text-3xl font-black text-slate-950">
             Stats Centre
           </h1>
-
           <p className="mt-4 text-slate-600">
             {data?.message || "No season statistics are available yet."}
           </p>
@@ -933,13 +785,10 @@ export default function StatsPage() {
       </main>
     );
   }
-
   const selectedSeason = seasons.find(
     (season) => season.id === selectedSeasonId
   );
-
   const summary = data.season_summary;
-
   const MOST_SELECTED_PAGE_SIZE = 10;
   const mostSelectedRows = data.most_selected ?? [];
   const mostSelectedPageCount = Math.max(
@@ -958,18 +807,15 @@ export default function StatsPage() {
     mostSelectedStart,
     mostSelectedStart + MOST_SELECTED_PAGE_SIZE
   );
-
   const derivedHighestRoundPlayer = [...participatingPlayerLeaders].sort(
     (a, b) => b.highest_round_score - a.highest_round_score
   )[0];
-
   const derivedMostRoundWinsPlayer = [...participatingPlayerLeaders].sort(
     (a, b) =>
       b.round_wins - a.round_wins ||
       b.total_points - a.total_points ||
       a.display_name.localeCompare(b.display_name)
   )[0];
-
   const highestRoundRecord =
     data.season_records?.highest_round_score ??
     (derivedHighestRoundPlayer
@@ -979,11 +825,9 @@ export default function StatsPage() {
           value: derivedHighestRoundPlayer.highest_round_score,
         }
       : null);
-
   const bestCaptainRecord =
     data.season_records?.best_captain ??
     bestCaptainFallback;
-
   const mostRoundWinsRecord =
     data.season_records?.most_round_wins ??
     (derivedMostRoundWinsPlayer
@@ -993,14 +837,12 @@ export default function StatsPage() {
           value: derivedMostRoundWinsPlayer.round_wins,
         }
       : null);
-
   const mostPointsHorse:
     | RoundSpecialHorse
     | null =
     roundMostPointsHorse ??
     data.horse_performance?.most_points ??
     null;
-
   const derivedBestValueLeader =
     (data.horse_leaders ?? [])
       .filter(
@@ -1029,7 +871,6 @@ export default function StatsPage() {
             b.horse.horse_name
           )
       )[0] ?? null;
-
   const bestValueHorse:
     | (RoundSpecialHorse & {
         value_score?: number;
@@ -1058,16 +899,13 @@ export default function StatsPage() {
             derivedBestValueLeader.valueScore,
         }
       : null);
-
   const templateTeam = data.special_stats?.template_team ?? null;
   const mostCaptainedHorseId =
     data.most_captained?.[0]?.horse_id ?? null;
-
   const templateCaptainHorse =
     templateTeam?.horses.find(
       (horse) => horse.horse_id === mostCaptainedHorseId
     ) ?? null;
-
   const resolvedTemplateTeam: RoundSpecialTeam | null =
     templateTeam
       ? (() => {
@@ -1077,17 +915,14 @@ export default function StatsPage() {
               templateCaptainHorse != null &&
               horse.horse_id === templateCaptainHorse.horse_id,
           }));
-
           const basePoints = horses.reduce(
             (sum, horse) =>
               sum + Number(horse.round_points ?? 0),
             0
           );
-
           const captainPoints = templateCaptainHorse
             ? Number(templateCaptainHorse.round_points ?? 0)
             : 0;
-
           return {
             ...templateTeam,
             horses,
@@ -1105,7 +940,6 @@ export default function StatsPage() {
           };
         })()
       : null;
-
   const resolvedRoundStats: RoundSummaryStats = {
     average_score:
       data.round_stats?.average_score ??
@@ -1133,14 +967,12 @@ export default function StatsPage() {
         ?.average_salary_used ??
       null,
   };
-
   const tabs: { id: Tab; label: string }[] = [
     { id: "ownership", label: "Ownership" },
     { id: "performance", label: "Horse Performance" },
     { id: "round", label: "Round Stats" },
     { id: "season", label: "Season Records" },
   ];
-
   return (
     <main className="min-h-screen bg-slate-100">
       <header className="w-full border-y border-cyan-400/60 bg-gradient-to-r from-cyan-500 via-cyan-500 to-sky-400 text-white shadow-lg">
@@ -1150,17 +982,14 @@ export default function StatsPage() {
               <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
                 {data.season.name}
               </p>
-
               <h1 className="mt-2 text-3xl font-black md:text-4xl">
                 Stats Centre
               </h1>
-
               <p className="mt-3 max-w-2xl text-white/85">
                 Explore the season's leading horses, managers, ownership
                 trends and biggest price movements.
               </p>
             </div>
-
             <div className="w-full lg:w-80">
               <label
                 htmlFor="stats-season"
@@ -1168,7 +997,6 @@ export default function StatsPage() {
               >
                 Season
               </label>
-
               <select
                 id="stats-season"
                 value={selectedSeasonId}
@@ -1176,7 +1004,7 @@ export default function StatsPage() {
                   void changeSeason(event.target.value)
                 }
                 disabled={seasonLoading || seasons.length === 0}
-                className="w-full rounded-lg border border-white/30 bg-white/15 px-4 py-3 font-semibold text-white shadow-sm outline-none backdrop-blur-md transition focus:border-white/70 focus:ring-2 focus:ring-white/25 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg border border-white/30 bg-white px-4 py-3 font-semibold text-slate-950 shadow-sm outline-none transition focus:border-white/70 focus:ring-2 focus:ring-white/25 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {seasons.length === 0 ? (
                   <option value="">No seasons available</option>
@@ -1189,7 +1017,6 @@ export default function StatsPage() {
                   ))
                 )}
               </select>
-
               {selectedSeason && (
                 <p className="mt-2 text-xs text-white/70">
                   Viewing {selectedSeason.name} {selectedSeason.year}
@@ -1199,14 +1026,12 @@ export default function StatsPage() {
           </div>
         </div>
       </header>
-
       <div className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 md:px-8">
         {seasonLoading && (
           <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">
             Loading season statistics...
           </div>
         )}
-
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
@@ -1219,7 +1044,6 @@ export default function StatsPage() {
               {summary.completed_rounds} / {summary.rounds}
             </p>
           </div>
-
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
               <Trophy className="h-5 w-5 text-sky-700" />
@@ -1231,7 +1055,6 @@ export default function StatsPage() {
               {summary.official_races} / {summary.races}
             </p>
           </div>
-
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-sky-700" />
@@ -1243,7 +1066,6 @@ export default function StatsPage() {
               {summary.players}
             </p>
           </div>
-
           <div className="rounded-xl border bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
               <BarChart3 className="h-5 w-5 text-sky-700" />
@@ -1256,7 +1078,6 @@ export default function StatsPage() {
             </p>
           </div>
         </section>
-
         <div className="mt-6 overflow-x-auto rounded-xl border bg-white p-2 shadow-sm">
           <div className="flex min-w-max gap-2">
             {tabs.map((tab) => (
@@ -1275,7 +1096,6 @@ export default function StatsPage() {
             ))}
           </div>
         </div>
-
         {tabLoading && activeTab !== "ownership" && (
           <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">
             Loading {activeTab === "performance"
@@ -1285,7 +1105,6 @@ export default function StatsPage() {
                 : "season records"}...
           </div>
         )}
-
         {activeTab === "ownership" && (
           <section className="mt-5">
             <div className="mb-5 flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
@@ -1295,7 +1114,6 @@ export default function StatsPage() {
                   Most selected horses, captain trends and the best low-owned scorer.
                 </p>
               </div>
-
               <div className="w-full sm:w-72">
                 <label htmlFor="ownership-round" className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
                   Choose round
@@ -1318,7 +1136,6 @@ export default function StatsPage() {
                 </select>
               </div>
             </div>
-
             {ownershipLoading ? (
               <div className="rounded-2xl border bg-white p-10 text-center text-slate-500 shadow-sm">
                 Loading round statistics...
@@ -1342,7 +1159,6 @@ export default function StatsPage() {
                         );
                         const overallIndex =
                           mostSelectedStart + index;
-
                         return (
                           <div key={horse.horse_id}>
                             <div className="flex items-center justify-between gap-4 text-sm">
@@ -1352,7 +1168,6 @@ export default function StatsPage() {
                               >
                                 {overallIndex + 1}. {horse.horse_name}
                               </Link>
-
                               <div className="text-right">
                                 <span className="font-black">
                                   {percentage.toFixed(1)}%
@@ -1362,7 +1177,6 @@ export default function StatsPage() {
                                 </span>
                               </div>
                             </div>
-
                             <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-200">
                               <div
                                 className="h-full rounded-full bg-teal-600"
@@ -1378,7 +1192,6 @@ export default function StatsPage() {
                         );
                       })}
                     </div>
-
                     {mostSelectedRows.length >
                       MOST_SELECTED_PAGE_SIZE && (
                       <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-4">
@@ -1395,7 +1208,6 @@ export default function StatsPage() {
                           <ChevronLeft className="h-4 w-4" />
                           Previous
                         </button>
-
                         <span className="text-xs font-bold text-slate-500">
                           {mostSelectedStart + 1}–
                           {Math.min(
@@ -1405,7 +1217,6 @@ export default function StatsPage() {
                           )}{" "}
                           of {mostSelectedRows.length}
                         </span>
-
                         <button
                           type="button"
                           onClick={() =>
@@ -1428,7 +1239,6 @@ export default function StatsPage() {
                       </div>
                     )}
                   </section>
-
                   <section className="rounded-2xl border bg-white p-5 shadow-sm">
                     <h3 className="text-xl font-black text-slate-950">Most Captained</h3>
                     <p className="mt-1 text-sm text-slate-500">
@@ -1457,28 +1267,18 @@ export default function StatsPage() {
                     </div>
                   </section>
                 </div>
-
-                <div className="mt-5 max-w-xl">
-                  <SpecialHorseCard
-                    title="Best POD"
-                    description="Highest-scoring horse owned by fewer than 10% of teams."
-                    horse={data.special_stats?.best_pod ?? null}
-                  />
-                </div>
               </>
             )}
           </section>
         )}
-
         {activeTab === "performance" && (
           <section className="mt-5">
             <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
               <h2 className="text-xl font-black text-slate-950">Horse Performance</h2>
               <p className="mt-1 text-sm text-slate-600">
-                Most Points, Best Value, Popular Flop and Missed Opportunity.
+                Most Points, Best Value, Best POD, Popular Flop and Missed Opportunity.
               </p>
             </div>
-
             <div className="grid gap-5 md:grid-cols-2">
               <SpecialHorseCard
                 title="Most Points"
@@ -1489,6 +1289,11 @@ export default function StatsPage() {
                 title="Best Value"
                 description="Best fantasy return relative to the horse's round price."
                 horse={bestValueHorse}
+              />
+              <SpecialHorseCard
+                title="Best POD"
+                description="Highest-scoring horse owned by fewer than 10% of teams."
+                horse={data.special_stats?.best_pod ?? null}
               />
               <SpecialHorseCard
                 title="Popular Flop"
@@ -1503,16 +1308,14 @@ export default function StatsPage() {
             </div>
           </section>
         )}
-
         {activeTab === "round" && (
           <section className="mt-5">
-            <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
+            <div className="mb-3 rounded-xl border bg-white p-4 shadow-sm">
               <h2 className="text-xl font-black text-slate-950">Round Stats</h2>
               <p className="mt-1 text-sm text-slate-600">
                 Average Score, Highest Score, Average Salary Used, Perfect Team and Template Team.
               </p>
             </div>
-
             <div className="grid gap-5 md:grid-cols-3">
               <MetricCard
                 title="Average Score"
@@ -1532,55 +1335,20 @@ export default function StatsPage() {
                 accent="slate"
               />
             </div>
-
-            <div className="mt-5">
-              <div className="mb-3 inline-flex overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setTeamView("perfect")}
-                  className={`px-4 py-2 text-sm font-bold transition ${
-                    teamView === "perfect"
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  Perfect Team
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setTeamView("template")}
-                  className={`border-l border-slate-300 px-4 py-2 text-sm font-bold transition ${
-                    teamView === "template"
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  Template Team
-                </button>
-              </div>
-
+            <div className="mt-5 grid gap-4 lg:grid-cols-2 lg:items-stretch [&>section]:h-full">
               <TeamPanel
-                title={
-                  teamView === "perfect"
-                    ? "Perfect Team"
-                    : "Template Team"
-                }
-                description={
-                  teamView === "perfect"
-                    ? "Highest-scoring valid 10-horse combination under the $2.5m salary cap, including an optimised captain who scores double points."
-                    : "Most-owned valid 10-horse combination that fits under the $2.5m salary cap, with the round's most-captained horse as captain."
-                }
-                team={
-                  teamView === "perfect"
-                    ? data.special_stats?.perfect_team ?? null
-                    : resolvedTemplateTeam
-                }
+                title="Perfect Team"
+                description={`Highest-scoring valid ${data.special_stats?.team_size ?? 10}-horse combination under the ${formatCurrency(data.special_stats?.salary_cap ?? 0)} salary cap, including an optimised captain who scores double points.`}
+                team={data.special_stats?.perfect_team ?? null}
+              />
+              <TeamPanel
+                title="Template Team"
+                description={`Most-owned valid ${data.special_stats?.team_size ?? 10}-horse combination that fits under the ${formatCurrency(data.special_stats?.salary_cap ?? 0)} salary cap, with the round's most-captained horse as captain.`}
+                team={data.special_stats?.template_team ?? null}
               />
             </div>
           </section>
         )}
-
         {activeTab === "season" && (
           <section className="mt-5">
             <div className="mb-5 rounded-2xl border bg-white p-5 shadow-sm">
@@ -1589,7 +1357,6 @@ export default function StatsPage() {
                 Highest Round Score, Most Round Wins and Best Captain.
               </p>
             </div>
-
             <div className="grid gap-5 md:grid-cols-3">
               <MetricCard
                 title="Highest Round Score"
@@ -1628,7 +1395,6 @@ export default function StatsPage() {
             </div>
           </section>
         )}
-
       </div>
     </main>
   );

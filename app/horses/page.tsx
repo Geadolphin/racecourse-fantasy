@@ -1,10 +1,7 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
 import { supabase } from "@/lib/supabase";
-
 type HorseRow = {
   id: string;
   name: string;
@@ -15,7 +12,12 @@ type HorseRow = {
   is_active: boolean;
   silks_url?: string | null;
 };
-
+type SeasonOption = {
+  id: string;
+  name: string;
+  year: number;
+  is_active: boolean;
+};
 type SortField =
   | "name"
   | "price"
@@ -23,9 +25,7 @@ type SortField =
   | "value"
   | "average"
   | "starts";
-
 type SortDirection = "asc" | "desc";
-
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -33,15 +33,12 @@ function formatCurrency(value: number) {
     maximumFractionDigits: 0,
   }).format(value);
 }
-
 function formatAverage(value: number | null) {
   if (value === null || Number.isNaN(value)) {
     return "0.0";
   }
-
   return value.toFixed(1);
 }
-
 export default function HorsesPage() {
   const [horses, setHorses] = useState<HorseRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -49,21 +46,19 @@ export default function HorsesPage() {
     useState<SortField>("name");
   const [sortDirection, setSortDirection] =
     useState<SortDirection>("asc");
-
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [showHorseSilks, setShowHorseSilks] = useState(true);
-
+  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("");
+  const [seasonsLoading, setSeasonsLoading] = useState(true);
   useEffect(() => {
     let active = true;
-
     async function loadHorseSilksSetting() {
       const { data, error } = await supabase.rpc(
         "get_public_site_settings"
       );
-
       if (!active) return;
-
       if (error) {
         console.error(
           "Horse silks setting load error:",
@@ -72,50 +67,70 @@ export default function HorsesPage() {
         setShowHorseSilks(true);
         return;
       }
-
       const settings =
         data && typeof data === "object"
           ? (data as { show_horse_silks?: boolean })
           : null;
-
       setShowHorseSilks(
         settings?.show_horse_silks !== false
       );
     }
-
     void loadHorseSilksSetting();
-
     return () => {
       active = false;
     };
   }, []);
-
   useEffect(() => {
     let active = true;
-
+    async function loadSeasons() {
+      setSeasonsLoading(true);
+      const { data, error } = await supabase
+        .from("seasons")
+        .select("id, name, year, is_active")
+        .order("year", { ascending: false })
+        .order("name", { ascending: true });
+      if (!active) return;
+      if (error) {
+        console.error("Season load error:", error);
+        setErrorMessage(error.message || "The seasons could not be loaded.");
+        setSeasons([]);
+        setSelectedSeasonId("");
+        setSeasonsLoading(false);
+        return;
+      }
+      const loadedSeasons = (data ?? []) as SeasonOption[];
+      setSeasons(loadedSeasons);
+      const activeSeason =
+        loadedSeasons.find((season) => season.is_active) ??
+        loadedSeasons[0] ??
+        null;
+      setSelectedSeasonId(activeSeason?.id ?? "");
+      setSeasonsLoading(false);
+    }
+    void loadSeasons();
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    let active = true;
     async function loadHorses() {
       setLoading(true);
       setErrorMessage("");
-
-      const { data, error } = await supabase
-        .from("horse_statistics")
-        .select(
-          `
-            id,
-            name,
-            current_price,
-            total_fantasy_points,
-            eligible_starts,
-            average_fantasy_points,
-            is_active
-          `
-        )
-        .order("name", { ascending: true });
-
+      if (!selectedSeasonId) {
+        setHorses([]);
+        setLoading(false);
+        return;
+      }
+      const { data, error } = await supabase.rpc(
+        "get_horse_statistics_for_season",
+        {
+          p_season_id: selectedSeasonId,
+        }
+      );
       if (!active) {
         return;
       }
-
       if (error) {
         console.error("Horse centre load error:", error);
         setErrorMessage(
@@ -125,8 +140,7 @@ export default function HorsesPage() {
         setLoading(false);
         return;
       }
-
-      const statsRows = (data ?? []).map((horse) => ({
+      const statsRows = (data ?? []).map((horse: any) => ({
         ...horse,
         current_price: Number(horse.current_price ?? 0),
         total_fantasy_points: Number(
@@ -138,10 +152,8 @@ export default function HorsesPage() {
             ? null
             : Number(horse.average_fantasy_points),
       })) as HorseRow[];
-
       if (showHorseSilks && statsRows.length > 0) {
         const horseIds = statsRows.map((horse) => horse.id);
-
         const {
           data: silkRows,
           error: silkError,
@@ -149,17 +161,14 @@ export default function HorsesPage() {
           .from("horses")
           .select("id, silks_url")
           .in("id", horseIds);
-
         if (!active) {
           return;
         }
-
         if (silkError) {
           console.error(
             "Horse centre silks load error:",
             silkError
           );
-
           setHorses(statsRows);
         } else {
           const silksByHorseId = new Map(
@@ -168,7 +177,6 @@ export default function HorsesPage() {
               horse.silks_url ?? null,
             ])
           );
-
           setHorses(
             statsRows.map((horse) => ({
               ...horse,
@@ -180,31 +188,29 @@ export default function HorsesPage() {
       } else {
         setHorses(statsRows);
       }
-
       setLoading(false);
     }
-
     void loadHorses();
-
     return () => {
       active = false;
     };
-  }, [showHorseSilks]);
-
+  }, [showHorseSilks, selectedSeasonId]);
+  const selectedSeason = useMemo(
+    () =>
+      seasons.find((season) => season.id === selectedSeasonId) ??
+      null,
+    [seasons, selectedSeasonId]
+  );
   const filteredHorses = useMemo(() => {
     const normalisedSearch = searchTerm.trim().toLowerCase();
-
     const filtered = horses.filter((horse) => {
       const matchesSearch =
         normalisedSearch.length === 0 ||
         horse.name.toLowerCase().includes(normalisedSearch);
-
       return matchesSearch;
     });
-
     return [...filtered].sort((a, b) => {
       let comparison = 0;
-
       if (sortField === "name") {
         comparison = a.name.localeCompare(b.name);
       } else if (sortField === "price") {
@@ -217,12 +223,10 @@ export default function HorsesPage() {
           a.total_fantasy_points > 0
             ? a.current_price / a.total_fantasy_points
             : Number.POSITIVE_INFINITY;
-
         const valueB =
           b.total_fantasy_points > 0
             ? b.current_price / b.total_fantasy_points
             : Number.POSITIVE_INFINITY;
-
         comparison = valueA - valueB;
       } else if (sortField === "average") {
         comparison =
@@ -231,7 +235,6 @@ export default function HorsesPage() {
       } else if (sortField === "starts") {
         comparison = a.eligible_starts - b.eligible_starts;
       }
-
       return sortDirection === "asc"
         ? comparison
         : -comparison;
@@ -242,7 +245,6 @@ export default function HorsesPage() {
     sortField,
     sortDirection,
   ]);
-
   function handleSort(field: SortField) {
     if (sortField === field) {
       setSortDirection((current) =>
@@ -250,20 +252,16 @@ export default function HorsesPage() {
       );
       return;
     }
-
     setSortField(field);
     setSortDirection(field === "name" ? "asc" : "desc");
   }
-
   function sortIndicator(field: SortField) {
     if (sortField !== field) {
       return "";
     }
-
     return sortDirection === "asc" ? " ↑" : " ↓";
   }
-
-  if (loading) {
+  if (loading || seasonsLoading) {
     return (
       <main className="min-h-screen bg-slate-100 p-6">
         <div className="mx-auto max-w-7xl rounded-xl border bg-white p-10 text-center text-slate-500">
@@ -272,7 +270,6 @@ export default function HorsesPage() {
       </main>
     );
   }
-
   return (
     <main className="min-h-screen bg-slate-100 p-4 md:p-6">
       <div className="mx-auto max-w-7xl">
@@ -280,25 +277,35 @@ export default function HorsesPage() {
           <p className="text-sm font-semibold uppercase tracking-wider text-teal-300">
             Horse Centre
           </p>
-
           <h1 className="mt-1 text-3xl font-bold">
             Horses
           </h1>
-
           <p className="mt-1 max-w-2xl text-sm text-slate-300">
             Search every horse and review current prices, fantasy
             points, averages and eligible starts.
           </p>
         </header>
-
         {errorMessage && (
           <div className="mt-6 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
             {errorMessage}
           </div>
         )}
-
         <section className="mt-4 rounded-xl border bg-white p-4 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-3">
+            <select
+              value={selectedSeasonId}
+              onChange={(event) =>
+                setSelectedSeasonId(event.target.value)
+              }
+              className="rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-teal-700"
+              aria-label="Select season"
+            >
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.name} {season.year}
+                </option>
+              ))}
+            </select>
             <input
               type="search"
               value={searchTerm}
@@ -308,7 +315,6 @@ export default function HorsesPage() {
               placeholder="Search horses"
               className="rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-teal-700"
             />
-
             <select
               value={`${sortField}-${sortDirection}`}
               onChange={(event) => {
@@ -317,7 +323,6 @@ export default function HorsesPage() {
                     SortField,
                     SortDirection,
                   ];
-
                 setSortField(field);
                 setSortDirection(direction);
               }}
@@ -337,13 +342,11 @@ export default function HorsesPage() {
               <option value="starts-asc">Starts: lowest first</option>
             </select>
           </div>
-
           <p className="mt-2 text-xs font-semibold text-slate-500">
             {filteredHorses.length}{" "}
             {filteredHorses.length === 1 ? "horse" : "horses"}
           </p>
         </section>
-
         {filteredHorses.length === 0 ? (
           <div className="mt-6 rounded-xl border bg-white p-10 text-center text-slate-500">
             No horses match your filters.
@@ -369,12 +372,10 @@ export default function HorsesPage() {
                           />
                         </div>
                       )}
-
                       <div className="min-w-0">
                         <h2 className="truncate text-lg font-bold text-slate-900">
                           {horse.name}
                         </h2>
-
                         <span
                           className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
                             horse.is_active
@@ -386,7 +387,6 @@ export default function HorsesPage() {
                         </span>
                       </div>
                     </div>
-
                     <div className="shrink-0 text-right">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                         Price
@@ -396,7 +396,6 @@ export default function HorsesPage() {
                       </p>
                     </div>
                   </div>
-
                   <div className="mt-3 grid grid-cols-3 divide-x divide-slate-200 border-t border-slate-100 pt-3">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -406,7 +405,6 @@ export default function HorsesPage() {
                         {horse.total_fantasy_points}
                       </p>
                     </div>
-
                     <div className="pl-3">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                         Average
@@ -415,7 +413,6 @@ export default function HorsesPage() {
                         {formatAverage(horse.average_fantasy_points)}
                       </p>
                     </div>
-
                     <div className="pl-3">
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                         Starts
@@ -428,7 +425,6 @@ export default function HorsesPage() {
                 </Link>
               ))}
             </section>
-
             {/* Desktop horse table */}
             <section className="mt-4 hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm md:block">
               <div className="overflow-x-auto">
@@ -491,7 +487,6 @@ export default function HorsesPage() {
                       </th>
                     </tr>
                   </thead>
-
                   <tbody className="divide-y divide-slate-100">
                     {filteredHorses.map((horse) => (
                       <tr
@@ -509,7 +504,6 @@ export default function HorsesPage() {
                                 />
                               </div>
                             )}
-
                             <Link
                               href={`/horses/${horse.id}`}
                               className="font-bold text-slate-900 transition hover:text-teal-700"
@@ -518,11 +512,9 @@ export default function HorsesPage() {
                             </Link>
                           </div>
                         </td>
-
                         <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
                           {formatCurrency(horse.current_price)}
                         </td>
-
                         <td className="px-4 py-3.5 text-right font-semibold text-slate-900">
                           {horse.total_fantasy_points}
                         </td>
@@ -534,15 +526,12 @@ export default function HorsesPage() {
                               )
                             : "—"}
                         </td>
-
                         <td className="px-4 py-3.5 text-right text-slate-700">
                           {formatAverage(horse.average_fantasy_points)}
                         </td>
-
                         <td className="px-4 py-3.5 text-right text-slate-700">
                           {horse.eligible_starts}
                         </td>
-
                       </tr>
                     ))}
                   </tbody>

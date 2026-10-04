@@ -1,22 +1,17 @@
 "use client";
-
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toBlob } from "html-to-image";
-
 import HorseProfileModal from "@/components/HorseProfileModal";
 import { useSeason } from "@/components/SeasonProvider";
-
 import { supabase } from "@/lib/supabase";
-
 type Season = {
   id: string;
   name: string;
   salary_cap: number;
   team_size: number;
 };
-
 type Round = {
   id: string;
   season_id: string;
@@ -25,18 +20,15 @@ type Round = {
   status: string;
   lockout_at: string;
 };
-
 type Horse = {
   id: string;
   name: string;
   current_price: number;
 };
-
 type Racecourse = {
   id: string;
   name: string;
 };
-
 type Race = {
   id: string;
   race_number: number;
@@ -45,7 +37,6 @@ type Race = {
   scheduled_start: string;
   racecourse: Racecourse | null;
 };
-
 type FixtureRace = {
   id: string;
   race_number: number;
@@ -56,7 +47,6 @@ type FixtureRace = {
   status: string;
   racecourse: Racecourse | null;
 };
-
 type RaceEntry = {
   id: string;
   race_id: string;
@@ -67,7 +57,6 @@ type RaceEntry = {
   horse: Horse | null;
   race: Race | null;
 };
-
 type ActiveNomination = {
   id: string;
   race_id: string;
@@ -77,7 +66,6 @@ type ActiveNomination = {
   entry_status: string;
   race: FixtureRace | null;
 };
-
 type LatestRaceResult = {
   race_entry_id: string;
   finishing_position: number;
@@ -85,8 +73,6 @@ type LatestRaceResult = {
   horse_id: string;
   horse_name: string;
 };
-
-
 type RaceResultRow = {
   result_id: string;
   horse_id: string;
@@ -100,7 +86,6 @@ type RaceResultRow = {
   price_after: number;
   is_dead_heat: boolean;
 };
-
 type RaceResultsData = {
   success: boolean;
   race: {
@@ -115,9 +100,7 @@ type RaceResultsData = {
   results: RaceResultRow[];
   message?: string;
 };
-
 type TeamStatus = "draft" | "submitted" | "locked" | "scored";
-
 type Team = {
   id: string;
   user_id: string;
@@ -128,7 +111,6 @@ type Team = {
   auto_filled?: boolean;
   autofilled_horse_count?: number;
 };
-
 type TeamSelection = {
   id: string;
   team_id: string;
@@ -141,7 +123,6 @@ type TeamSelection = {
   race_entry: RaceEntry | null;
   active_nominations?: ActiveNomination[];
 };
-
 type MyTeamData = {
   success: boolean;
   message?: string;
@@ -153,7 +134,6 @@ type MyTeamData = {
   latest_result_race?: FixtureRace | null;
   latest_race_results?: LatestRaceResult[];
 };
-
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -161,7 +141,6 @@ function formatCurrency(value: number) {
     maximumFractionDigits: 0,
   }).format(value);
 }
-
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("en-AU", {
     dateStyle: "medium",
@@ -169,7 +148,6 @@ function formatDateTime(value: string) {
     timeZone: "Australia/Melbourne",
   }).format(new Date(value));
 }
-
 function formatRaceTime(value: string) {
   return new Intl.DateTimeFormat("en-AU", {
     hour: "numeric",
@@ -177,7 +155,6 @@ function formatRaceTime(value: string) {
     timeZone: "Australia/Melbourne",
   }).format(new Date(value));
 }
-
 function getGradeLabel(grade: Race["grade"]) {
   const labels: Record<Race["grade"], string> = {
     G1: "G1",
@@ -185,10 +162,8 @@ function getGradeLabel(grade: Race["grade"]) {
     G3: "G3",
     L: "Listed",
   };
-
   return labels[grade];
 }
-
 function getGradeClasses(grade: Race["grade"]) {
   switch (grade) {
     case "G1":
@@ -201,7 +176,6 @@ function getGradeClasses(grade: Race["grade"]) {
       return "bg-blue-100 text-blue-800";
   }
 }
-
 function getStatusLabel(status: TeamStatus) {
   const labels: Record<TeamStatus, string> = {
     draft: "Draft",
@@ -209,16 +183,13 @@ function getStatusLabel(status: TeamStatus) {
     locked: "Locked",
     scored: "Scored",
   };
-
   return labels[status];
 }
-
 function titleCase(value: string) {
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
-
 function getFinishLabel(
   finishingPosition: number | null,
   resultStatus: string
@@ -226,54 +197,41 @@ function getFinishLabel(
   if (resultStatus !== "finished" || finishingPosition === null) {
     return titleCase(resultStatus);
   }
-
   const remainderTen = finishingPosition % 10;
   const remainderHundred = finishingPosition % 100;
   let suffix = "th";
-
   if (remainderHundred < 11 || remainderHundred > 13) {
     if (remainderTen === 1) suffix = "st";
     if (remainderTen === 2) suffix = "nd";
     if (remainderTen === 3) suffix = "rd";
   }
-
   return `${finishingPosition}${suffix}`;
 }
-
 function getCountdown(lockoutAt: string, currentTime: number) {
   const difference =
     new Date(lockoutAt).getTime() - currentTime;
-
   if (difference <= 0) {
     return "Round Locked";
   }
-
   const days = Math.floor(
     difference / (1000 * 60 * 60 * 24)
   );
-
   const hours = Math.floor(
     (difference % (1000 * 60 * 60 * 24)) /
     (1000 * 60 * 60)
   );
-
   const minutes = Math.floor(
     (difference % (1000 * 60 * 60)) /
     (1000 * 60)
   );
-
   const seconds = Math.floor(
     (difference % (1000 * 60)) / 1000
   );
-
   if (days > 0) {
     return `${days}d ${hours}h ${minutes}m ${seconds}s`;
   }
-
   return `${hours}h ${minutes}m ${seconds}s`;
 }
-
-
 type IconName =
   | "trophy"
   | "wallet"
@@ -286,7 +244,6 @@ type IconName =
   | "share"
   | "chevron"
   | "close";
-
 function Icon({
   name,
   className = "h-4 w-4",
@@ -301,7 +258,6 @@ function Icon({
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
   };
-
   const paths: Record<IconName, ReactNode> = {
     trophy: (
       <>
@@ -373,7 +329,6 @@ function Icon({
       </>
     ),
   };
-
   return (
     <svg
       viewBox="0 0 24 24"
@@ -384,8 +339,6 @@ function Icon({
     </svg>
   );
 }
-
-
 function OfficialTeamStat({
   label,
   value,
@@ -401,38 +354,30 @@ function OfficialTeamStat({
       : emphasis === "amber"
         ? "text-amber-100"
         : "text-white";
-
-
   return (
     <div className="min-w-0 bg-white/12 px-3 py-3 backdrop-blur-sm sm:px-4 sm:py-3.5">
       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/65">
         {label}
       </p>
-
       <p className={`mt-1 truncate text-base font-black sm:mt-1.5 sm:text-lg ${valueClasses}`}>
         {value}
       </p>
     </div>
   );
 }
-
 export default function MyTeamPage() {
   const { selectedSeasonId, loadingSeasons } = useSeason();
-
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
   const [salaryCap, setSalaryCap] = useState(0);
   const [roundRank, setRoundRank] = useState<number | null>(null);
   const [overallRank, setOverallRank] = useState<number | null>(null);
-
   const [showProjectedScores, setShowProjectedScores] = useState(false);
-
   const [showSpecialTeamProjections, setShowSpecialTeamProjections] =
     useState(false);
   const [hasEarlyProjectionAccess, setHasEarlyProjectionAccess] =
     useState(false);
-
   const [selections, setSelections] = useState<
     TeamSelection[]
   >([]);
@@ -447,7 +392,6 @@ export default function MyTeamPage() {
     useState<FixtureRace | null>(null);
   const [latestRaceResults, setLatestRaceResults] =
     useState<LatestRaceResult[]>([]);
-
   const [selectedRaceId, setSelectedRaceId] =
     useState<string | null>(null);
   const [raceResultsData, setRaceResultsData] =
@@ -456,43 +400,34 @@ export default function MyTeamPage() {
     useState(false);
   const [raceResultsError, setRaceResultsError] =
     useState("");
-
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedHorseId, setSelectedHorseId] = useState<string | null>(
     null
   );
-
   const [shareOpen, setShareOpen] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState("");
   const shareCardRef = useRef<HTMLDivElement | null>(null);
-
   const [currentTime, setCurrentTime] = useState(() =>
     Date.now()
   );
-
   const [showHorseSilks, setShowHorseSilks] = useState(true);
   const [horseSilks, setHorseSilks] = useState<Record<string, string | null>>(
     {}
   );
-
   useEffect(() => {
     let active = true;
-
     async function loadProjectedScoresSetting() {
       const { data, error } = await supabase.rpc(
         "get_public_site_settings"
       );
-
       if (!active) return;
-
       if (error) {
         console.error("Projected scores setting load error:", error);
         setShowProjectedScores(false);
         return;
       }
-
       const settings =
         data && typeof data === "object"
           ? (data as {
@@ -500,7 +435,6 @@ export default function MyTeamPage() {
               show_special_team_projections?: boolean;
             })
           : null;
-
       setShowProjectedScores(
         settings?.show_projected_scores === true
       );
@@ -508,95 +442,72 @@ export default function MyTeamPage() {
         settings?.show_special_team_projections === true
       );
     }
-
     void loadProjectedScoresSetting();
-
     return () => {
       active = false;
     };
   }, []);
-
   useEffect(() => {
     let active = true;
-
     async function loadSpecialProjectionAccess() {
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
-
       if (!active) return;
-
       if (userError || !user) {
         setHasEarlyProjectionAccess(false);
         return;
       }
-
       const { data, error } = await supabase
         .from("profiles")
         .select("projection_access_early")
         .eq("id", user.id)
         .maybeSingle();
-
       if (!active) return;
-
       if (error) {
         console.error("My Team special projection access error:", error);
         setHasEarlyProjectionAccess(false);
         return;
       }
-
       setHasEarlyProjectionAccess(
         data?.projection_access_early === true
       );
     }
-
     void loadSpecialProjectionAccess();
-
     return () => {
       active = false;
     };
   }, []);
-
   useEffect(() => {
     let active = true;
-
     async function loadSilkSetting() {
       const { data, error } = await supabase.rpc(
         "get_public_site_settings"
       );
-
       if (!active) return;
-
       if (error) {
         console.error("Horse silks setting load error:", error);
         setShowHorseSilks(true);
         return;
       }
-
       const settings =
         data && typeof data === "object"
           ? (data as { show_horse_silks?: boolean })
           : null;
-
       setShowHorseSilks(settings?.show_horse_silks !== false);
     }
-
     void loadSilkSetting();
-
     return () => {
       active = false;
     };
   }, []);
-
   const loadTeam = useCallback(async () => {
     if (loadingSeasons) {
       return;
     }
-
     setLoading(true);
     setErrorMessage("");
-
     if (!selectedSeasonId) {
       setRound(null);
       setSeason(null);
@@ -612,17 +523,14 @@ export default function MyTeamPage() {
       setLoading(false);
       return;
     }
-
     const { data, error } = await supabase.rpc(
       "get_my_team_data",
       {
         p_season_id: selectedSeasonId,
       }
     );
-
     if (error) {
       console.error("My Team RPC error:", error);
-
       setRound(null);
       setSeason(null);
       setTeam(null);
@@ -631,18 +539,14 @@ export default function MyTeamPage() {
       setCurrentHorsePrices({});
       setProjectedPointsByEntryId({});
       setFixtureRaces([]);
-
       setErrorMessage(
         error.message ||
           "Your team information could not be loaded."
       );
-
       setLoading(false);
       return;
     }
-
     const teamData = data as MyTeamData | null;
-
     if (!teamData?.round || !teamData.season) {
       setRound(null);
       setSeason(null);
@@ -652,26 +556,20 @@ export default function MyTeamPage() {
       setCurrentHorsePrices({});
       setProjectedPointsByEntryId({});
       setFixtureRaces([]);
-
       setErrorMessage(
         teamData?.message ||
           "There is no open, locked or completed round."
       );
-
       setLoading(false);
       return;
     }
-
     setRound(teamData.round);
     setSeason(teamData.season);
     setTeam(teamData.team);
-
     // Load the user's round and overall ranks for the share card.
     setRoundRank(null);
     setOverallRank(null);
-
     const { data: authData, error: authError } = await supabase.auth.getUser();
-
     if (authError) {
       console.error("My Team rank auth error:", authError);
     } else if (authData.user) {
@@ -689,7 +587,6 @@ export default function MyTeamPage() {
           .eq("user_id", authData.user.id)
           .maybeSingle(),
       ]);
-
       if (roundRankResult.error) {
         console.error("My Team round rank load error:", roundRankResult.error);
       } else {
@@ -699,7 +596,6 @@ export default function MyTeamPage() {
             : Number(roundRankResult.data.round_rank)
         );
       }
-
       if (overallRankResult.error) {
         console.error("My Team overall rank load error:", overallRankResult.error);
       } else {
@@ -710,85 +606,68 @@ export default function MyTeamPage() {
         );
       }
     }
-
     const {
       data: playerSalaryCap,
       error: salaryCapError,
     } = await supabase.rpc("get_my_round_salary_cap", {
       p_round_id: teamData.round.id,
     });
-
     if (salaryCapError) {
       console.error(
         "My Team salary cap load error:",
         salaryCapError
       );
-
       setSalaryCap(Number(teamData.season.salary_cap ?? 0));
     } else {
       const resolvedSalaryCap =
         playerSalaryCap == null
           ? Number(teamData.season.salary_cap ?? 0)
           : Number(playerSalaryCap);
-
       setSalaryCap(
         Number.isFinite(resolvedSalaryCap)
           ? resolvedSalaryCap
           : Number(teamData.season.salary_cap ?? 0)
       );
     }
-
     const loadedSelections = teamData.selections ?? [];
-
     const priceMap: Record<string, number> = {};
     const projectionMap: Record<string, number | null> = {};
-
     for (const selection of loadedSelections) {
       const entry = selection.race_entry;
       const horse = entry?.horse;
-
       if (entry) {
         projectionMap[entry.id] =
           entry.projected_points == null
             ? null
             : Number(entry.projected_points);
       }
-
       if (horse?.id) {
         priceMap[horse.id] = Number(
           horse.current_price ?? selection.selected_price
         );
       }
     }
-
     setProjectedPointsByEntryId(projectionMap);
     setCurrentHorsePrices(priceMap);
     setSelections(loadedSelections);
-
     setFixtureRaces(teamData.fixture_races ?? []);
     setLatestResultRace(teamData.latest_result_race ?? null);
     setLatestRaceResults(teamData.latest_race_results ?? []);
-
     setLoading(false);
   }, [loadingSeasons, selectedSeasonId]);
-
   useEffect(() => {
     if (loadingSeasons) {
       return;
     }
-
     void loadTeam();
   }, [loadTeam, loadingSeasons]);
-
   useEffect(() => {
     let active = true;
-
     async function loadHorseSilks() {
       if (!showHorseSilks || selections.length === 0) {
         setHorseSilks({});
         return;
       }
-
       const horseIds = Array.from(
         new Set(
           selections
@@ -796,78 +675,61 @@ export default function MyTeamPage() {
             .filter((id): id is string => Boolean(id))
         )
       );
-
       if (horseIds.length === 0) {
         setHorseSilks({});
         return;
       }
-
       const { data, error } = await supabase
         .from("horses")
         .select("id, silks_url")
         .in("id", horseIds);
-
       if (!active) return;
-
       if (error) {
         console.error("Horse silks load error:", error);
         setHorseSilks({});
         return;
       }
-
       const silkMap: Record<string, string | null> = {};
-
       for (const row of data ?? []) {
         silkMap[String(row.id)] =
           typeof row.silks_url === "string" && row.silks_url.trim()
             ? row.silks_url
             : null;
       }
-
       setHorseSilks(silkMap);
     }
-
     void loadHorseSilks();
-
     return () => {
       active = false;
     };
   }, [selections, showHorseSilks]);
-
   useEffect(() => {
     const timer = window.setInterval(() => {
       setCurrentTime(Date.now());
     }, 1000);
-
     return () => {
       window.clearInterval(timer);
     };
   }, []);
-
   useEffect(() => {
     if (!selectedRaceId) {
       setRaceResultsData(null);
       setRaceResultsError("");
       return;
     }
-
     let active = true;
-
     async function loadRaceResults() {
       setRaceResultsLoading(true);
       setRaceResultsError("");
-
       const { data, error } = await supabase.rpc(
         "get_calendar_race_results",
         {
           p_race_id: selectedRaceId,
         }
       );
-
       if (!active) {
         return;
       }
-
       if (error) {
         console.error("My Team race results error:", error);
         setRaceResultsError(
@@ -877,163 +739,120 @@ export default function MyTeamPage() {
         setRaceResultsLoading(false);
         return;
       }
-
       setRaceResultsData(data as unknown as RaceResultsData);
       setRaceResultsLoading(false);
     }
-
     void loadRaceResults();
-
     return () => {
       active = false;
     };
   }, [selectedRaceId]);
-
   useEffect(() => {
     if (!selectedRaceId) {
       return;
     }
-
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setSelectedRaceId(null);
       }
     }
-
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", handleKeyDown);
-
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [selectedRaceId]);
-
   const sortedSelections = useMemo(() => {
     return [...selections].sort((a, b) => {
       const scheduledStartA = a.race_entry?.race?.scheduled_start
         ? new Date(a.race_entry.race.scheduled_start).getTime()
         : Number.MAX_SAFE_INTEGER;
-
       const scheduledStartB = b.race_entry?.race?.scheduled_start
         ? new Date(b.race_entry.race.scheduled_start).getTime()
         : Number.MAX_SAFE_INTEGER;
-
       if (scheduledStartA !== scheduledStartB) {
         return scheduledStartA - scheduledStartB;
       }
-
       const raceNumberA =
         a.race_entry?.race?.race_number ?? 999;
-
       const raceNumberB =
         b.race_entry?.race?.race_number ?? 999;
-
       if (raceNumberA !== raceNumberB) {
         return raceNumberA - raceNumberB;
       }
-
       const saddleclothA =
         a.race_entry?.saddlecloth_number ?? 999;
-
       const saddleclothB =
         b.race_entry?.saddlecloth_number ?? 999;
-
       if (saddleclothA !== saddleclothB) {
         return saddleclothA - saddleclothB;
       }
-
       return (a.race_entry?.horse?.name ?? "").localeCompare(
         b.race_entry?.horse?.name ?? ""
       );
     });
   }, [selections]);
-
   const salaryUsed = useMemo(() => {
     return selections.reduce((total, selection) => {
       return total + selection.selected_price;
     }, 0);
   }, [selections]);
-
-
   const autofilledHorseCount = Math.max(
     0,
     Number(team?.autofilled_horse_count ?? 0)
   );
-
   const autofillPenalty = autofilledHorseCount * 3;
-
   const rawTotalPoints = useMemo(() => {
     return selections.reduce((total, selection) => {
       const basePoints = selection.fantasy_points ?? 0;
-
       return total + (selection.is_captain ? basePoints * 2 : basePoints);
     }, 0);
   }, [selections]);
-
   const totalPoints = rawTotalPoints - autofillPenalty;
-
   const rawLiveProjectedScore = useMemo(() => {
     return selections.reduce((total, selection) => {
       const projectedPoints =
         selection.race_entry?.projected_points ??
         projectedPointsByEntryId[selection.race_entry_id] ??
         0;
-
       const baseValue = selection.has_result
         ? selection.fantasy_points ?? 0
         : projectedPoints;
-
       return total + (selection.is_captain ? baseValue * 2 : baseValue);
     }, 0);
   }, [selections, projectedPointsByEntryId]);
-
   const liveProjectedScore = rawLiveProjectedScore - autofillPenalty;
-
   const salaryRemaining =
     salaryCap - salaryUsed;
-
   const roundIsComplete = round?.status === "completed";
-
   const lockoutHasStarted =
     round !== null &&
     currentTime >= new Date(round.lockout_at).getTime();
-
-  const isSpecialRacedaysSeason =
-    season?.name.trim().toLowerCase() === "special racedays";
-
   const projectionsVisible =
-    !isSpecialRacedaysSeason &&
-    (showProjectedScores ||
-      (showSpecialTeamProjections && hasEarlyProjectionAccess));
-
+    showProjectedScores ||
+    (showSpecialTeamProjections && hasEarlyProjectionAccess);
   const editButtonVisible =
     round !== null &&
     !lockoutHasStarted &&
     team?.status !== "locked" &&
     team?.status !== "scored";
-
   const handleShareTeam = useCallback(async () => {
     if (!shareCardRef.current || !team || !round) return;
-
     setShareBusy(true);
     setShareError("");
-
     try {
       const blob = await toBlob(shareCardRef.current, {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: "#f8fafc",
       });
-
       if (!blob) {
         throw new Error("The team image could not be created.");
       }
-
       const fileName = `racecourse-fantasy-round-${round.round_number}-team.png`;
       const file = new File([blob], fileName, { type: "image/png" });
-
       if (
         typeof navigator !== "undefined" &&
         typeof navigator.share === "function" &&
@@ -1058,7 +877,6 @@ export default function MyTeamPage() {
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
       }
-
       console.error("Share team error:", error);
       setShareError(
         error instanceof Error ? error.message : "The team image could not be shared."
@@ -1067,7 +885,6 @@ export default function MyTeamPage() {
       setShareBusy(false);
     }
   }, [round, team]);
-
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-100 p-6">
@@ -1077,7 +894,6 @@ export default function MyTeamPage() {
       </main>
     );
   }
-
   if (!round || !season) {
     return (
       <main className="min-h-screen bg-slate-100 p-6">
@@ -1085,7 +901,6 @@ export default function MyTeamPage() {
           <h1 className="text-2xl font-bold text-slate-900">
             My Team
           </h1>
-
           <p className="mt-4 text-red-700">
             {errorMessage ||
               "There is no current round."}
@@ -1094,7 +909,6 @@ export default function MyTeamPage() {
       </main>
     );
   }
-
   if (!team) {
     return (
       <main className="min-h-screen bg-slate-100 p-4 md:p-8">
@@ -1103,23 +917,19 @@ export default function MyTeamPage() {
             <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
               {season.name}
             </p>
-
             <h1 className="mt-1 text-3xl font-bold">
               My Team
             </h1>
-
             <p className="mt-2 text-white/85">
               Round {round.round_number}
               {round.name ? ` — ${round.name}` : ""}
             </p>
-
             <div className="mt-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-white/75">
                 {lockoutHasStarted
                   ? "Lockout Status"
                   : "Lockout Countdown"}
               </p>
-
               <p className="mt-1 text-2xl font-bold">
                 {lockoutHasStarted && "🔒 "}
                 {getCountdown(
@@ -1127,24 +937,20 @@ export default function MyTeamPage() {
                   currentTime
                 )}
               </p>
-
               <p className="mt-2 text-sm text-white/80">
                 Lockout:{" "}
                 {formatDateTime(round.lockout_at)}
               </p>
             </div>
           </header>
-
           <section className="mt-6 rounded-xl border bg-white p-10 text-center">
             <h2 className="text-2xl font-bold text-slate-900">
               You have not created a team yet
             </h2>
-
             <p className="mt-3 text-slate-600">
               Select your horses and captain before the
               round lockout.
             </p>
-
             {!lockoutHasStarted ? (
               <Link
                 href="/team/edit"
@@ -1163,7 +969,6 @@ export default function MyTeamPage() {
       </main>
     );
   }
-
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 md:py-10">
@@ -1174,13 +979,11 @@ export default function MyTeamPage() {
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-white/85">
                   Official Team Sheet
                 </p>
-
                 <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                   <span className="font-semibold text-white/80">
                     {season.name} · Round {round.round_number}
                     {round.name ? ` — ${round.name}` : ""}
                   </span>
-
                   <span className="inline-flex items-center gap-1.5 text-white/85">
                     <Icon name="clock" className="h-3.5 w-3.5 text-white/85" />
                     {lockoutHasStarted ? "Round locked" : "Next lockout"}:
@@ -1188,18 +991,15 @@ export default function MyTeamPage() {
                       {getCountdown(round.lockout_at, currentTime)}
                     </strong>
                   </span>
-
                   <span className="text-white/65">
                     {formatDateTime(round.lockout_at)}
                   </span>
                 </div>
               </div>
-
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <span className="rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white shadow-sm backdrop-blur-md">
                   {getStatusLabel(team.status)}
                 </span>
-
                 <button
                   type="button"
                   onClick={() => {
@@ -1211,7 +1011,6 @@ export default function MyTeamPage() {
                   <Icon name="share" className="mr-1.5 h-3.5 w-3.5" />
                   Share Team
                 </button>
-
                 {editButtonVisible && (
                   <Link
                     href="/team/edit"
@@ -1224,59 +1023,46 @@ export default function MyTeamPage() {
               </div>
             </div>
           </div>
-
           <div className="grid xl:grid-cols-[minmax(0,1fr)_minmax(620px,1.5fr)]">
             <div className="p-4 sm:p-5 md:p-6">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
                   My Team
                 </p>
-
                 <h1 className="mt-1 truncate text-xl font-black tracking-tight sm:text-2xl md:text-3xl">
                   {team.team_name?.trim() || "My Team"}
                 </h1>
               </div>
-
-
             </div>
-
             <div className="grid grid-cols-2 gap-px border-t border-white/20 bg-white/20 lg:grid-cols-5 xl:border-l xl:border-t-0">
               <OfficialTeamStat
                 label="Current Score"
                 value={`${totalPoints} pts`}
                 emphasis="teal"
               />
-
-              {!isSpecialRacedaysSeason && (
-                <OfficialTeamStat
-                  label="Projected Score"
-                  value={projectionsVisible ? `${liveProjectedScore} pts` : "Hidden"}
-                  emphasis="amber"
-                />
-              )}
-
+              <OfficialTeamStat
+                label="Projected Score"
+                value={projectionsVisible ? `${liveProjectedScore} pts` : "Hidden"}
+                emphasis="amber"
+              />
               <div className="hidden lg:contents">
                 <OfficialTeamStat
                   label="Team Salary"
                   value={formatCurrency(salaryUsed)}
                 />
               </div>
-
               <OfficialTeamStat
                 label="Salary Cap"
                 value={formatCurrency(salaryCap)}
               />
-
               <OfficialTeamStat
                 label="Remaining"
                 value={formatCurrency(salaryRemaining)}
                 emphasis="teal"
               />
-
             </div>
           </div>
         </header>
-
         {autofillPenalty > 0 && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 shadow-sm">
             <div>
@@ -1292,14 +1078,11 @@ export default function MyTeamPage() {
             </p>
           </div>
         )}
-
         {errorMessage && (
           <div className="mt-5 rounded-xl border border-red-300 bg-red-50 p-4 font-medium text-red-800">
             {errorMessage}
           </div>
         )}
-
-
         <section className="mt-5 sm:mt-7">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="min-w-0">
@@ -1308,23 +1091,19 @@ export default function MyTeamPage() {
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-700">
                     Stable Line-up
                   </p>
-
                   <div className="mt-1">
                     <h2 className="text-xl font-black text-slate-950 sm:text-2xl">
                       Selected Horses
                     </h2>
                   </div>
-
                   <p className="mt-1 text-sm text-slate-600">
                     Your team for Round {round.round_number}. Select a horse card to view its statistics.
                   </p>
                 </div>
-
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                   Captain scores 2× points
                 </p>
               </div>
-
               {sortedSelections.length === 0 ? (
                 <div className="rounded-xl border bg-white p-10 text-center text-slate-500 shadow-sm">
                   No horses have been selected.
@@ -1340,19 +1119,16 @@ export default function MyTeamPage() {
                     const displayedPoints = selection.is_captain
                       ? (selection.fantasy_points ?? 0) * 2
                       : selection.fantasy_points ?? 0;
-
                     const projectedPoints =
                       entry?.projected_points ??
                       projectedPointsByEntryId[selection.race_entry_id] ??
                       null;
-
                     const displayedProjectedPoints =
                       projectedPoints === null
                         ? null
                         : selection.is_captain
                           ? projectedPoints * 2
                           : projectedPoints;
-
                     return (
                       <article
                         key={selection.id}
@@ -1387,37 +1163,30 @@ export default function MyTeamPage() {
                                   />
                                 </div>
                               )}
-
                             <div className="min-w-0">
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                               <h3 className="truncate text-sm font-bold leading-tight text-slate-950 sm:text-base md:text-lg">
                                 {horse?.name ?? "Unknown horse"}
                               </h3>
-
                               {selection.is_captain && (
                                 <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950 shadow-sm">
                                   C
                                 </span>
                               )}
-
                             </div>
-
                             <div className="mt-1.5 space-y-1">
                               {activeNominations.length > 0 ? (
                                 activeNominations.map((nomination) => {
                                   const nominationRace = nomination.race;
-
                                   if (!nominationRace) {
                                     return null;
                                   }
-
                                   return (
                                     <div key={nomination.id} className="min-w-0">
                                       <div className="flex min-w-0 items-center gap-2">
                                         <p className="truncate text-xs font-semibold text-slate-800">
                                           R{nominationRace.race_number} • {nominationRace.race_name}
                                         </p>
-
                                         <span
                                           className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
                                             nominationRace.grade
@@ -1426,16 +1195,13 @@ export default function MyTeamPage() {
                                           {getGradeLabel(nominationRace.grade)}
                                         </span>
                                       </div>
-
                                       <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium text-slate-600">
                                         {nominationRace.racecourse && (
                                           <span>{nominationRace.racecourse.name}</span>
                                         )}
-
                                         {nominationRace.racecourse && (
                                           <span className="text-slate-300">•</span>
                                         )}
-
                                         <span className="inline-flex items-center gap-1">
                                           <Icon
                                             name="clock"
@@ -1457,7 +1223,6 @@ export default function MyTeamPage() {
                                     >
                                       R{race.race_number} • {race.race_name}
                                     </p>
-
                                     <span
                                       className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${getGradeClasses(
                                         race.grade
@@ -1466,16 +1231,13 @@ export default function MyTeamPage() {
                                       {getGradeLabel(race.grade)}
                                     </span>
                                   </div>
-
                                   <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium text-slate-600">
                                     {race.racecourse && (
                                       <span>{race.racecourse.name}</span>
                                     )}
-
                                     {race.racecourse && (
                                       <span className="text-slate-300">•</span>
                                     )}
-
                                     <span className="inline-flex items-center gap-1">
                                       <Icon
                                         name="clock"
@@ -1493,7 +1255,6 @@ export default function MyTeamPage() {
                             </div>
                             </div>
                           </div>
-
                           <div className="flex min-w-[76px] flex-col items-end sm:min-w-[92px]">
                             <Icon
                               name="chevron"
@@ -1506,8 +1267,7 @@ export default function MyTeamPage() {
                                     <p className="text-lg font-black uppercase leading-none text-red-700">
                                       Scratched
                                     </p>                                  </>
-                                ) : isSpecialRacedaysSeason ? null
-                                : !projectionsVisible ? (
+                                ) : !projectionsVisible ? (
                                   <>
                                     <p className="text-sm font-black leading-none text-slate-500">
                                       Hidden
@@ -1553,7 +1313,6 @@ export default function MyTeamPage() {
                                     : selection.selected_price
                                 )}
                               </p>
-
                               {roundIsComplete &&
                                 horse?.id &&
                                 currentHorsePrices[horse.id] !== undefined &&
@@ -1586,7 +1345,6 @@ export default function MyTeamPage() {
                 </div>
               )}
             </div>
-
             <aside className="space-y-4">
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-sky-300 bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-3 text-white">
@@ -1621,21 +1379,17 @@ export default function MyTeamPage() {
                           <p className="text-xs font-bold text-slate-950">
                             {formatRaceTime(fixtureRace.scheduled_start)}
                           </p>
-
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-slate-950">
                               R{fixtureRace.race_number} · {fixtureRace.race_name}
                             </p>
-
                             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
                               <span className={`rounded px-1.5 py-0.5 font-bold ${getGradeClasses(fixtureRace.grade)}`}>
                                 {getGradeLabel(fixtureRace.grade)}
                               </span>
-
                               {fixtureRace.distance_metres && (
                                 <span>{fixtureRace.distance_metres}m</span>
                               )}
-
                               {fixtureRace.racecourse && (
                                 <>
                                   <span>•</span>
@@ -1644,7 +1398,6 @@ export default function MyTeamPage() {
                               )}
                             </div>
                           </div>
-
                           <div className="flex items-center gap-2">
                             <span
                               className={`hidden rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide sm:inline-flex ${
@@ -1659,7 +1412,6 @@ export default function MyTeamPage() {
                                 ? "Complete"
                                 : fixtureRace.status}
                             </span>
-
                             <Icon
                               name="chevron"
                               className="h-4 w-4 text-slate-400"
@@ -1671,7 +1423,6 @@ export default function MyTeamPage() {
                   </div>
                 )}
               </div>
-
               <div className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
                 <div className="flex items-center gap-2 border-b border-sky-300 bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-3 text-white">
                   <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/25 bg-white/15 text-white backdrop-blur-sm">
@@ -1681,7 +1432,6 @@ export default function MyTeamPage() {
                     Latest Result
                   </h2>
                 </div>
-
                 <div>
                   {latestResultRace && latestRaceResults.length > 0 ? (
                     <>
@@ -1703,13 +1453,11 @@ export default function MyTeamPage() {
                                 : ""}
                             </p>
                           </div>
-
                           <span className="shrink-0 text-xs font-black text-sky-700">
                             Full results →
                           </span>
                         </div>
                       </button>
-
                       <div className="divide-y divide-slate-100">
                         {latestRaceResults.map((result) => (
                           <button
@@ -1724,11 +1472,9 @@ export default function MyTeamPage() {
                             <span className="text-center text-sm font-black text-slate-500">
                               {result.finishing_position}
                             </span>
-
                             <span className="truncate font-bold text-slate-950">
                               {result.horse_name}
                             </span>
-
                             <span className="shrink-0 text-right">
                               <span className="text-lg font-black text-sky-700">
                                 {result.fantasy_points}
@@ -1752,7 +1498,6 @@ export default function MyTeamPage() {
           </div>
         </section>
       </div>
-
       {shareOpen && (
         <div
           className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-sm"
@@ -1778,7 +1523,6 @@ export default function MyTeamPage() {
                   Team image preview
                 </h2>
               </div>
-
               <button
                 type="button"
                 onClick={() => !shareBusy && setShareOpen(false)}
@@ -1788,7 +1532,6 @@ export default function MyTeamPage() {
                 <Icon name="close" className="h-5 w-5" />
               </button>
             </div>
-
             <div className="max-h-[72vh] overflow-y-auto bg-slate-200 p-3 sm:p-5">
               <div className="mx-auto w-full max-w-[540px] overflow-hidden rounded-xl shadow-xl">
                 <div
@@ -1814,17 +1557,14 @@ export default function MyTeamPage() {
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
                           Racecourse Fantasy
                         </p>
-
                         <h2 className="mt-1 truncate text-[24px] font-black leading-tight">
                           {team.team_name?.trim() || "My Team"}
                         </h2>
-
                         <p className="mt-1 text-[11px] font-bold opacity-75">
                           Round {round.round_number}
                           {round.name ? ` · ${round.name}` : ""}
                         </p>
                       </div>
-
                       <div className="shrink-0 text-right">
                         <p className="text-[34px] font-black leading-none tabular-nums">
                           {totalPoints}
@@ -1834,7 +1574,6 @@ export default function MyTeamPage() {
                         </p>
                       </div>
                     </div>
-
                     {autofillPenalty > 0 && (
                       <div className="mt-3 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-3 py-2">
                         <p className="text-[9px] font-black uppercase tracking-[0.12em] text-red-700">
@@ -1845,7 +1584,6 @@ export default function MyTeamPage() {
                         </p>
                       </div>
                     )}
-
                     <div className="mt-4 flex items-end justify-between gap-3">
                       <div>
                         <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
@@ -1855,7 +1593,6 @@ export default function MyTeamPage() {
                           {season.name}
                         </p>
                       </div>
-
                       <div className="flex items-center gap-4 text-right">
                         {lockoutHasStarted ? (
                           <>
@@ -1867,7 +1604,6 @@ export default function MyTeamPage() {
                                 {roundRank === null ? "—" : `#${roundRank}`}
                               </p>
                             </div>
-
                             <div>
                               <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
                                 Overall Rank
@@ -1889,7 +1625,6 @@ export default function MyTeamPage() {
                         )}
                       </div>
                     </div>
-
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       {sortedSelections.map((selection) => {
                         const entry = selection.race_entry;
@@ -1899,7 +1634,6 @@ export default function MyTeamPage() {
                           selection.active_nominations ?? [];
                         const isScratched =
                           selection.is_scratched === true;
-
                         const shareRaces =
                           activeNominations.length > 0
                             ? activeNominations
@@ -1911,25 +1645,21 @@ export default function MyTeamPage() {
                             : race
                               ? [race]
                               : [];
-
                         const points = selection.is_captain
                           ? (selection.fantasy_points ?? 0) * 2
                           : selection.fantasy_points ?? 0;
-
                         const projected =
                           entry?.projected_points ??
                           projectedPointsByEntryId[
                             selection.race_entry_id
                           ] ??
                           null;
-
                         const shownProjection =
                           projected === null
                             ? null
                             : selection.is_captain
                               ? projected * 2
                               : projected;
-
                         return (
                           <div
                             key={selection.id}
@@ -1956,20 +1686,17 @@ export default function MyTeamPage() {
                                 </span>
                               )}
                             </div>
-
                             <div className="min-w-0 flex-1">
                               <div className="flex min-w-0 items-center gap-1.5">
                                 <p className="truncate text-[12px] font-black text-slate-950">
                                   {horse?.name ?? "Unknown horse"}
                                 </p>
-
                                 {selection.is_captain && (
                                   <span className="shrink-0 rounded-full bg-amber-200 px-1.5 py-0.5 text-[8px] font-black text-amber-900">
                                     C
                                   </span>
                                 )}
                               </div>
-
                               {isScratched ? (
                                 <p className="mt-0.5 text-[9px] font-black uppercase text-red-700">
                                   Scratched
@@ -1989,7 +1716,6 @@ export default function MyTeamPage() {
                                 </p>
                               )}
                             </div>
-
                             <div className="shrink-0 text-right">
                               {selection.has_result ? (
                                 <>
@@ -2022,7 +1748,6 @@ export default function MyTeamPage() {
                       })}
                     </div>
                   </div>
-
                   <div className="flex items-center justify-between border-t border-slate-200 bg-white px-5 py-3">
                     <p className="text-[9px] font-bold text-slate-400">
                       Captain scores 2× points
@@ -2035,14 +1760,12 @@ export default function MyTeamPage() {
                 </div>
               </div>
             </div>
-
             <div className="border-t border-slate-200 bg-white p-4 sm:px-5">
               {shareError && (
                 <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
                   {shareError}
                 </p>
               )}
-
               <button
                 type="button"
                 onClick={() => void handleShareTeam()}
@@ -2052,7 +1775,6 @@ export default function MyTeamPage() {
                 <Icon name="share" className="mr-2 h-4 w-4" />
                 {shareBusy ? "Creating Image..." : "Share Team Image"}
               </button>
-
               <p className="mt-2 text-center text-xs text-slate-500">
                 On supported phones this opens the native share menu. Otherwise the PNG is saved to your device.
               </p>
@@ -2060,7 +1782,6 @@ export default function MyTeamPage() {
           </section>
         </div>
       )}
-
       {selectedRaceId && (
         <div
           className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:p-6"
@@ -2082,20 +1803,17 @@ export default function MyTeamPage() {
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-300">
                   Race results
                 </p>
-
                 <h2 className="mt-1 text-2xl font-black">
                   {raceResultsData?.race
                     ? `R${raceResultsData.race.race_number} — ${raceResultsData.race.race_name}`
                     : "Loading race..."}
                 </h2>
-
                 {raceResultsData?.race?.racecourse && (
                   <p className="mt-1 text-sm text-slate-300">
                     {raceResultsData.race.racecourse.name}
                   </p>
                 )}
               </div>
-
               <button
                 type="button"
                 onClick={() => setSelectedRaceId(null)}
@@ -2105,20 +1823,17 @@ export default function MyTeamPage() {
                 <Icon name="close" className="h-5 w-5" />
               </button>
             </div>
-
             <div className="max-h-[calc(92vh-96px)] overflow-y-auto p-5 sm:p-6">
               {raceResultsLoading && (
                 <div className="py-16 text-center text-slate-500">
                   Loading race results...
                 </div>
               )}
-
               {!raceResultsLoading && raceResultsError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">
                   {raceResultsError}
                 </div>
               )}
-
               {!raceResultsLoading &&
                 !raceResultsError &&
                 raceResultsData?.race && (
@@ -2132,7 +1847,6 @@ export default function MyTeamPage() {
                           {getGradeLabel(raceResultsData.race.grade)}
                         </p>
                       </div>
-
                       <div className="rounded-xl bg-slate-100 p-4">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                           Start time
@@ -2141,7 +1855,6 @@ export default function MyTeamPage() {
                           {formatRaceTime(raceResultsData.race.scheduled_start)}
                         </p>
                       </div>
-
                       <div className="rounded-xl bg-slate-100 p-4">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                           Status
@@ -2151,7 +1864,6 @@ export default function MyTeamPage() {
                         </p>
                       </div>
                     </div>
-
                     {(raceResultsData.results ?? []).length === 0 ? (
                       <div className="rounded-xl border border-slate-200 p-8 text-center text-slate-500">
                         No official results are available for this race yet.
@@ -2178,7 +1890,6 @@ export default function MyTeamPage() {
                               </th>
                             </tr>
                           </thead>
-
                           <tbody className="divide-y divide-slate-200">
                             {raceResultsData.results.map((result) => (
                               <tr key={result.result_id}>
@@ -2189,7 +1900,6 @@ export default function MyTeamPage() {
                                   )}
                                   {result.is_dead_heat ? " (DH)" : ""}
                                 </td>
-
                                 <td className="px-4 py-4">
                                   <button
                                     type="button"
@@ -2199,11 +1909,9 @@ export default function MyTeamPage() {
                                     {result.horse_name}
                                   </button>
                                 </td>
-
                                 <td className="px-4 py-4 text-right font-bold text-sky-700">
                                   {result.fantasy_points}
                                 </td>
-
                                 <td
                                   className={`px-4 py-4 text-right font-bold ${
                                     result.price_change > 0
@@ -2216,7 +1924,6 @@ export default function MyTeamPage() {
                                   {result.price_change > 0 ? "+" : ""}
                                   {formatCurrency(result.price_change)}
                                 </td>
-
                                 <td className="px-4 py-4 text-right font-bold text-slate-950">
                                   {formatCurrency(result.price_after)}
                                 </td>
@@ -2232,7 +1939,6 @@ export default function MyTeamPage() {
           </section>
         </div>
       )}
-
       <HorseProfileModal
         horseId={selectedHorseId}
         onClose={() => setSelectedHorseId(null)}

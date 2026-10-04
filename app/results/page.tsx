@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -88,7 +87,6 @@ export default function ResultsPage() {
       if (loadingSeasons) {
         return;
       }
-
       if (!selectedSeasonId) {
         setCurrentRound(null);
         setRaces([]);
@@ -102,7 +100,6 @@ export default function ResultsPage() {
         setLoading(false);
         return;
       }
-
       setLoading(true);
       setErrorMessage("");
       const {
@@ -134,7 +131,6 @@ export default function ResultsPage() {
         return;
       }
       const resultsData = data as ResultsPageData | null;
-
       if (
         resultsData?.round?.season_id &&
         resultsData.round.season_id !== selectedSeasonId
@@ -331,20 +327,6 @@ export default function ResultsPage() {
                   </span>
                 )}
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-              <Link
-                href="/dashboard"
-                className="rounded-lg border border-white/30 bg-white/15 px-5 py-3 font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/team"
-                className="rounded-lg bg-white px-5 py-3 font-black text-sky-700 shadow-sm transition hover:bg-sky-50"
-              >
-                My Team
-              </Link>
             </div>
           </div>
         </div>
