@@ -140,7 +140,7 @@ type DashboardCupMatchup = {
   cup_name: string;
   stage_name: string;
   stage_type: "group" | "knockout";
-  status: "matchup" | "eliminated" | "tbc";
+  status: "matchup" | "bye" | "eliminated" | "tbc";
   opponent_name: string | null;
   my_score: number | null;
   opponent_score: number | null;
@@ -1221,6 +1221,52 @@ export default function Dashboard() {
           );
 
           if (!match) {
+            /*
+             * A player can legitimately have no fixture in a knockout stage
+             * because they have a bye. The 48-team Preliminary Round is the
+             * key example: 32 teams play 16 matches while the top 16 seeds
+             * advance directly to the Round of 32.
+             *
+             * Work out how many bye places this stage actually has from the
+             * stage size and the fixtures that have been generated. This also
+             * keeps later knockout rounds correct: a normal 32-team Round of
+             * 32 has 16 matches, so it has zero bye places.
+             */
+            const myParticipant = (detail?.participants ?? []).find(
+              (participant: any) =>
+                participant?.id === participantId
+            );
+
+            const mySeed = Number(
+              myParticipant?.seed_number ?? 0
+            );
+
+            const stageMatches = (detail?.matches ?? []).filter(
+              (candidate: any) =>
+                candidate?.stage_id === stage.id
+            );
+
+            const knockoutTeamCount = Number(
+              stage?.knockout_team_count ?? 0
+            );
+
+            const byeCount =
+              stage.stage_type === "knockout" &&
+              knockoutTeamCount > 0 &&
+              stageMatches.length > 0
+                ? Math.max(
+                    0,
+                    knockoutTeamCount -
+                      stageMatches.length * 2
+                  )
+                : 0;
+
+            const hasKnockoutBye =
+              stage.stage_type === "knockout" &&
+              byeCount > 0 &&
+              mySeed > 0 &&
+              mySeed <= byeCount;
+
             setCupMatchup({
               cup_id: cup.id,
               cup_name:
@@ -1234,8 +1280,9 @@ export default function Dashboard() {
                 stage.stage_type as
                   | "group"
                   | "knockout",
-              status:
-                stage.stage_type === "knockout"
+              status: hasKnockoutBye
+                ? "bye"
+                : stage.stage_type === "knockout"
                   ? "eliminated"
                   : "tbc",
               opponent_name: null,
@@ -2257,6 +2304,15 @@ export default function Dashboard() {
                       Compare Teams
                     </button>
                   </>
+                ) : cupMatchup.status === "bye" ? (
+                  <div className="mt-4">
+                    <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-sm font-bold uppercase tracking-wide text-emerald-700">
+                      Bye
+                    </span>
+                    <p className="mt-2 text-sm font-semibold text-slate-600">
+                      Qualified for the next knockout round
+                    </p>
+                  </div>
                 ) : cupMatchup.status === "eliminated" ? (
                   <span className="mt-4 inline-flex rounded-full bg-red-100 px-3 py-1 text-sm font-bold uppercase tracking-wide text-red-700">
                     Eliminated

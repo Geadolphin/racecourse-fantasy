@@ -572,6 +572,12 @@ export default function CupDetailPage() {
     (stage) => stage.stage_type === "knockout"
   );
 
+  const knockoutStageIsActive =
+    cupData.cup.status === "knockout" ||
+    knockoutStages.some((stage) =>
+      cupData.matches.some((match) => match.stage_id === stage.id)
+    );
+
   const displayMatches = cupData.matches.map((match) => {
     const live = liveFixtureScores[match.id];
 
@@ -884,7 +890,8 @@ export default function CupDetailPage() {
           </div>
         </header>
 
-        <section className="mt-8">
+        <div className="flex flex-col">
+        <section className={`mt-8 ${knockoutStageIsActive ? "order-3" : "order-1"}`}>
           <div className="mb-4 flex items-end justify-between gap-4 border-b border-slate-300 pb-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">
@@ -1005,7 +1012,7 @@ export default function CupDetailPage() {
 
         {additionalQualifierPosition !== null &&
           additionalQualifierCount > 0 && (
-            <section className="mt-8">
+            <section className={`mt-8 ${knockoutStageIsActive ? "order-4" : "order-2"}`}>
               <div className="mb-4 border-b border-slate-300 pb-3">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
                   Knockout Qualification
@@ -1092,7 +1099,7 @@ export default function CupDetailPage() {
             </section>
           )}
 
-        <section className="mt-8">
+        <section className={`mt-8 ${knockoutStageIsActive ? "order-2" : "order-3"}`}>
           <div className="mb-4 flex items-end justify-between gap-4 border-b border-slate-300 pb-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-teal-700">
@@ -1134,7 +1141,7 @@ export default function CupDetailPage() {
           </div>
         </section>
 
-        <section className="mt-8 pb-10">
+        <section className={`mt-8 pb-10 ${knockoutStageIsActive ? "order-1" : "order-4"}`}>
           <div className="mb-4 flex items-end justify-between gap-4 border-b border-slate-300 pb-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-purple-700">
@@ -1155,6 +1162,11 @@ export default function CupDetailPage() {
             <KnockoutBracket
               stages={knockoutStages}
               matches={displayMatches}
+              participants={cupData.participants}
+              groupMembers={cupData.group_members}
+              automaticQualifiersPerGroup={cupData.cup.automatic_qualifiers_per_group}
+              additionalQualifierPosition={cupData.cup.additional_qualifier_position}
+              additionalQualifierCount={cupData.cup.additional_qualifier_count}
               participantName={participantName}
               participantUserId={participantUserId}
               openPlayerProfile={openPlayerProfile}
@@ -1163,6 +1175,7 @@ export default function CupDetailPage() {
             />
           )}
         </section>
+        </div>
         {fixtureCompareOpen && (
           <div
             className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 p-2 sm:p-3"
@@ -1523,6 +1536,11 @@ function Empty({ text }: { text: string }) {
 function KnockoutBracket({
   stages,
   matches,
+  participants,
+  groupMembers,
+  automaticQualifiersPerGroup,
+  additionalQualifierPosition,
+  additionalQualifierCount,
   participantName,
   participantUserId,
   openPlayerProfile,
@@ -1531,6 +1549,11 @@ function KnockoutBracket({
 }: {
   stages: Stage[];
   matches: Match[];
+  participants: Participant[];
+  groupMembers: GroupMember[];
+  automaticQualifiersPerGroup: number;
+  additionalQualifierPosition: number | null;
+  additionalQualifierCount: number;
   participantName: (id: string) => string;
   participantUserId: (id: string) => string | null;
   openPlayerProfile: (id: string) => Promise<void>;
@@ -1545,134 +1568,341 @@ function KnockoutBracket({
     (a, b) => a.sequence_number - b.sequence_number
   );
 
+  const stagesWithMatches = orderedStages.map((stage) => ({
+    stage,
+    stageMatches: matches
+      .filter((match) => match.stage_id === stage.id)
+      .sort((a, b) => a.match_number - b.match_number),
+  }));
+
+  // Rebuild knockout seeds from the FINAL GROUP-STAGE RANKINGS.
+  // This mirrors generate_cup_knockout_first_round():
+  // group position ASC, group points DESC, fantasy points DESC, wins DESC.
+  // Participant.seed_number is the original/admin seed and must not be used
+  // for knockout qualification or the Round-of-32 bye display.
+  const automaticQualifiers = groupMembers.filter(
+    (member) =>
+      member.group_position !== null &&
+      member.group_position <= automaticQualifiersPerGroup
+  );
+
+  const additionalQualifierCandidates =
+    additionalQualifierPosition === null || additionalQualifierCount <= 0
+      ? []
+      : groupMembers
+          .filter(
+            (member) => member.group_position === additionalQualifierPosition
+          )
+          .sort((a, b) => {
+            if (b.group_points !== a.group_points) {
+              return b.group_points - a.group_points;
+            }
+            if (b.fantasy_points_for !== a.fantasy_points_for) {
+              return b.fantasy_points_for - a.fantasy_points_for;
+            }
+            if (b.wins !== a.wins) {
+              return b.wins - a.wins;
+            }
+            return a.participant_id.localeCompare(b.participant_id);
+          })
+          .slice(0, additionalQualifierCount);
+
+  const qualifierByParticipantId = new Map<string, GroupMember>();
+  for (const member of [
+    ...automaticQualifiers,
+    ...additionalQualifierCandidates,
+  ]) {
+    qualifierByParticipantId.set(member.participant_id, member);
+  }
+
+  const knockoutSeeds = Array.from(qualifierByParticipantId.values())
+    .sort((a, b) => {
+      const aPosition = a.group_position ?? Number.MAX_SAFE_INTEGER;
+      const bPosition = b.group_position ?? Number.MAX_SAFE_INTEGER;
+
+      if (aPosition !== bPosition) {
+        return aPosition - bPosition;
+      }
+      if (b.group_points !== a.group_points) {
+        return b.group_points - a.group_points;
+      }
+      if (b.fantasy_points_for !== a.fantasy_points_for) {
+        return b.fantasy_points_for - a.fantasy_points_for;
+      }
+      if (b.wins !== a.wins) {
+        return b.wins - a.wins;
+      }
+      return a.participant_id.localeCompare(b.participant_id);
+    })
+    .map((member, index) => ({
+      participant: participants.find(
+        (participant) => participant.id === member.participant_id
+      ),
+      seedNumber: index + 1,
+    }))
+    .filter(
+      (entry): entry is { participant: Participant; seedNumber: number } =>
+        entry.participant !== undefined
+    );
+
+  const firstStageWithFixtures = stagesWithMatches.find(
+    ({ stageMatches }) => stageMatches.length > 0
+  )?.stage.id;
+
+  const currentStageId =
+    stagesWithMatches.find(
+      ({ stage, stageMatches }) =>
+        stageMatches.length > 0 && !stage.is_complete
+    )?.stage.id ??
+    firstStageWithFixtures ??
+    orderedStages[0]?.id;
+
+  const [openStages, setOpenStages] = useState<Set<string>>(() =>
+    currentStageId ? new Set([currentStageId]) : new Set()
+  );
+
+  useEffect(() => {
+    if (!currentStageId) return;
+    setOpenStages((previous) => {
+      if (previous.has(currentStageId)) return previous;
+      const next = new Set(previous);
+      next.add(currentStageId);
+      return next;
+    });
+  }, [currentStageId]);
+
+  const toggleStage = (stageId: string) => {
+    setOpenStages((previous) => {
+      const next = new Set(previous);
+      if (next.has(stageId)) next.delete(stageId);
+      else next.add(stageId);
+      return next;
+    });
+  };
+
   return (
-    <div className="overflow-x-auto pb-3">
-      <div
-        className="grid min-w-max items-start gap-5"
-        style={{
-          gridTemplateColumns: `repeat(${orderedStages.length}, minmax(240px, 280px))`,
-        }}
-      >
-        {orderedStages.map((stage) => {
-          const stageMatches = matches
-            .filter((match) => match.stage_id === stage.id)
-            .sort((a, b) => a.match_number - b.match_number);
+    <div className="space-y-5">
+      {stagesWithMatches.map(({ stage, stageMatches }) => {
+        const isCurrentStage = stage.id === currentStageId;
+        const hasLiveMatches = stageMatches.some((match) => match.live_score);
+        const isOpen = openStages.has(stage.id);
 
-          return (
-            <section
-              key={stage.id}
-              className="min-w-[240px]"
+        // In a 48-team knockout, seeds 1-16 bypass the Preliminary Round.
+        // Show those teams in the Round of 32 immediately, even before the
+        // Preliminary winners have been decided and the actual fixtures exist.
+        const isRoundOf32 = stage.knockout_team_count === 32;
+        const alreadyQualified = isRoundOf32
+          ? knockoutSeeds.filter((entry) => entry.seedNumber <= 16)
+          : [];
+        const showQualifiedPlaceholders =
+          isRoundOf32 && stageMatches.length === 0 && alreadyQualified.length > 0;
+
+        return (
+          <section
+            key={stage.id}
+            className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
+              isCurrentStage
+                ? "border-purple-300 ring-1 ring-purple-100"
+                : "border-slate-200"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => toggleStage(stage.id)}
+              aria-expanded={isOpen}
+              className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-950 px-5 py-4 text-left text-white transition hover:bg-slate-900"
             >
-              <div className="mb-3 border-b-2 border-slate-900 pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-slate-950">
-                      {stage.stage_name}
-                    </h3>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-black">
+                    {stage.stage_name}
+                  </h3>
 
-                    {stageMatches.some((match) => match.live_score) && (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-700">
-                        Live
-                      </span>
-                    )}
-                  </div>
+                  {isCurrentStage && !stage.is_complete && (
+                    <span className="rounded-full bg-purple-200 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-purple-950">
+                      Current Round
+                    </span>
+                  )}
+
+                  {hasLiveMatches && (
+                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-red-700">
+                      Live
+                    </span>
+                  )}
 
                   {stage.is_complete && (
-                    <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-800">
+                    <span className="rounded-full bg-teal-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-teal-800">
                       Complete
                     </span>
                   )}
                 </div>
 
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-1 text-xs font-semibold text-slate-400">
                   {stage.round_name ?? "Round not assigned"}
                 </p>
               </div>
 
-              {stageMatches.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500">
-                  Fixtures not yet available.
+              <div className="flex items-center gap-2">
+                <div className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-black text-slate-300">
+                  {stageMatches.length} {stageMatches.length === 1 ? "fixture" : "fixtures"}
                 </div>
-              ) : (
-                <div
-                  className="flex flex-col justify-around gap-4"
-                  style={{
-                    minHeight: `${Math.max(180, stageMatches.length * 112)}px`,
-                  }}
+                <span
+                  aria-hidden="true"
+                  className={`text-lg font-black text-slate-300 transition-transform ${
+                    isOpen ? "rotate-180" : ""
+                  }`}
                 >
-                  {stageMatches.map((match) => (
-                    <div
-                      key={match.id}
-                      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
-                    >
-                      <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                            Match {match.match_number}
-                          </span>
+                  ▾
+                </span>
+              </div>
+            </button>
 
+            {isOpen && (stageMatches.length === 0 ? (
+              <div className="p-4">
+                {showQualifiedPlaceholders ? (
+                  <>
+                    <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">
+                        Already qualified
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-emerald-950">
+                        These 16 teams earned a Preliminary Round bye. Their Round of 32 opponents will be added after the Preliminary Round is completed.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                      {alreadyQualified.map(({ participant, seedNumber }) => (
+                        <div
+                          key={participant.id}
+                          className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
+                            isMe(participant.id)
+                              ? "border-amber-300 ring-1 ring-amber-100"
+                              : "border-emerald-200"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between bg-emerald-50 px-3 py-2">
+                            <span className="text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                              Seed {seedNumber}
+                            </span>
+                            <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-emerald-900">
+                              Qualified
+                            </span>
+                          </div>
+
+                          <div className={`flex min-h-14 items-center justify-between gap-3 px-3 py-3 ${
+                            isMe(participant.id) ? "bg-amber-50" : ""
+                          }`}>
+                            <button
+                              type="button"
+                              onClick={() => void openPlayerProfile(participant.id)}
+                              className="min-w-0 truncate text-left text-sm font-black text-slate-950 transition hover:text-teal-700 hover:underline"
+                            >
+                              {participant.display_name}
+                              {isMe(participant.id) && (
+                                <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wide text-amber-700">
+                                  You
+                                </span>
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="border-t border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+                            Opponent TBC
+                          </div>
                         </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm font-semibold text-slate-500">
+                    Fixtures not yet available.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {stageMatches.map((match) => (
+                  <div
+                    key={match.id}
+                    className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
+                      isMe(match.participant_1_id) ||
+                      isMe(match.participant_2_id)
+                        ? "border-amber-300 ring-1 ring-amber-100"
+                        : "border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between bg-slate-50 px-3 py-2">
+                      <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                        Match {match.match_number}
+                      </span>
+
+                      <div className="flex items-center gap-2">
+                        {match.live_score && (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-red-700">
+                            Live
+                          </span>
+                        )}
 
                         {match.is_draw && (
-                          <span className="text-[10px] font-bold uppercase text-slate-500">
+                          <span className="text-[10px] font-black uppercase text-slate-500">
                             Draw
                           </span>
                         )}
                       </div>
-
-                      <BracketTeam
-                        participantId={match.participant_1_id}
-                        name={participantName(match.participant_1_id)}
-                        score={match.participant_1_score}
-                        winner={
-                          match.winner_participant_id ===
-                          match.participant_1_id
-                        }
-                        mine={isMe(match.participant_1_id)}
-                        onOpenProfile={openPlayerProfile}
-                      />
-
-                      <div className="border-t border-slate-100" />
-
-                      <BracketTeam
-                        participantId={match.participant_2_id}
-                        name={participantName(match.participant_2_id)}
-                        score={match.participant_2_score}
-                        winner={
-                          match.winner_participant_id ===
-                          match.participant_2_id
-                        }
-                        mine={isMe(match.participant_2_id)}
-                        onOpenProfile={openPlayerProfile}
-                      />
-
-                      {stage.round_id &&
-                        participantUserId(match.participant_1_id) &&
-                        participantUserId(match.participant_2_id) && (
-                          <div className="border-t border-slate-100 p-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void openFixtureCompare(
-                                  stage.round_id!,
-                                  match.participant_1_id,
-                                  match.participant_2_id
-                                )
-                              }
-                              className="block w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-xs font-black uppercase tracking-wide text-white transition hover:bg-teal-700"
-                            >
-                              Compare Teams
-                            </button>
-                          </div>
-                        )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
+
+                    <BracketTeam
+                      participantId={match.participant_1_id}
+                      name={participantName(match.participant_1_id)}
+                      score={match.participant_1_score}
+                      winner={
+                        match.winner_participant_id ===
+                        match.participant_1_id
+                      }
+                      mine={isMe(match.participant_1_id)}
+                      onOpenProfile={openPlayerProfile}
+                    />
+
+                    <div className="border-t border-slate-100" />
+
+                    <BracketTeam
+                      participantId={match.participant_2_id}
+                      name={participantName(match.participant_2_id)}
+                      score={match.participant_2_score}
+                      winner={
+                        match.winner_participant_id ===
+                        match.participant_2_id
+                      }
+                      mine={isMe(match.participant_2_id)}
+                      onOpenProfile={openPlayerProfile}
+                    />
+
+                    {stage.round_id &&
+                      participantUserId(match.participant_1_id) &&
+                      participantUserId(match.participant_2_id) && (
+                        <div className="border-t border-slate-100 p-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void openFixtureCompare(
+                                stage.round_id!,
+                                match.participant_1_id,
+                                match.participant_2_id
+                              )
+                            }
+                            className="block w-full rounded-lg bg-slate-900 px-3 py-2 text-center text-[11px] font-black uppercase tracking-wide text-white transition hover:bg-teal-700"
+                          >
+                            Compare Teams
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
