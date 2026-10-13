@@ -58,6 +58,7 @@ type EntryForm = {
   saddlecloth_number: number | "";
   price_at_entry: number;
   entry_status: EntryStatus;
+  is_emergency: boolean;
 };
 
 type ProjectionGrade =
@@ -94,6 +95,7 @@ const emptyEntry: EntryForm = {
   saddlecloth_number: "",
   price_at_entry: 30000,
   entry_status: "runner",
+  is_emergency: false,
 };
 
 const emptyProjectionFormRows: ProjectionFormRow[] = [
@@ -205,6 +207,7 @@ export default function RaceEntriesPage() {
           saddlecloth_number,
           price_at_entry,
           entry_status,
+          is_emergency,
           scratched_at,
           starting_odds,
           projected_points,
@@ -828,6 +831,7 @@ export default function RaceEntriesPage() {
       saddlecloth_number: entry.saddlecloth_number ?? "",
       price_at_entry: entry.price_at_entry,
       entry_status: entry.entry_status,
+      is_emergency: (entry as RaceEntry & { is_emergency?: boolean }).is_emergency ?? false,
     });
 
     setShowModal(true);
@@ -1057,6 +1061,7 @@ export default function RaceEntriesPage() {
 
       price_at_entry: form.price_at_entry,
       entry_status: form.entry_status,
+      is_emergency: form.is_emergency,
 
       scratched_at: isScratched
         ? new Date().toISOString()
@@ -1184,6 +1189,7 @@ export default function RaceEntriesPage() {
         saddlecloth_number: nextSaddleclothNumber,
         price_at_entry: horse.current_price,
         entry_status: "runner" as EntryStatus,
+        is_emergency: false,
         scratched_at: null,
       };
 
@@ -1285,7 +1291,10 @@ export default function RaceEntriesPage() {
   }
 
   function getHorseName(entry: RaceEntry) {
-    return entry.horse?.name ?? "Unknown horse";
+    const name = entry.horse?.name ?? "Unknown horse";
+    return (entry as RaceEntry & { is_emergency?: boolean }).is_emergency
+      ? `${name} (E)`
+      : name;
   }
 
   function getRacecourseName(
@@ -2667,6 +2676,20 @@ export default function RaceEntriesPage() {
               Automatically copied from the horse&apos;s current price.
             </p>
           </div>
+
+          <label className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
+            <input
+              type="checkbox"
+              checked={form.is_emergency}
+              onChange={(event) =>
+                setForm({ ...form, is_emergency: event.target.checked })
+              }
+              className="h-4 w-4 accent-teal-700"
+            />
+            <span className="text-sm font-medium text-slate-800">
+              Emergency runner (E)
+            </span>
+          </label>
 
           <div>
             <label className="mb-1 block font-medium">
