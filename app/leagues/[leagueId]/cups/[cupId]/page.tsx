@@ -1064,7 +1064,7 @@ export default function CupDetailPage() {
 
   const usesTop6Format =
     cupData.cup.group_count === 1 &&
-    cupData.cup.teams_per_group === 9 &&
+    cupData.cup.teams_per_group >= 9 &&
     cupData.cup.automatic_qualifiers_per_group === 6 &&
     cupData.cup.additional_qualifier_count === 0;
 
