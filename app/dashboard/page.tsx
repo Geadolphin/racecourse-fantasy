@@ -2407,7 +2407,10 @@ export default function Dashboard() {
                 }, new Map<string, HorseOfTheWeek[]>()).values()
               ).map((roundItems) => {
                 const item = roundItems[0];
-                const winners = roundItems.filter(
+                // The RPC returns the first named feature race winner.
+                // Render only one horse per round even if older RPC data
+                // contains multiple feature-race winners.
+                const winner = roundItems.find(
                   (horse) => Boolean(horse.horse_id && horse.horse_name)
                 );
                 const hasTeam = Boolean(item.top_team_user_id);
@@ -2421,44 +2424,39 @@ export default function Dashboard() {
                     key={item.round_id}
                     className="w-[210px] shrink-0 snap-start overflow-hidden rounded-xl border border-slate-200 bg-white sm:w-[148px]"
                   >
-                    {winners.length > 0 ? (
-                      <div className="divide-y divide-slate-200">
-                        {winners.map((winner) => (
-                          <Link
-                            key={`${winner.round_id}-${winner.race_name}-${winner.horse_id}`}
-                            href={`/horses/${winner.horse_id}`}
-                            className="block transition hover:bg-cyan-50/40"
-                          >
-                            <div className="flex h-28 items-center justify-center bg-slate-50 p-3 sm:h-24">
-                              {winner.silks_url ? (
-                                <img
-                                  src={winner.silks_url}
-                                  alt={`${winner.horse_name} silks`}
-                                  width={88}
-                                  height={88}
-                                  decoding="async"
-                                  className="h-[88px] w-[88px] object-contain"
-                                />
-                              ) : (
-                                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
-                                  ?
-                                </div>
-                              )}
+                    {winner ? (
+                      <Link
+                        href={`/horses/${winner.horse_id}`}
+                        className="block transition hover:bg-cyan-50/40"
+                      >
+                        <div className="flex h-28 items-center justify-center bg-slate-50 p-3 sm:h-24">
+                          {winner.silks_url ? (
+                            <img
+                              src={winner.silks_url}
+                              alt={`${winner.horse_name} silks`}
+                              width={88}
+                              height={88}
+                              decoding="async"
+                              className="h-[88px] w-[88px] object-contain"
+                            />
+                          ) : (
+                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
+                              ?
                             </div>
-                            <div className="border-t border-slate-100 px-2 py-2 text-center">
-                              <p className="truncate text-sm font-black text-slate-900 sm:text-xs" title={winner.horse_name ?? undefined}>
-                                {winner.horse_name}
-                              </p>
-                              <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-500 sm:text-[10px]" title={winner.race_name ?? undefined}>
-                                {winner.race_name ?? "Race"}
-                              </p>
-                              <p className="mt-1 text-[10px] font-black text-cyan-700">
-                                {winner.fantasy_points != null ? `${winner.fantasy_points} pts` : "—"}
-                              </p>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
+                          )}
+                        </div>
+                        <div className="border-t border-slate-100 px-2 py-2 text-center">
+                          <p className="truncate text-sm font-black text-slate-900 sm:text-xs" title={winner.horse_name ?? undefined}>
+                            {winner.horse_name}
+                          </p>
+                          <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-500 sm:text-[10px]" title={winner.race_name ?? undefined}>
+                            {winner.race_name ?? "Race"}
+                          </p>
+                          <p className="mt-1 text-[10px] font-black text-cyan-700">
+                            {winner.fantasy_points != null ? `${winner.fantasy_points} pts` : "—"}
+                          </p>
+                        </div>
+                      </Link>
                     ) : (
                       <div className="px-2 py-10 text-center text-xs font-semibold text-slate-400">
                         Feature race result pending
