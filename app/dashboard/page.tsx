@@ -2398,8 +2398,18 @@ export default function Dashboard() {
 
           <div className="overflow-x-auto px-4 py-4 [scrollbar-width:auto] [scrollbar-color:rgb(148_163_184)_rgb(241_245_249)] [scrollbar-gutter:stable] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-100 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400 hover:[&::-webkit-scrollbar-thumb]:bg-slate-500">
             <div className="flex w-max snap-x snap-mandatory gap-3 pb-3 pr-4">
-              {horsesOfTheWeek.map((item) => {
-                const hasHorse = Boolean(item.horse_id && item.horse_name);
+              {Array.from(
+                horsesOfTheWeek.reduce((groups, item) => {
+                  const existing = groups.get(item.round_id) ?? [];
+                  existing.push(item);
+                  groups.set(item.round_id, existing);
+                  return groups;
+                }, new Map<string, HorseOfTheWeek[]>()).values()
+              ).map((roundItems) => {
+                const item = roundItems[0];
+                const winners = roundItems.filter(
+                  (horse) => Boolean(horse.horse_id && horse.horse_name)
+                );
                 const hasTeam = Boolean(item.top_team_user_id);
                 const teamLabel =
                   item.top_team_name?.trim() ||
@@ -2411,84 +2421,61 @@ export default function Dashboard() {
                     key={item.round_id}
                     className="w-[210px] shrink-0 snap-start overflow-hidden rounded-xl border border-slate-200 bg-white sm:w-[148px]"
                   >
-                    {hasHorse ? (
-                      <Link
-                        href={`/horses/${item.horse_id}`}
-                        className="block transition hover:bg-cyan-50/40"
-                      >
-                        <div className="flex h-28 items-center justify-center bg-slate-50 p-3 sm:h-24">
-                          {item.silks_url ? (
-                            <img
-                              src={item.silks_url}
-                              alt={`${item.horse_name} silks`}
-                              width={88}
-                              height={88}
-                              decoding="async"
-                              className="h-[88px] w-[88px] object-contain [image-rendering:auto]"
-                            />
-                          ) : (
-                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
-                              ?
+                    {winners.length > 0 ? (
+                      <div className="divide-y divide-slate-200">
+                        {winners.map((winner) => (
+                          <Link
+                            key={`${winner.round_id}-${winner.race_name}-${winner.horse_id}`}
+                            href={`/horses/${winner.horse_id}`}
+                            className="block transition hover:bg-cyan-50/40"
+                          >
+                            <div className="flex h-28 items-center justify-center bg-slate-50 p-3 sm:h-24">
+                              {winner.silks_url ? (
+                                <img
+                                  src={winner.silks_url}
+                                  alt={`${winner.horse_name} silks`}
+                                  width={88}
+                                  height={88}
+                                  decoding="async"
+                                  className="h-[88px] w-[88px] object-contain"
+                                />
+                              ) : (
+                                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
+                                  ?
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-
-                        <div className="border-t border-slate-100 px-2 py-2 text-center">
-                          <p
-                            className="truncate text-sm font-black text-slate-900 sm:text-xs"
-                            title={item.horse_name ?? undefined}
-                          >
-                            {item.horse_name}
-                          </p>
-                          <p
-                            className="mt-0.5 truncate text-[11px] font-semibold text-slate-500 sm:text-[10px]"
-                            title={item.race_name ?? undefined}
-                          >
-                            {item.race_name ?? "Race"}
-                          </p>
-                          <p className="mt-1 text-[10px] font-black text-cyan-700">
-                            {item.fantasy_points != null
-                              ? `${item.fantasy_points} pts`
-                              : "—"}
-                          </p>
-                        </div>
-                      </Link>
+                            <div className="border-t border-slate-100 px-2 py-2 text-center">
+                              <p className="truncate text-sm font-black text-slate-900 sm:text-xs" title={winner.horse_name ?? undefined}>
+                                {winner.horse_name}
+                              </p>
+                              <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-500 sm:text-[10px]" title={winner.race_name ?? undefined}>
+                                {winner.race_name ?? "Race"}
+                              </p>
+                              <p className="mt-1 text-[10px] font-black text-cyan-700">
+                                {winner.fantasy_points != null ? `${winner.fantasy_points} pts` : "—"}
+                              </p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
                     ) : (
-                      <>
-                        <div className="flex h-28 items-center justify-center bg-slate-50 p-3 sm:h-24">
-                          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-2xl font-black text-slate-400">
-                            ?
-                          </div>
-                        </div>
-                        <div className="border-t border-slate-100 px-2 py-2 text-center">
-                          <p className="text-sm font-black text-slate-400 sm:text-xs">
-                            —
-                          </p>
-                          <p className="mt-0.5 text-[11px] font-semibold text-slate-400 sm:text-[10px]">
-                            Horse of the Round
-                          </p>
-                          <p className="mt-1 text-[10px] font-black text-slate-400">
-                            —
-                          </p>
-                        </div>
-                      </>
+                      <div className="px-2 py-10 text-center text-xs font-semibold text-slate-400">
+                        Feature race result pending
+                      </div>
                     )}
 
                     <div className="border-t border-slate-200 bg-cyan-50/60 px-3 py-2.5 sm:bg-white sm:px-2 sm:py-2">
                       <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-700 sm:text-slate-400">
                         Team of the Round
                       </p>
-
                       {hasTeam ? (
                         <button
                           type="button"
                           onClick={() => void openTeamOfRound(item)}
                           className="mt-1.5 block w-full rounded-lg border border-cyan-200 bg-white px-2.5 py-2 text-left shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50 sm:mt-1 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:shadow-none"
                         >
-                          <p
-                            className="truncate text-sm font-black text-slate-950 sm:text-xs sm:text-slate-900"
-                            title={teamLabel}
-                          >
+                          <p className="truncate text-sm font-black text-slate-950 sm:text-xs sm:text-slate-900" title={teamLabel}>
                             {teamLabel}
                           </p>
                           <p className="mt-0.5 text-[11px] font-black text-cyan-700 sm:text-[10px] sm:font-bold">
@@ -2499,17 +2486,9 @@ export default function Dashboard() {
                           </p>
                         </button>
                       ) : (
-                        <>
-                          <p className="mt-1 truncate text-xs font-black text-slate-400">
-                            —
-                          </p>
-                          <p className="mt-0.5 text-[10px] font-bold text-slate-400">
-                            —
-                          </p>
-                        </>
+                        <div className="mt-1 text-xs font-black text-slate-400">—</div>
                       )}
                     </div>
-
                     <div className="bg-gradient-to-r from-cyan-500 to-sky-400 px-2 py-1.5 text-[10px] font-black text-slate-950">
                       Round {item.round_number}
                     </div>
