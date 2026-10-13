@@ -77,6 +77,7 @@ type RaceEntry = {
   saddlecloth_number: number | null;
   price_at_entry: number;
   entry_status: EntryStatus;
+  is_emergency: boolean;
   scratched_at: string | null;
   projected_points: number | null;
 
@@ -552,6 +553,7 @@ export default function EditTeamPage() {
           saddlecloth_number,
           price_at_entry,
           entry_status,
+          is_emergency,
           scratched_at,
           projected_points,
           created_at,
@@ -1992,7 +1994,7 @@ export default function EditTeamPage() {
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="truncate font-bold text-slate-900">{entry.horse?.name ?? "Unknown horse"}</p>
+                          <p className="truncate font-bold text-slate-900">{entry.horse?.name ?? "Unknown horse"}{entry.is_emergency ? " (E)" : ""}</p>
                           {isCaptain && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">C</span>}
                           {isHorseScratched && (
                             <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
@@ -2293,7 +2295,7 @@ export default function EditTeamPage() {
                                       className="min-w-0 whitespace-normal break-words text-left text-base font-semibold text-slate-950 underline-offset-2 hover:text-sky-700 hover:underline focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
                                       aria-label={`View statistics for ${entry.horse.name}`}
                                     >
-                                      {entry.horse.name}
+                                      {entry.horse.name}{entry.is_emergency ? " (E)" : ""}
                                     </button>
                                   ) : (
                                     <span className="truncate text-sm font-semibold text-slate-950">
@@ -2436,7 +2438,7 @@ export default function EditTeamPage() {
                       Captain
                     </p>
                     <p className="mt-1 truncate text-sm font-bold text-slate-800">
-                      {entries.find((entry) => entry.id === captainEntryId)?.horse?.name ?? "Not selected"}
+                      {(() => { const captain = entries.find((entry) => entry.id === captainEntryId); return captain?.horse?.name ? `${captain.horse.name}${captain.is_emergency ? " (E)" : ""}` : "Not selected"; })()}
                     </p>
                   </div>
                 </div>
@@ -2499,7 +2501,7 @@ export default function EditTeamPage() {
                                   className="truncate text-left text-lg font-semibold leading-tight text-slate-950 underline-offset-2 hover:text-sky-700 hover:underline focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
                                   aria-label={`View statistics for ${entry.horse.name}`}
                                 >
-                                  {entry.horse.name}
+                                  {entry.horse.name}{entry.is_emergency ? " (E)" : ""}
                                 </button>
                               ) : (
                                 <p className="truncate text-lg font-semibold leading-tight text-slate-950">
