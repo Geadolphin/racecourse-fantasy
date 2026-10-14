@@ -839,52 +839,112 @@ export default function MyTeamPage() {
     team?.status !== "locked" &&
     team?.status !== "scored";
   const handleShareTeam = useCallback(async () => {
-    if (!shareCardRef.current || !team || !round) return;
+    const card = shareCardRef.current;
+    if (!card || !team || !round || shareBusy) return;
+
     setShareBusy(true);
     setShareError("");
+
+    const imageOptions = {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: "#f8fafc",
+    };
+
+    const downloadPng = (blob: Blob, fileName: string) => {
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+    };
+
     try {
-      const blob = await toBlob(shareCardRef.current, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: "#f8fafc",
-      });
-      if (!blob) {
-        throw new Error("The team image could not be created.");
+      let blob: Blob | null = null;
+      let usedImageFallback = false;
+
+      try {
+        // First try to capture the complete card, including horse silks.
+        blob = await toBlob(card, imageOptions);
+      } catch (imageError) {
+        console.warn(
+          "Share team: full image capture failed; retrying without external images.",
+          imageError
+        );
       }
+
+      if (!blob) {
+        // An external silks image may fail CORS or fail to load. Excluding
+        // img elements allows the rest of the team sheet to be captured.
+        usedImageFallback = true;
+        blob = await toBlob(card, {
+          ...imageOptions,
+          filter: (node: HTMLElement) =>
+            !(node instanceof HTMLImageElement),
+        });
+      }
+
+      if (!blob) {
+        throw new Error("The team image could not be created, even without silks.");
+      }
+
       const fileName = `racecourse-fantasy-round-${round.round_number}-team.png`;
       const file = new File([blob], fileName, { type: "image/png" });
-      if (
-        typeof navigator !== "undefined" &&
-        typeof navigator.share === "function" &&
-        (!navigator.canShare || navigator.canShare({ files: [file] }))
-      ) {
-        await navigator.share({
-          title: `${team.team_name?.trim() || "My Team"} — Racecourse Fantasy`,
-          text: `My Racecourse Fantasy team for Round ${round.round_number}`,
-          files: [file],
-        });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = fileName;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      // The native file-share API is not consistently available on desktop.
+      // Even when present, it may fail after asynchronous image generation.
+      let shared = false;
+      if (typeof navigator.share === "function") {
+        let canShareFiles = false;
+        try {
+          canShareFiles =
+            typeof navigator.canShare === "function" &&
+            navigator.canShare({ files: [file] });
+        } catch (shareSupportError) {
+          console.warn("Share team: file sharing check failed", shareSupportError);
+        }
+
+        if (canShareFiles) {
+          try {
+            await navigator.share({
+              title: `${team.team_name?.trim() || "My Team"} — Racecourse Fantasy`,
+              text: `My Racecourse Fantasy team for Round ${round.round_number}`,
+              files: [file],
+            });
+            shared = true;
+          } catch (shareError) {
+            if (
+              shareError instanceof DOMException &&
+              shareError.name === "AbortError"
+            ) {
+              return; // User closed the native share sheet.
+            }
+            console.warn("Share team: native share failed; downloading instead", shareError);
+          }
+        }
+      }
+
+      if (!shared) {
+        downloadPng(blob, fileName);
+      }
+
+      if (usedImageFallback) {
+        console.info("Share team: image generated without horse silks.");
       }
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return;
-      }
       console.error("Share team error:", error);
       setShareError(
-        error instanceof Error ? error.message : "The team image could not be shared."
+        error instanceof Error
+          ? error.message
+          : "The team image could not be created. Check the browser console for details."
       );
     } finally {
       setShareBusy(false);
     }
-  }, [round, team]);
+  }, [round, team, shareBusy]);
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-100 p-6">
