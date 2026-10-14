@@ -2422,7 +2422,7 @@ export default function Dashboard() {
                 return (
                   <div
                     key={item.round_id}
-                    className="w-[210px] shrink-0 snap-start overflow-hidden rounded-xl border border-slate-200 bg-white sm:w-[148px]"
+                    className="flex w-[210px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-slate-200 bg-white sm:w-[148px]"
                   >
                     {winner ? (
                       <Link
@@ -2458,12 +2458,12 @@ export default function Dashboard() {
                         </div>
                       </Link>
                     ) : (
-                      <div className="px-2 py-10 text-center text-xs font-semibold text-slate-400">
+                      <div className="flex h-[186px] items-center justify-center px-2 py-4 text-center text-xs font-semibold text-slate-400 sm:h-[170px]">
                         Feature race result pending
                       </div>
                     )}
 
-                    <div className="border-t border-slate-200 bg-cyan-50/60 px-3 py-2.5 sm:bg-white sm:px-2 sm:py-2">
+                    <div className="flex min-h-[110px] flex-1 flex-col border-t border-slate-200 bg-cyan-50/60 px-3 py-2.5 sm:min-h-[84px] sm:bg-white sm:px-2 sm:py-2">
                       <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-700 sm:text-slate-400">
                         Team of the Round
                       </p>
@@ -2487,7 +2487,7 @@ export default function Dashboard() {
                         <div className="mt-1 text-xs font-black text-slate-400">—</div>
                       )}
                     </div>
-                    <div className="bg-gradient-to-r from-cyan-500 to-sky-400 px-2 py-1.5 text-[10px] font-black text-slate-950">
+                    <div className="mt-auto bg-gradient-to-r from-cyan-500 to-sky-400 px-2 py-1.5 text-[10px] font-black text-slate-950">
                       Round {item.round_number}
                     </div>
                   </div>
