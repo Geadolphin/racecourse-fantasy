@@ -398,6 +398,9 @@ export default function Dashboard() {
   const [autofilledHorseCount, setAutofilledHorseCount] =
     useState(0);
 
+  const [specialOverallRank, setSpecialOverallRank] =
+    useState<number | null>(null);
+
   const [previousOverallRank, setPreviousOverallRank] =
     useState<number | null>(null);
 
@@ -528,6 +531,7 @@ export default function Dashboard() {
         setSelectedHorseCount(0);
         setAutofilledHorseCount(0);
         setPreviousOverallRank(null);
+        setSpecialOverallRank(null);
         setUpcomingRace(null);
         setMiniLeaderboard([]);
         setHorsesOfTheWeek([]);
@@ -633,6 +637,7 @@ export default function Dashboard() {
         setSelectedHorseCount(0);
         setAutofilledHorseCount(0);
         setPreviousOverallRank(null);
+        setSpecialOverallRank(null);
         setUpcomingRace(null);
         setMiniLeaderboard([]);
         setHorsesOfTheWeek([]);
@@ -666,6 +671,7 @@ export default function Dashboard() {
         setSelectedHorseCount(0);
         setAutofilledHorseCount(0);
         setPreviousOverallRank(null);
+        setSpecialOverallRank(null);
         setUpcomingRace(null);
         setMiniLeaderboard([]);
         setHorsesOfTheWeek([]);
@@ -706,6 +712,7 @@ export default function Dashboard() {
       setSeasonScore(
         dashboardData.season_score
       );
+      setSpecialOverallRank(null);
       setUpcomingRace(
         dashboardData.upcoming_race
       );
@@ -1129,21 +1136,30 @@ export default function Dashboard() {
         const extras =
           extrasRaw as DashboardExtras | null;
 
-        // Special Racedays has no autofill. Only users who actually
-        // submitted a team should count towards the overall total.
-        // Other seasons retain the existing backend calculation.
+        // Special Racedays: use the same eligible participants for rank and total.
         let seasonRankedCount = extras?.season_ranked_count ?? 0;
         if (/special\s*racedays/i.test(resolvedDashboardData.season!.name)) {
-          const { data: submittedCount, error: submittedCountError } =
-            await supabase.rpc("get_special_racedays_participant_count", {
+          const { data: specialRankRaw, error: specialRankError } =
+            await supabase.rpc("get_special_racedays_rank", {
               p_season_id: resolvedDashboardData.season!.id,
             });
 
           if (!active) return;
-          if (submittedCountError) {
-            console.error("Special Racedays participant count error:", submittedCountError);
-          } else if (submittedCount != null) {
-            seasonRankedCount = Number(submittedCount);
+          if (specialRankError) {
+            console.error("Special Racedays rank error:", specialRankError);
+            setSpecialOverallRank(null);
+            seasonRankedCount = 0;
+          } else {
+            const specialRank = specialRankRaw as {
+              overall_rank?: number | null;
+              participant_count?: number | null;
+            } | null;
+            setSpecialOverallRank(
+              specialRank?.overall_rank == null
+                ? null
+                : Number(specialRank.overall_rank)
+            );
+            seasonRankedCount = Number(specialRank?.participant_count ?? 0);
           }
         }
 
@@ -1739,12 +1755,16 @@ export default function Dashboard() {
       "points",
     ]);
 
+  const isSpecialRacedays = /special\s*racedays/i.test(season?.name ?? "");
+
   const currentOverallRank =
-    getNumber(seasonScore, [
-      "overall_rank",
-      "season_rank",
-      "rank",
-    ]);
+    isSpecialRacedays
+      ? (specialOverallRank ?? 0)
+      : getNumber(seasonScore, [
+          "overall_rank",
+          "season_rank",
+          "rank",
+        ]);
 
   const overallRankMovement =
     previousOverallRank &&
@@ -1753,6 +1773,7 @@ export default function Dashboard() {
       : 0;
 
   const overallRankMovementLabel =
+    isSpecialRacedays ||
     previousOverallRank === null ||
     currentOverallRank <= 0
       ? null
