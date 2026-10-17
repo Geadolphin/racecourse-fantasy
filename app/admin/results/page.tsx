@@ -130,6 +130,9 @@ export default function ResultsPage() {
   const [importLogs, setImportLogs] = useState<ImportLog[]>([]);
   const [savingMeeting, setSavingMeeting] = useState("");
   const [checkingRace, setCheckingRace] = useState("");
+  const [visibleRoundId, setVisibleRoundId] = useState("latest");
+  const [showMeetingSettings, setShowMeetingSettings] = useState(false);
+  const [raceFilter, setRaceFilter] = useState<"all" | "pending" | "official">("all");
   const [rounds, setRounds] = useState<RoundOption[]>([]);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState("");
@@ -221,7 +224,7 @@ export default function ResultsPage() {
     if (error || data?.error) setErrorMessage(data?.error ?? error?.message ?? "Check failed");
     else setSuccessMessage(data?.message ?? "Checked results.");
     await loadImporterData();
-    await loadPageData();
+    // Do not refresh the entire page here: that would clear an importer error message.
   }
 
   async function loadPageData() {
@@ -587,10 +590,6 @@ export default function ResultsPage() {
 
   function getRacecourseName(race: RaceOption) {
     return race.racecourse?.name ?? "Racecourse";
-  }
-
-  function getRaceLabel(race: RaceOption) {
-    return `${getRacecourseName(race)} R${race.race_number} — ${race.race_name}`;
   }
 
   function getRoundLabel(round: RoundOption) {
@@ -1264,7 +1263,7 @@ export default function ResultsPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[1300px] divide-y divide-slate-200">
+          <table className="min-w-[1150px] divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
                 {[
@@ -1282,7 +1281,7 @@ export default function ResultsPage() {
                 ].map((heading) => (
                   <th
                     key={heading}
-                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
+                    className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
                   >
                     {heading}
                   </th>
@@ -1320,11 +1319,11 @@ export default function ResultsPage() {
                         : "hover:bg-slate-50"
                     }
                   >
-                    <td className="px-4 py-4 font-bold text-slate-900">
+                    <td className="px-3 py-2 font-bold text-slate-900">
                       {entry.saddlecloth_number ?? "—"}
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-2">
                       <p className="font-semibold text-slate-900">
                         {getHorseName(entry)}
                       </p>
@@ -1338,7 +1337,7 @@ export default function ResultsPage() {
                       </p>
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-2">
                       <span
                         className={
                           entry.entry_status === "runner"
@@ -1352,11 +1351,11 @@ export default function ResultsPage() {
                       </span>
                     </td>
 
-                    <td className="px-4 py-4 text-sm font-medium text-slate-700">
+                    <td className="px-3 py-2 text-sm font-medium text-slate-700">
                       {formatMoney(entry.price_at_entry)}
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-2">
                       <select
                         value={resultRow.result_status}
                         disabled={rowDisabled}
@@ -1380,7 +1379,7 @@ export default function ResultsPage() {
                       </select>
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-2">
                       <input
                         type="number"
                         min={1}
@@ -1406,7 +1405,7 @@ export default function ResultsPage() {
                       />
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-2">
                       <label className="inline-flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -1429,7 +1428,7 @@ export default function ResultsPage() {
                       </label>
                     </td>
 
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-2">
                       {calculatedResult ? (
                         <span className="inline-flex min-w-12 justify-center rounded-full bg-blue-100 px-3 py-1 text-sm font-bold text-blue-800">
                           {
@@ -1443,7 +1442,7 @@ export default function ResultsPage() {
                       )}
                     </td>
 
-                    <td className="px-4 py-4 text-sm font-medium text-slate-700">
+                    <td className="px-3 py-2 text-sm font-medium text-slate-700">
                       {calculatedResult
                         ? runnerCount < 8
                           ? "No change (< 8 starters)"
@@ -1453,7 +1452,7 @@ export default function ResultsPage() {
                         : "—"}
                     </td>
 
-                    <td className="px-4 py-4 font-semibold">
+                    <td className="px-3 py-2 font-semibold">
                       {calculatedResult ? (
                         <span
                           className={
@@ -1478,7 +1477,7 @@ export default function ResultsPage() {
                       )}
                     </td>
 
-                    <td className="px-4 py-4 font-bold text-slate-900">
+                    <td className="px-3 py-2 font-bold text-slate-900">
                       {calculatedResult
                         ? formatMoney(
                             calculatedResult.price_after
@@ -1594,286 +1593,156 @@ export default function ResultsPage() {
     );
   }
 
+  const visibleRounds = visibleRoundId === "all"
+    ? sortedRounds
+    : [sortedRounds.find((round) => round.id === visibleRoundId) ?? sortedRounds[0]].filter(Boolean);
+
+  const visibleRaces = visibleRounds.flatMap((round) => racesByRoundId.get(round.id) ?? []);
+  const officialTotal = visibleRaces.filter((race) => race.status === "official").length;
+  const pendingTotal = visibleRaces.filter((race) => race.status !== "official" && race.status !== "cancelled" && race.status !== "abandoned").length;
+
   return (
-    <main className="p-8">
+    <main className="mx-auto max-w-7xl space-y-4 px-3 py-5 sm:px-6">
       <PageHeader
         eyebrow="Race management"
         title="Race Results"
-        description="Enter and finalise race results by round."
+        description="Check imports, enter results and finalise races."
       />
 
-      {seasons.length > 0 && (
-        <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <label
-                htmlFor="season-filter"
-                className="block text-sm font-semibold text-slate-700"
-              >
-                Season
-              </label>
-              <p className="mt-1 text-sm text-slate-500">
-                Choose which season&apos;s race results you want to manage.
-              </p>
-            </div>
-
-            <select
-              id="season-filter"
-              value={selectedSeasonId}
-              onChange={(event) => {
-                setSelectedSeasonId(event.target.value);
-                setSelectedRaceId("");
-                setEntries([]);
-                setResultRows([]);
-                setCalculatedResults([]);
-                setResultsSaved(false);
-                setErrorMessage("");
-                setSuccessMessage("");
-                setExpandedRoundIds(new Set());
-                setExpandedRaceIds(new Set());
-              }}
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100 sm:w-80"
-            >
-              {seasons.map((season) => (
-                <option key={season.id} value={season.id}>
-                  {season.name} {season.year}
-                  {season.is_active ? " — Active" : ""}
-                </option>
-              ))}
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Season
+            <select value={selectedSeasonId} onChange={(event) => {
+              setSelectedSeasonId(event.target.value);
+              setVisibleRoundId("latest");
+              setSelectedRaceId("");
+              setEntries([]);
+              setResultRows([]);
+              setCalculatedResults([]);
+              setExpandedRoundIds(new Set());
+              setExpandedRaceIds(new Set());
+            }} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm font-medium text-slate-900">
+              {seasons.map((season) => <option key={season.id} value={season.id}>{season.name} {season.year}{season.is_active ? " (Active)" : ""}</option>)}
             </select>
-          </div>
-        </section>
-      )}
-
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-500">
-          {filteredRounds.length}{" "}
-          {filteredRounds.length === 1 ? "round" : "rounds"} ·{" "}
-          {filteredRaces.length}{" "}
-          {filteredRaces.length === 1 ? "race" : "races"}
-        </p>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={expandAll}
-            className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Expand All
-          </button>
-
-          <button
-            type="button"
-            onClick={collapseAll}
-            className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Collapse All
-          </button>
+          </label>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Round
+            <select value={visibleRoundId} onChange={(event) => {
+              setVisibleRoundId(event.target.value);
+              setSelectedRaceId("");
+              setShowMeetingSettings(false);
+            }} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm font-medium text-slate-900">
+              <option value="latest">Latest round</option>
+              {sortedRounds.map((round) => <option key={round.id} value={round.id}>{getRoundLabel(round)}</option>)}
+              <option value="all">All rounds</option>
+            </select>
+          </label>
+          <button type="button" onClick={() => { void loadPageData(); void loadImporterData(); }}
+            className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Refresh</button>
         </div>
+      </section>
+
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="rounded-xl border bg-white p-3"><p className="text-xs text-slate-500">Races</p><p className="text-2xl font-bold text-slate-900">{visibleRaces.length}</p></div>
+        <div className="rounded-xl border bg-white p-3"><p className="text-xs text-slate-500">Pending</p><p className="text-2xl font-bold text-amber-700">{pendingTotal}</p></div>
+        <div className="rounded-xl border bg-white p-3"><p className="text-xs text-slate-500">Official</p><p className="text-2xl font-bold text-green-800">{officialTotal}</p></div>
       </div>
 
-      {errorMessage && (
-        <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-sm font-medium text-red-800">
-          {errorMessage}
-        </div>
-      )}
+      {errorMessage && <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{errorMessage}</div>}
+      {successMessage && <div role="status" className="rounded-lg border border-green-300 bg-green-50 p-3 text-sm text-green-800">{successMessage}</div>}
 
-      {successMessage && (
-        <div className="mb-6 rounded-lg border border-green-300 bg-green-50 p-4 text-sm font-medium text-green-800">
-          {successMessage}
-        </div>
-      )}
-
-      {loadingPage ? (
-        <div className="rounded-lg border bg-white p-8 text-center text-slate-500">
-          Loading race results...
-        </div>
-      ) : sortedRounds.length === 0 ? (
-        <div className="rounded-lg border bg-white p-8 text-center text-slate-500">
-          No rounds have been created for this season.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {sortedRounds.map((round) => {
-            const roundRaces =
-              racesByRoundId.get(round.id) ?? [];
-
-            const expanded =
-              expandedRoundIds.has(round.id);
-
-            const officialCount =
-              roundRaces.filter(
-                (race) => race.status === "official"
-              ).length;
-
-            return (
-              <section
-                key={round.id}
-                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
-              >
-                <div className="border-b border-slate-200 bg-slate-50 p-5">
-                  <h3 className="mb-3 text-sm font-bold">Automatic results URLs</h3>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {(["melbourne", "sydney"] as const).map(region => {
-                      const config = meetingConfigs.find(c => c.round_id === round.id && c.region === region);
-                      const key = `${round.id}:${region}`;
-                      return (
-                        <div key={region} className="rounded-lg border bg-white p-3">
-                          <label className="text-sm font-semibold capitalize">{region} results URL</label>
-                          <input type="url" className="mt-2 w-full rounded border p-2 text-sm"
-                            placeholder="https://www.racingaustralia.horse/FreeFields/Results.aspx?Key=..."
-                            value={config?.results_url ?? ""}
-                            onChange={e => editMeetingUrl(round.id, region, e.target.value)} />
-                          <button type="button" onClick={() => void saveMeetingUrl(round.id, region)}
-                            disabled={savingMeeting === key}
-                            className="mt-2 rounded bg-green-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
-                            {savingMeeting === key ? "Saving..." : "Save URL"}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">First check 20 minutes after scheduled start; retry every 5 minutes.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => toggleRound(round.id)}
-                  className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left transition hover:bg-slate-50"
-                  aria-expanded={expanded}
-                >
-                  <div className="min-w-0">
-                    <h2 className="text-lg font-bold text-slate-900">
-                      {expanded ? "▼" : "▶"}{" "}
-                      {getRoundLabel(round)}
-                    </h2>
-
-                    {round.round_date && (
-                      <p className="mt-1 text-sm text-slate-500">
-                        {formatRoundDate(round)}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="shrink-0 text-right">
-                    <p className="font-bold text-slate-900">
-                      {roundRaces.length}{" "}
-                      {roundRaces.length === 1
-                        ? "race"
-                        : "races"}
-                    </p>
-
-                    <p className="mt-1 text-xs text-slate-500">
-                      {officialCount} official
-                    </p>
-                  </div>
+      {loadingPage ? <div className="rounded-xl border bg-white p-8 text-center text-slate-500">Loading race results...</div>
+        : visibleRounds.length === 0 ? <div className="rounded-xl border bg-white p-8 text-center text-slate-500">No rounds found.</div>
+        : <div className="space-y-4">
+          {visibleRounds.map((round) => {
+            const roundRaces = racesByRoundId.get(round.id) ?? [];
+            const shownRaces = roundRaces.filter((race) => raceFilter === "all" || (raceFilter === "official" ? race.status === "official" : race.status !== "official" && race.status !== "cancelled" && race.status !== "abandoned"));
+            const expanded = expandedRoundIds.has(round.id);
+            const isLatestView = visibleRoundId !== "all";
+            const showRaces = isLatestView || expanded;
+            return <section key={round.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
+                <button type="button" onClick={() => toggleRound(round.id)} className="min-w-0 text-left">
+                  <h2 className="font-bold text-slate-900">{getRoundLabel(round)} <span className="text-slate-400">{showRaces ? "▾" : "▸"}</span></h2>
+                  <p className="text-xs text-slate-500">{formatRoundDate(round)} · {roundRaces.length} races · {roundRaces.filter((race) => race.status === "official").length} official</p>
                 </button>
+                <button type="button" onClick={() => setShowMeetingSettings((current) => !current)}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  {showMeetingSettings ? "Hide results URLs" : "Manage results URLs"}
+                </button>
+              </div>
 
-                {expanded && (
-                  <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4 md:p-5">
-                    {roundRaces.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
-                        No races have been added to this round.
-                      </div>
-                    ) : (
-                      roundRaces.map((race) => {
-                        const raceExpanded =
-                          expandedRaceIds.has(race.id);
+              {showMeetingSettings && <div className="grid gap-3 border-b bg-slate-50 p-4 md:grid-cols-2">
+                {(["melbourne", "sydney"] as const).map((region) => {
+                  const config = meetingConfigs.find((c) => c.round_id === round.id && c.region === region);
+                  const key = `${round.id}:${region}`;
+                  return <label key={region} className="block text-xs font-semibold capitalize text-slate-700">
+                    {region} results URL
+                    <input type="url" value={config?.results_url ?? ""} onChange={(event) => editMeetingUrl(round.id, region, event.target.value)}
+                      placeholder="https://www.racingaustralia.horse/FreeFields/Results.aspx?Key=..."
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm font-normal" />
+                    <button type="button" onClick={() => void saveMeetingUrl(round.id, region)} disabled={savingMeeting === key}
+                      className="mt-2 rounded-lg bg-green-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                      {savingMeeting === key ? "Saving..." : "Save URL"}
+                    </button>
+                  </label>;
+                })}
+                <p className="text-xs text-slate-500 md:col-span-2">Manual checks are available below. Automatic scheduling is not enabled by this page.</p>
+              </div>}
 
-                        const entryCount =
-                          raceEntryCounts[race.id] ?? 0;
-
-                        return (
-                          <article
-                            key={race.id}
-                            className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-                          >
-                            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  toggleRace(race.id)
-                                }
-                                className="min-w-0 flex-1 text-left"
-                                aria-expanded={raceExpanded}
-                              >
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className="font-bold text-slate-900">
-                                    {raceExpanded ? "▼" : "▶"}{" "}
-                                    {getRaceLabel(race)}
-                                  </h3>
-
-                                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                                    {getGradeLabel(race.grade)}
-                                  </span>
-
-                                  <span
-                                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getRaceStatusClasses(
-                                      race.status
-                                    )}`}
-                                  >
-                                    {getRaceStatusLabel(
-                                      race.status
-                                    )}
-                                  </span>
-                                </div>
-
-                                <p className="mt-1 text-sm text-slate-500">
-                                  {formatDateTime(
-                                    race.scheduled_start
-                                  )}
-                                </p>
-
-                                <p className="mt-2 text-sm font-semibold text-slate-700">
-                                  {entryCount}{" "}
-                                  {entryCount === 1
-                                    ? "entry"
-                                    : "entries"}
-                                </p>
-                              </button>
-
-                              <div className="flex flex-col items-start gap-1">
-                                <span className="text-xs text-slate-500">
-                                  Import: {importLogs.find(log => log.race_id === race.id)?.status ?? "Not checked"}
-                                </span>
-                                <button type="button" onClick={() => void checkRaceNow(race.id)}
-                                  disabled={checkingRace === race.id || race.status === "official"}
-                                  className="rounded border border-green-700 px-3 py-1 text-xs font-semibold text-green-800 disabled:opacity-50">
-                                  {checkingRace === race.id ? "Checking..." : "Check results now"}
-                                </button>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void selectRace(race.id)
-                                }
-                                disabled={
-                                  loadingEntries &&
-                                  selectedRaceId === race.id
-                                }
-                                className="shrink-0 rounded-lg bg-green-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-slate-400"
-                              >
-                                {selectedRaceId === race.id &&
-                                loadingEntries
-                                  ? "Loading..."
-                                  : selectedRaceId === race.id
-                                    ? "Reload Results"
-                                    : "Enter Results"}
-                              </button>
-                            </div>
-
-                            {raceExpanded &&
-                              renderResultsEditor(race)}
-                          </article>
-                        );
-                      })
-                    )}
+              {showRaces && <>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                  <div className="flex gap-1">
+                    {(["all", "pending", "official"] as const).map((filter) =>
+                      <button key={filter} type="button" onClick={() => setRaceFilter(filter)}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize ${raceFilter === filter ? "bg-green-800 text-white" : "text-slate-600 hover:bg-slate-200"}`}>{filter}</button>)}
                   </div>
-                )}
-              </section>
-            );
+                  {visibleRoundId === "all" && <div className="flex gap-2 text-xs">
+                    <button type="button" onClick={expandAll} className="text-green-800 underline">Expand all</button>
+                    <button type="button" onClick={collapseAll} className="text-slate-500 underline">Collapse all</button>
+                  </div>}
+                </div>
+                {shownRaces.length === 0 ? <p className="p-6 text-center text-sm text-slate-500">No races match this filter.</p> :
+                  <div className="divide-y divide-slate-100">
+                    {shownRaces.map((race) => {
+                      const selected = selectedRaceId === race.id;
+                      const importLog = importLogs.find((log) => log.race_id === race.id);
+                      const raceExpanded = expandedRaceIds.has(race.id);
+                      return <article key={race.id} className={selected ? "bg-green-50/30" : "bg-white"}>
+                        <div className="flex flex-wrap items-center gap-3 px-3 py-3 sm:px-4">
+                          <button type="button" onClick={() => toggleRace(race.id)} className="min-w-0 flex-1 text-left" aria-expanded={raceExpanded}>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-slate-900">{getRacecourseName(race)} R{race.race_number}</span>
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">{getGradeLabel(race.grade)}</span>
+                              <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${getRaceStatusClasses(race.status)}`}>{getRaceStatusLabel(race.status)}</span>
+                            </div>
+                            <p className="mt-1 truncate text-xs text-slate-500">{race.race_name} · {formatDateTime(race.scheduled_start)} · {raceEntryCounts[race.id] ?? 0} entries</p>
+                            <p className="mt-1 text-xs text-slate-500" title={importLog?.message ?? ""}>Import: <span className="font-medium text-slate-700">{importLog?.status ?? "Not checked"}</span>{importLog?.message ? ` · ${importLog.message}` : ""}</p>
+                          </button>
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            <button type="button" onClick={() => void checkRaceNow(race.id)}
+                              disabled={Boolean(checkingRace) || race.status === "official" || race.status === "cancelled" || race.status === "abandoned"}
+                              className="rounded-lg border border-green-700 px-3 py-2 text-xs font-semibold text-green-800 hover:bg-green-50 disabled:opacity-40">
+                              {checkingRace === race.id ? "Checking..." : "Check import"}
+                            </button>
+                            <button type="button" onClick={() => {
+                              if (selected && raceExpanded) { toggleRace(race.id); return; }
+                              void selectRace(race.id);
+                            }} disabled={loadingEntries && selected}
+                              className="rounded-lg bg-green-800 px-3 py-2 text-xs font-semibold text-white hover:bg-green-900 disabled:opacity-50">
+                              {loadingEntries && selected ? "Loading..." : selected && raceExpanded ? "Close editor" : race.status === "official" ? "View results" : "Enter results"}
+                            </button>
+                          </div>
+                        </div>
+                        {selected && raceExpanded && renderResultsEditor(race)}
+                      </article>;
+                    })}
+                  </div>}
+              </>}
+            </section>;
           })}
-        </div>
-      )}
+        </div>}
     </main>
   );
 }
