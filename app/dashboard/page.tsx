@@ -1129,15 +1129,29 @@ export default function Dashboard() {
         const extras =
           extrasRaw as DashboardExtras | null;
 
+        // Special Racedays has no autofill. Only users who actually
+        // submitted a team should count towards the overall total.
+        // Other seasons retain the existing backend calculation.
+        let seasonRankedCount = extras?.season_ranked_count ?? 0;
+        if (/special\s*racedays/i.test(resolvedDashboardData.season!.name)) {
+          const { data: submittedCount, error: submittedCountError } =
+            await supabase.rpc("get_special_racedays_participant_count", {
+              p_season_id: resolvedDashboardData.season!.id,
+            });
+
+          if (!active) return;
+          if (submittedCountError) {
+            console.error("Special Racedays participant count error:", submittedCountError);
+          } else if (submittedCount != null) {
+            seasonRankedCount = Number(submittedCount);
+          }
+        }
+
         setDashboardExtras({
           round_ranked_count:
-            extras?.round_ranked_count ??
-            0,
-          season_ranked_count:
-            extras?.season_ranked_count ??
-            0,
-          leagues:
-            extras?.leagues ?? [],
+            extras?.round_ranked_count ?? 0,
+          season_ranked_count: seasonRankedCount,
+          leagues: extras?.leagues ?? [],
         });
       }
 
