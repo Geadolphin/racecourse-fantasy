@@ -83,6 +83,8 @@ type ProjectionFormRow = {
   finish_position: number | "";
 };
 
+type EntryWithOverride = RaceEntry & { form_rating_override?: number | null };
+
 type RecentFormRow = {
   horse_id: string;
   recent_form: string | null;
@@ -145,6 +147,7 @@ export default function RaceEntriesPage() {
   const [showProjectionModal, setShowProjectionModal] = useState(false);
   const [projectionEntry, setProjectionEntry] = useState<RaceEntry | null>(null);
   const [projectionOdds, setProjectionOdds] = useState<string>("");
+  const [projectionFormRatingOverride, setProjectionFormRatingOverride] = useState("");
   const [projectionFormRows, setProjectionFormRows] =
     useState<ProjectionFormRow[]>(emptyProjectionFormRows);
   const [competitionFormRuns, setCompetitionFormRuns] =
@@ -210,6 +213,7 @@ export default function RaceEntriesPage() {
           is_emergency,
           scratched_at,
           starting_odds,
+          form_rating_override,
           projected_points,
           projection_calculated_at,
           created_at,
@@ -527,6 +531,7 @@ export default function RaceEntriesPage() {
 
   async function openProjectionModal(entry: RaceEntry) {
     setProjectionEntry(entry);
+    setProjectionFormRatingOverride((entry as EntryWithOverride).form_rating_override == null ? "" : String((entry as EntryWithOverride).form_rating_override));
     setProjectionOdds(
       entry.starting_odds === null
         ? ""
@@ -603,6 +608,7 @@ export default function RaceEntriesPage() {
     setShowProjectionModal(false);
     setProjectionEntry(null);
     setProjectionOdds("");
+    setProjectionFormRatingOverride("");
     setProjectionFormRows(
       emptyProjectionFormRows.map((row) => ({ ...row }))
     );
@@ -666,6 +672,13 @@ export default function RaceEntriesPage() {
       return;
     }
 
+    const overrideText = projectionFormRatingOverride.trim();
+    const overrideRating = overrideText === "" ? null : Number(overrideText);
+    if (overrideRating !== null && (!Number.isFinite(overrideRating) || overrideRating < 0)) {
+      setProjectionErrorMessage("Form rating override must be a non-negative number.");
+      return;
+    }
+
     const completedRuns: Array<{
       race_grade: ProjectionGrade;
       finish_position: number;
@@ -715,6 +728,7 @@ export default function RaceEntriesPage() {
         .from("race_entries")
         .update({
           starting_odds: odds,
+          form_rating_override: overrideRating,
           projected_points: null,
           projection_calculated_at: null,
         })
@@ -1986,18 +2000,11 @@ export default function RaceEntriesPage() {
                                             </td>
 
                                             <td className="px-4 py-4 text-sm font-semibold text-slate-700">
-                                              {formRatingsByHorseId[
-                                                entry.horse_id
-                                              ] === null ||
-                                              formRatingsByHorseId[
-                                                entry.horse_id
-                                              ] === undefined
-                                                ? "—"
-                                                : Number(
-                                                    formRatingsByHorseId[
-                                                      entry.horse_id
-                                                    ]
-                                                  ).toFixed(1)}
+                                              {(entry as EntryWithOverride).form_rating_override != null
+                                                ? <span title="Manual override for this race entry" className="text-teal-700">{Number((entry as EntryWithOverride).form_rating_override).toFixed(1)} *</span>
+                                                : formRatingsByHorseId[entry.horse_id] == null
+                                                  ? "—"
+                                                  : Number(formRatingsByHorseId[entry.horse_id]).toFixed(1)}
                                             </td>
 
                                             <td className="px-4 py-4 text-sm font-semibold text-slate-700">
@@ -2229,6 +2236,13 @@ export default function RaceEntriesPage() {
             <p className="mt-1 text-sm text-slate-500">
               Enter decimal odds without the dollar sign. Changing the odds or previous form clears any previously calculated projection so it can be regenerated later.
             </p>
+          </div>
+
+          <div className="rounded-lg border border-teal-200 bg-teal-50 p-4">
+            <label htmlFor="projection-form-override" className="mb-1 block font-semibold text-slate-900">Form Rating Override (this race entry only)</label>
+            <input id="projection-form-override" type="number" min="0" step="0.1" value={projectionFormRatingOverride} onChange={(event) => setProjectionFormRatingOverride(event.target.value)} placeholder="Blank = automatic form rating" className="w-full rounded-lg border border-slate-300 bg-white p-3" />
+            <p className="mt-2 text-sm text-slate-600">Leave blank to use the automatic form rating. Saving clears the previous projection; click Generate Projections for the race to recalculate it.</p>
+            <button type="button" onClick={() => setProjectionFormRatingOverride("")} className="mt-2 text-sm font-semibold text-teal-800 underline">Reset to automatic</button>
           </div>
 
           <div>
