@@ -7,6 +7,20 @@ import { supabase } from "@/lib/supabase";
 
 import type { ResultStatus } from "@/types/race-result";
 
+type MeetingRegion = "melbourne" | "sydney";
+type MeetingConfig = {
+  round_id: string;
+  region: MeetingRegion;
+  results_url: string;
+  enabled: boolean;
+};
+type ImportLog = {
+  race_id: string;
+  status: string;
+  message: string | null;
+  checked_at: string | null;
+};
+
 type RaceGrade = "L" | "G3" | "G2" | "G1";
 
 type RaceStatus =
@@ -112,6 +126,10 @@ type FinaliseRaceResponse = {
 };
 
 export default function ResultsPage() {
+  const [meetingConfigs, setMeetingConfigs] = useState<MeetingConfig[]>([]);
+  const [importLogs, setImportLogs] = useState<ImportLog[]>([]);
+  const [savingMeeting, setSavingMeeting] = useState("");
+  const [checkingRace, setCheckingRace] = useState("");
   const [rounds, setRounds] = useState<RoundOption[]>([]);
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState("");
@@ -158,7 +176,53 @@ export default function ResultsPage() {
 
   useEffect(() => {
     void loadPageData();
+    void loadImporterData();
   }, []);
+
+  async function loadImporterData() {
+    const [configs, logs] = await Promise.all([
+      supabase.from("round_results_sources").select("round_id, region, results_url, enabled"),
+      supabase.from("race_result_import_logs").select("race_id, status, message, checked_at")
+        .order("checked_at", { ascending: false }).limit(500),
+    ]);
+    if (configs.error || logs.error) {
+      setErrorMessage("Importer configuration unavailable. Apply the SQL migration first.");
+      return;
+    }
+    setMeetingConfigs((configs.data ?? []) as MeetingConfig[]);
+    setImportLogs((logs.data ?? []) as ImportLog[]);
+  }
+
+  function editMeetingUrl(roundId: string, region: MeetingRegion, url: string) {
+    setMeetingConfigs(current => [
+      ...current.filter(x => !(x.round_id === roundId && x.region === region)),
+      { round_id: roundId, region, results_url: url, enabled: true },
+    ]);
+  }
+
+  async function saveMeetingUrl(roundId: string, region: MeetingRegion) {
+    const config = meetingConfigs.find(x => x.round_id === roundId && x.region === region);
+    if (!config?.results_url) { setErrorMessage("Enter a results URL first."); return; }
+    setSavingMeeting(`${roundId}:${region}`);
+    const { error } = await supabase.from("round_results_sources").upsert({
+      round_id: roundId, region, results_url: config.results_url.trim(), enabled: true,
+    }, { onConflict: "round_id,region" });
+    setSavingMeeting("");
+    if (error) setErrorMessage(error.message);
+    else setSuccessMessage(`${region} URL saved.`);
+  }
+
+  async function checkRaceNow(raceId: string) {
+    setCheckingRace(raceId);
+    const { data, error } = await supabase.functions.invoke("import-race-results", {
+      body: { race_id: raceId },
+    });
+    setCheckingRace("");
+    if (error || data?.error) setErrorMessage(data?.error ?? error?.message ?? "Check failed");
+    else setSuccessMessage(data?.message ?? "Checked results.");
+    await loadImporterData();
+    await loadPageData();
+  }
 
   async function loadPageData() {
     setLoadingPage(true);
@@ -1647,6 +1711,30 @@ export default function ResultsPage() {
                 key={round.id}
                 className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
               >
+                <div className="border-b border-slate-200 bg-slate-50 p-5">
+                  <h3 className="mb-3 text-sm font-bold">Automatic results URLs</h3>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {(["melbourne", "sydney"] as const).map(region => {
+                      const config = meetingConfigs.find(c => c.round_id === round.id && c.region === region);
+                      const key = `${round.id}:${region}`;
+                      return (
+                        <div key={region} className="rounded-lg border bg-white p-3">
+                          <label className="text-sm font-semibold capitalize">{region} results URL</label>
+                          <input type="url" className="mt-2 w-full rounded border p-2 text-sm"
+                            placeholder="https://www.racingaustralia.horse/FreeFields/Results.aspx?Key=..."
+                            value={config?.results_url ?? ""}
+                            onChange={e => editMeetingUrl(round.id, region, e.target.value)} />
+                          <button type="button" onClick={() => void saveMeetingUrl(round.id, region)}
+                            disabled={savingMeeting === key}
+                            className="mt-2 rounded bg-green-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                            {savingMeeting === key ? "Saving..." : "Save URL"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">First check 20 minutes after scheduled start; retry every 5 minutes.</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => toggleRound(round.id)}
@@ -1743,6 +1831,16 @@ export default function ResultsPage() {
                                 </p>
                               </button>
 
+                              <div className="flex flex-col items-start gap-1">
+                                <span className="text-xs text-slate-500">
+                                  Import: {importLogs.find(log => log.race_id === race.id)?.status ?? "Not checked"}
+                                </span>
+                                <button type="button" onClick={() => void checkRaceNow(race.id)}
+                                  disabled={checkingRace === race.id || race.status === "official"}
+                                  className="rounded border border-green-700 px-3 py-1 text-xs font-semibold text-green-800 disabled:opacity-50">
+                                  {checkingRace === race.id ? "Checking..." : "Check results now"}
+                                </button>
+                              </div>
                               <button
                                 type="button"
                                 onClick={() =>
