@@ -81,6 +81,13 @@ type RaceEntryOption = {
   } | null;
 };
 
+type ImportedPreviewRow = {
+  race_entry_id: string;
+  finishing_position: number | null;
+  result_status: "finished" | "scratched";
+  is_dead_heat: boolean;
+};
+
 type ResultFormRow = {
   race_entry_id: string;
   finishing_position: number | "";
@@ -217,14 +224,46 @@ export default function ResultsPage() {
 
   async function checkRaceNow(raceId: string) {
     setCheckingRace(raceId);
-    const { data, error } = await supabase.functions.invoke("import-race-results", {
-      body: { race_id: raceId },
-    });
-    setCheckingRace("");
-    if (error || data?.error) setErrorMessage(data?.error ?? error?.message ?? "Check failed");
-    else setSuccessMessage(data?.message ?? "Checked results.");
-    await loadImporterData();
-    // Do not refresh the entire page here: that would clear an importer error message.
+    setErrorMessage("");
+    setSuccessMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("import-race-results", {
+        body: { race_id: raceId },
+      });
+      if (error || data?.error) {
+        setErrorMessage(data?.error ?? error?.message ?? "Check failed");
+        return;
+      }
+      const outcome = data?.results?.find((item: { race_id: string }) => item.race_id === raceId);
+      if (outcome?.error) {
+        setErrorMessage(outcome.error);
+        return;
+      }
+      if (outcome?.status === "preview_ready" && Array.isArray(outcome.preview)) {
+        const preview = outcome.preview as ImportedPreviewRow[];
+        const currentRace = races.find((race) => race.id === raceId);
+        if (!currentRace || currentRace.status === "official") {
+          setErrorMessage("Official results cannot be overwritten by an import preview.");
+          return;
+        }
+        if (selectedRaceId === raceId && resultRows.length > 0 &&
+            !window.confirm("Replace the currently displayed unsaved results with the imported preview?")) return;
+        setSelectedRaceId(raceId);
+        setExpandedRaceIds(new Set([raceId]));
+        setCalculatedResults([]);
+        setResultsSaved(false);
+        setEditingOfficialResults(false);
+        const applied = await loadRaceEntries(raceId, preview);
+        if (applied) setSuccessMessage(`Imported ${preview.length} finishing records into the editor for review. Check every position, then Calculate Results and Save Official Results when ready.`);
+      } else {
+        setSuccessMessage(outcome?.message ?? data?.message ?? "Race checked; no complete preview available yet.");
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Import check failed");
+    } finally {
+      setCheckingRace("");
+      await loadImporterData();
+    }
   }
 
   async function loadPageData() {
@@ -446,7 +485,7 @@ export default function ResultsPage() {
     await loadRaceEntries(raceId);
   }
 
-  async function loadRaceEntries(raceId: string) {
+  async function loadRaceEntries(raceId: string, preview?: ImportedPreviewRow[]): Promise<boolean> {
     setLoadingEntries(true);
     setErrorMessage("");
 
@@ -477,7 +516,7 @@ export default function ResultsPage() {
         "Could not load the entries for this race."
       );
       setLoadingEntries(false);
-      return;
+      return false;
     }
 
     const loadedEntries =
@@ -500,7 +539,7 @@ export default function ResultsPage() {
       console.error(existingResultsError);
       setErrorMessage("Could not load the existing race results.");
       setLoadingEntries(false);
-      return;
+      return false;
     }
 
     const existingByEntryId = new Map(
@@ -510,8 +549,28 @@ export default function ResultsPage() {
       ])
     );
 
+    if (preview) {
+      const expected = new Set(loadedEntries.map((entry) => entry.id));
+      const provided = new Set(preview.map((row) => row.race_entry_id));
+      if (expected.size !== preview.length || provided.size !== preview.length ||
+          [...expected].some((id) => !provided.has(id))) {
+        setErrorMessage("Imported entries no longer match this race. No preview was applied.");
+        setLoadingEntries(false);
+        return false;
+      }
+    }
+    const previewById = new Map(preview?.map((row) => [row.race_entry_id, row]) ?? []);
     setResultRows(
       loadedEntries.map((entry) => {
+        const imported = previewById.get(entry.id);
+        if (imported) {
+          return {
+            race_entry_id: entry.id,
+            finishing_position: imported.finishing_position ?? "",
+            result_status: imported.result_status as ResultStatus,
+            is_dead_heat: imported.is_dead_heat,
+          };
+        }
         const existing = existingByEntryId.get(entry.id);
 
         if (existing) {
@@ -538,6 +597,7 @@ export default function ResultsPage() {
     );
 
     setLoadingEntries(false);
+    return true;
   }
 
   function updateResultRow(
