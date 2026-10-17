@@ -257,6 +257,7 @@ export default function EditTeamPage() {
 
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
+  const isSpecialRacedays = season?.name?.toLowerCase().includes("special racedays") ?? false;
   const [team, setTeam] = useState<Team | null>(null);
   const [isSpecialAutofillTeam, setIsSpecialAutofillTeam] = useState(false);
   const [showProjectedScores, setShowProjectedScores] = useState(false);
@@ -602,7 +603,7 @@ export default function EditTeamPage() {
       )
     );
 
-    if (horseIds.length > 0) {
+    if (horseIds.length > 0 && !seasonData.name.toLowerCase().includes("special racedays")) {
       const { data: recentFormRows, error: recentFormError } =
         await supabase.rpc("get_horse_recent_forms", {
           p_horse_ids: horseIds,
@@ -2003,7 +2004,7 @@ export default function EditTeamPage() {
                           )}
                           {isLocked && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">LOCKED</span>}
                         </div>
-                        {recentFormByHorseId[entry.horse_id] && (
+                        {!isSpecialRacedays && recentFormByHorseId[entry.horse_id] && (
                           <p className="mt-1 text-left text-xs text-slate-500">
                             <span className="font-semibold">Form:</span>{" "}
                             <span className="font-bold tracking-[0.12em] text-slate-700">
@@ -2322,7 +2323,7 @@ export default function EditTeamPage() {
                                   )}
                                   </div>
 
-                                  {recentFormByHorseId[entry.horse_id] && (
+                                  {!isSpecialRacedays && recentFormByHorseId[entry.horse_id] && (
                                     <div className="mt-1 flex items-center">
                                       <p className="text-left text-[11px] text-slate-500">
                                         <span className="font-semibold">Form:</span>{" "}
@@ -2517,7 +2518,7 @@ export default function EditTeamPage() {
 
                               </div>
 
-                              {recentFormByHorseId[entry.horse_id] && (
+                              {!isSpecialRacedays && recentFormByHorseId[entry.horse_id] && (
                                 <p className="mt-1 text-left text-xs text-slate-500">
                                   <span className="font-semibold">Form:</span>{" "}
                                   <span className="font-bold tracking-[0.12em] text-slate-700">
