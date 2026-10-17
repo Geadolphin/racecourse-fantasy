@@ -58,11 +58,6 @@ type PriceHistoryRow = {
   price_after: number;
 };
 
-type HorsePriceRow = {
-  id: string;
-  current_price: number;
-};
-
 type CheckStatus = "ready" | "pending" | "issue";
 
 type ChecklistItem = {
@@ -787,52 +782,10 @@ export default function AdminDashboardPage() {
       const roundCompleted =
         selectedRound.status === "completed";
 
-      let priceMismatchCount = 0;
-
-      if (roundCompleted && priceHistory.length > 0) {
-        const latestPriceByHorse = new Map<
-          string,
-          PriceHistoryRow
-        >();
-
-        for (const row of priceHistory) {
-          latestPriceByHorse.set(row.horse_id, row);
-        }
-
-        const horseIds = [...latestPriceByHorse.keys()];
-
-        if (horseIds.length > 0) {
-          const { data: horsePriceData, error } =
-            await supabase
-              .from("horses")
-              .select("id, current_price")
-              .in("id", horseIds);
-
-          if (!active) {
-            return;
-          }
-
-          if (error) {
-            console.error(
-              "Round checklist horse price load error:",
-              error
-            );
-          } else {
-            const horses =
-              (horsePriceData ?? []) as HorsePriceRow[];
-
-            priceMismatchCount = horses.filter((horse) => {
-              const expected =
-                latestPriceByHorse.get(horse.id)?.price_after;
-
-              return (
-                expected !== undefined &&
-                horse.current_price !== expected
-              );
-            }).length;
-          }
-        }
-      }
+      // A completed round's historical prices are snapshots. Comparing them
+      // with horses.current_price produces false warnings after later updates.
+      // Verify that this round has recorded price history instead.
+      const recordedPriceCount = priceHistory.length;
 
       const lockoutPassed =
         selectedRound.lockout_at !== null &&
@@ -956,22 +909,16 @@ export default function AdminDashboardPage() {
         },
         {
           label: "Prices released",
-          status:
-            !roundCompleted
-              ? "pending"
-              : priceMismatchCount === 0
-                ? "ready"
-                : "issue",
-          detail:
-            !roundCompleted
-              ? "Horse prices remain held until the round is completed."
-              : priceMismatchCount === 0
-                ? "Completed-round horse prices match the stored price history."
-                : `${priceMismatchCount} ${
-                    priceMismatchCount === 1
-                      ? "horse price does"
-                      : "horse prices do"
-                  } not match the stored completed-round price.`,
+          status: !roundCompleted
+            ? "pending"
+            : recordedPriceCount > 0
+              ? "ready"
+              : "pending",
+          detail: !roundCompleted
+            ? "Horse prices remain held until the round is completed."
+            : recordedPriceCount > 0
+              ? `${recordedPriceCount} price history ${recordedPriceCount === 1 ? "record" : "records"} saved for this round. Historical prices are preserved independently of current horse prices.`
+              : "No price history records found for this round. If no prices changed, this may be expected; otherwise check the price update process.",
           href: "/admin/horses",
         },
         {
