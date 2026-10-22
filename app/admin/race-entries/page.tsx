@@ -170,8 +170,8 @@ export default function RaceEntriesPage() {
   const [bulkErrorMessage, setBulkErrorMessage] = useState("");
   const [bulkSuccessMessage, setBulkSuccessMessage] = useState("");
 
-  const [formRatingsByHorseId, setFormRatingsByHorseId] =
-    useState<Record<string, number | null>>({});
+  const [historicalRatingsByEntryId, setHistoricalRatingsByEntryId] =
+    useState<Record<string, { rating: number | null; starts: number; undated: number }>>({});
 
   const [recentFormsByHorseId, setRecentFormsByHorseId] =
     useState<Record<string, string>>({});
@@ -344,37 +344,31 @@ export default function RaceEntriesPage() {
     const loadedSeasons =
       (seasonsResult.data ?? []) as SeasonOption[];
 
-    const enteredHorseIds = Array.from(
-      new Set(loadedEntries.map((entry) => entry.horse_id))
-    );
-
-    let nextFormRatings: Record<string, number | null> = {};
-
-    if (enteredHorseIds.length > 0) {
-      const { data: formRatingRows, error: formRatingError } =
-        await supabase.rpc("get_horse_recent_form_ratings", {
-          p_horse_ids: enteredHorseIds,
-        });
-
-      if (formRatingError) {
-        console.error(
-          "Could not load recent form ratings:",
-          formRatingError
-        );
-      } else {
-        nextFormRatings = Object.fromEntries(
-          (
-            (formRatingRows ?? []) as Array<{
-              horse_id: string;
-              form_rating: number | string | null;
-            }>
-          ).map((row) => [
-            row.horse_id,
-            row.form_rating === null
-              ? null
-              : Number(row.form_rating),
-          ])
-        );
+    // Historical ratings are keyed by race ENTRY, not horse.
+    // The RPC excludes results after the entry's scheduled start.
+    const nextHistoricalRatings: Record<string, { rating: number | null; starts: number; undated: number }> = {};
+    const batchSize = 250;
+    for (let i = 0; i < loadedEntries.length; i += batchSize) {
+      const ids = loadedEntries.slice(i, i + batchSize).map((entry) => entry.id);
+      const { data, error } = await supabase.rpc("get_historical_entry_form_ratings", {
+        p_entry_ids: ids,
+      });
+      if (error) {
+        console.error("Could not load historical form ratings:", error);
+        setErrorMessage(`Historical form ratings unavailable: ${error.message}. Run historical_form_ratings.sql in Supabase.`);
+        break;
+      }
+      for (const row of (data ?? []) as Array<{
+        race_entry_id: string;
+        form_rating: number | string | null;
+        recorded_starts: number;
+        undated_manual_runs: number;
+      }>) {
+        nextHistoricalRatings[row.race_entry_id] = {
+          rating: row.form_rating == null ? null : Number(row.form_rating),
+          starts: row.recorded_starts,
+          undated: row.undated_manual_runs,
+        };
       }
     }
 
@@ -383,7 +377,7 @@ export default function RaceEntriesPage() {
     setRaces(loadedRaces);
     setRounds(loadedRounds);
     setSeasons(loadedSeasons);
-    setFormRatingsByHorseId(nextFormRatings);
+    setHistoricalRatingsByEntryId(nextHistoricalRatings);
     setSelectedSeasonId((current) => {
       if (
         current &&
@@ -2009,10 +2003,13 @@ export default function RaceEntriesPage() {
 
                                             <td className="px-4 py-4 text-sm font-semibold text-slate-700">
                                               {(entry as EntryWithOverride).form_rating_override != null
-                                                ? <span title="Manual override for this race entry" className="text-teal-700">{Number((entry as EntryWithOverride).form_rating_override).toFixed(1)} *</span>
-                                                : formRatingsByHorseId[entry.horse_id] == null
+                                                ? <span title="Manual override on this race entry (not a reconstructed historical rating)" className="text-teal-700">{Number((entry as EntryWithOverride).form_rating_override).toFixed(1)} *</span>
+                                                : historicalRatingsByEntryId[entry.id] == null
                                                   ? "—"
-                                                  : Number(formRatingsByHorseId[entry.horse_id]).toFixed(1)}
+                                                  : <span title={`Historical as-of-race estimate: ${historicalRatingsByEntryId[entry.id].starts} dated/official prior runs. ${historicalRatingsByEntryId[entry.id].undated} undated manual runs excluded. No historical projection was overwritten.`}>
+                                                      {historicalRatingsByEntryId[entry.id].rating?.toFixed(1) ?? "—"}
+                                                      {historicalRatingsByEntryId[entry.id].undated > 0 ? " †" : ""}
+                                                    </span>}
                                             </td>
 
                                             <td className="px-4 py-4 text-sm font-semibold text-slate-700">
