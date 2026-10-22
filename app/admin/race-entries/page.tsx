@@ -189,18 +189,14 @@ export default function RaceEntriesPage() {
     void loadRecentForms();
   }, [selectedSeasonId, entries]);
 
-  async function loadPageData() {
-    setLoading(true);
-    setErrorMessage("");
+  // Fetch every race entry, not just Supabase's default first page.
+  async function loadAllRaceEntries() {
+    const pageSize = 500;
+    let offset = 0;
+    const allEntries: RaceEntry[] = [];
 
-    const [
-      entriesResult,
-      horsesResult,
-      racesResult,
-      roundsResult,
-      seasonsResult,
-    ] = await Promise.all([
-      supabase
+    while (true) {
+      const result = await supabase
         .from("race_entries")
         .select(`
           id,
@@ -218,30 +214,42 @@ export default function RaceEntriesPage() {
           projection_calculated_at,
           created_at,
           updated_at,
-
-          horse:horses (
-            id,
-            name,
-            current_price
-          ),
-
+          horse:horses (id, name, current_price),
           race:races (
-            id,
-            round_id,
-            race_number,
-            race_name,
-            grade,
-            scheduled_start,
-            status,
-            distance_metres,
-
-            racecourse:racecourses (
-              id,
-              name
-            )
+            id, round_id, race_number, race_name, grade,
+            scheduled_start, status, distance_metres,
+            racecourse:racecourses (id, name)
           )
         `)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(offset, offset + pageSize - 1);
+
+      if (result.error) {
+        return { data: null as RaceEntry[] | null, error: result.error };
+      }
+
+      const page = (result.data ?? []) as unknown as RaceEntry[];
+      allEntries.push(...page);
+      if (page.length < pageSize) break;
+      offset += pageSize;
+    }
+
+    return { data: allEntries, error: null };
+  }
+
+  async function loadPageData() {
+    setLoading(true);
+    setErrorMessage("");
+
+    const [
+      entriesResult,
+      horsesResult,
+      racesResult,
+      roundsResult,
+      seasonsResult,
+    ] = await Promise.all([
+      loadAllRaceEntries(),
 
       supabase
         .from("horses")
