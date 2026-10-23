@@ -2008,7 +2008,6 @@ export default function RaceEntriesPage() {
                                                   ? "—"
                                                   : <span title={`Historical as-of-race estimate: ${historicalRatingsByEntryId[entry.id].starts} dated/official prior runs. ${historicalRatingsByEntryId[entry.id].undated} undated manual runs excluded. No historical projection was overwritten.`}>
                                                       {historicalRatingsByEntryId[entry.id].rating?.toFixed(1) ?? "—"}
-                                                      {historicalRatingsByEntryId[entry.id].undated > 0 ? " †" : ""}
                                                     </span>}
                                             </td>
 
