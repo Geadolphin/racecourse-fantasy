@@ -2006,9 +2006,11 @@ export default function RaceEntriesPage() {
                                                 ? <span title="Manual override on this race entry (not a reconstructed historical rating)" className="text-teal-700">{Number((entry as EntryWithOverride).form_rating_override).toFixed(1)} *</span>
                                                 : historicalRatingsByEntryId[entry.id] == null
                                                   ? "—"
-                                                  : <span title={`Historical as-of-race estimate: ${historicalRatingsByEntryId[entry.id].starts} dated/official prior runs. ${historicalRatingsByEntryId[entry.id].undated} undated manual runs excluded. No historical projection was overwritten.`}>
-                                                      {historicalRatingsByEntryId[entry.id].rating?.toFixed(1) ?? "—"}
-                                                    </span>}
+                                                  : historicalRatingsByEntryId[entry.id].starts <= 0 || historicalRatingsByEntryId[entry.id].rating == null
+                                                    ? "—"
+                                                    : <span title={`Historical as-of-race estimate: ${historicalRatingsByEntryId[entry.id].starts} dated/official prior runs. ${historicalRatingsByEntryId[entry.id].undated} undated manual runs excluded. No historical projection was overwritten.`}>
+                                                        {historicalRatingsByEntryId[entry.id].rating.toFixed(1)}
+                                                      </span>}
                                             </td>
 
                                             <td className="px-4 py-4 text-sm font-semibold text-slate-700">
