@@ -294,8 +294,17 @@ export async function POST(request: NextRequest) {
     if (courseError) throw courseError;
     const courseNameById = new Map((courseRows ?? []).map(c => [String(c.id), String(c.name)]));
     const meetingCourse = (meetingUrl.searchParams.get("Key") ?? "").split(",").slice(2).join(",").trim();
-    const meetingCourseKey = normal(meetingCourse);
-    const courseRaces = races.filter(r => r.racecourse_id && normal(courseNameById.get(r.racecourse_id) ?? "") === meetingCourseKey);
+    // Racing Australia uses "Royal Randwick" while the app may store "Randwick".
+    // Keep this alias explicit so unrelated racecourses cannot be matched accidentally.
+    const racecourseAliases: Record<string, string> = {
+      ROYALRANDWICK: "RANDWICK",
+    };
+    const canonicalCourse = (name: string): string => {
+      const key = normal(name);
+      return racecourseAliases[key] ?? key;
+    };
+    const meetingCourseKey = canonicalCourse(meetingCourse);
+    const courseRaces = races.filter(r => r.racecourse_id && canonicalCourse(courseNameById.get(r.racecourse_id) ?? "") === meetingCourseKey);
     if (!courseRaces.length) return NextResponse.json({ error: `No races in this round match the meeting racecourse (${meetingCourse}). Check the racecourse values in Supabase.` }, { status: 422 });
     const counts = new Map<number, number>();
     for (const race of courseRaces) counts.set(Number(race.race_number), (counts.get(Number(race.race_number)) ?? 0) + 1);
