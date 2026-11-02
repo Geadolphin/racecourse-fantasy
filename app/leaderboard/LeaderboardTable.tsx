@@ -167,14 +167,24 @@ export default function LeaderboardTable({ type = "combined", rows, roundRows, s
         <p className="text-sm font-bold text-slate-900">Rankings <span className="ml-1 font-normal text-slate-500">· {sorted.length} players</span></p>
       </div>
       <div className="w-full overflow-x-auto">
-        <table className="w-full table-fixed text-xs sm:min-w-full sm:table-auto sm:whitespace-nowrap sm:text-sm">
+        <table className="w-full table-fixed text-[10px] min-[380px]:text-xs sm:min-w-full sm:table-auto sm:whitespace-nowrap sm:text-sm">
+          <colgroup>
+            <col className="w-[10%] sm:w-auto" />
+            <col className="w-[30%] sm:w-auto" />
+            <col className="w-[19%] sm:w-auto" />
+            <col className="w-[21%] sm:w-auto" />
+            {!isSpecialRacedays && <col className="w-[20%] sm:w-auto" />}
+            <col className="hidden sm:table-column" />
+            <col className="hidden sm:table-column" />
+            <col className="hidden sm:table-column" />
+          </colgroup>
           <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="w-9 bg-slate-50 px-1 py-3 text-left sm:w-auto sm:px-4">Rank</th>
-              <th className="w-[31%] bg-slate-50 px-1 py-3 text-left sm:w-auto sm:px-4">Player</th>
-              <th className="px-1 py-3 text-right sm:px-4"><button type="button" onClick={() => selectSort("round")} className="inline-flex items-center gap-1 hover:text-cyan-700"><span className="sm:hidden">Round</span><span className="hidden sm:inline">Round points</span> <SortIcon column="round" /></button></th>
-              <th className="px-1 py-3 text-right sm:px-4"><button type="button" onClick={() => selectSort("total")} className="inline-flex items-center gap-1 hover:text-cyan-700"><span className="sm:hidden">Overall</span><span className="hidden sm:inline">Total points</span> <SortIcon column="total" /></button></th>
-              {!isSpecialRacedays && <th className="px-1 py-3 text-right sm:px-4"><button type="button" onClick={() => selectSort("projected")} disabled={!projectionsVisible} title={projectionsVisible ? "Sort by projected points" : "Projected points are hidden"} className={`inline-flex items-center gap-1 ${projectionsVisible ? "hover:text-cyan-700" : "cursor-default opacity-60"}`}><span className="sm:hidden">Proj.</span><span className="hidden sm:inline">Projected</span> {projectionsVisible && <SortIcon column="projected" />}</button></th>}
+              <th className="bg-slate-50 px-0.5 py-3 text-left text-[9px] min-[380px]:text-[10px] sm:px-4 sm:text-xs">Rank</th>
+              <th className="bg-slate-50 px-1 py-3 text-left text-[10px] sm:px-4 sm:text-xs">Player</th>
+              <th className="px-1 py-3 text-right sm:px-4"><button type="button" onClick={() => selectSort("round")} className="inline-flex items-center justify-end gap-0.5 hover:text-cyan-700 sm:gap-1"><span className="sm:hidden">Round</span><span className="hidden sm:inline">Round points</span> <span className="hidden sm:inline-flex"><SortIcon column="round" /></span></button></th>
+              <th className="px-1 py-3 text-right sm:px-4"><button type="button" onClick={() => selectSort("total")} className="inline-flex items-center justify-end gap-0.5 hover:text-cyan-700 sm:gap-1"><span className="sm:hidden">Overall</span><span className="hidden sm:inline">Total points</span> <span className="hidden sm:inline-flex"><SortIcon column="total" /></span></button></th>
+              {!isSpecialRacedays && <th className="px-1 py-3 text-right sm:px-4"><button type="button" onClick={() => selectSort("projected")} disabled={!projectionsVisible} title={projectionsVisible ? "Sort by projected points" : "Projected points are hidden"} className={`inline-flex items-center justify-end gap-0.5 sm:gap-1 ${projectionsVisible ? "hover:text-cyan-700" : "cursor-default opacity-60"}`}><span className="sm:hidden">Proj.</span><span className="hidden sm:inline">Projected</span> {projectionsVisible && <span className="hidden sm:inline-flex"><SortIcon column="projected" /></span>}</button></th>}
               <th className="hidden px-3 py-3 text-right sm:table-cell sm:px-4">Runners</th>
               <th className="hidden px-3 py-3 text-right sm:table-cell sm:px-4">Salary used</th>
               <th className="hidden px-3 py-3 text-right sm:table-cell sm:px-4" title="Change in overall season rank since the previous completed round">Overall Change</th>
@@ -191,10 +201,10 @@ export default function LeaderboardTable({ type = "combined", rows, roundRows, s
               return (
                 <tr key={row.user_id} className={`border-t border-slate-100 ${mine ? "bg-amber-100 hover:bg-amber-100" : "hover:bg-slate-50"}`}>
                   <td className="px-1 py-3 font-black tabular-nums text-slate-900 sm:px-4">{rank}</td>
-                  <td className="min-w-0 px-1 py-3 sm:px-4"><div className="min-w-0 truncate">{mine ? <Link href={`/players/${row.user_id}`} className="font-semibold text-cyan-700 hover:underline" title="View your profile">{row.display_name}</Link> : <button type="button" onClick={() => void openComparison(row.user_id)} className="font-semibold text-cyan-700 hover:underline" title={`Compare your team with ${row.display_name}`}>{row.display_name}</button>}{mine && <span className="ml-2 text-[10px] font-black text-amber-800">YOU</span>}</div></td>
+                  <td className="min-w-0 overflow-hidden px-1 py-3 sm:px-4"><div className="w-full min-w-0 truncate">{mine ? <Link href={`/players/${row.user_id}`} className="font-semibold text-cyan-700 hover:underline" title="View your profile">{row.display_name}</Link> : <button type="button" onClick={() => void openComparison(row.user_id)} className="max-w-full truncate align-middle font-semibold text-cyan-700 hover:underline" title={`Compare your team with ${row.display_name}`}>{row.display_name}</button>}{mine && <span className="ml-2 text-[10px] font-black text-amber-800">YOU</span>}</div></td>
                   <td className={`px-1 py-3 text-right tabular-nums sm:px-4 ${sortKey === "round" ? "font-black text-slate-900" : "text-slate-700"}`}>{row.has_round ? row.round_points.toLocaleString("en-AU") : "—"}</td>
                   <td className={`px-1 py-3 text-right tabular-nums sm:px-4 ${sortKey === "total" ? "font-black text-slate-900" : "text-slate-700"}`}>{row.has_season ? row.total_points.toLocaleString("en-AU") : "—"}</td>
-                  {!isSpecialRacedays && <td className={`px-1 py-3 sm:px-4 text-right tabular-nums text-amber-600 ${sortKey === "projected" ? "font-black" : "font-semibold"}`}>{!row.has_round ? "—" : projectionsVisible ? row.projected_score.toLocaleString("en-AU") : "Hidden"}</td>}
+                  {!isSpecialRacedays && <td className={`px-0.5 py-3 sm:px-4 text-right tabular-nums text-amber-600 ${sortKey === "projected" ? "font-black" : "font-semibold"}`}>{!row.has_round ? "—" : projectionsVisible ? row.projected_score.toLocaleString("en-AU") : "Hidden"}</td>}
                   <td className="hidden px-4 py-3 text-right tabular-nums text-slate-700 sm:table-cell">{row.has_round ? <>{row.runners_used}/10 {row.captain_ran && <span title="Captain has raced" className="ml-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">C</span>}</> : "—"}</td>
                   <td className="hidden px-4 py-3 text-right tabular-nums text-slate-700 sm:table-cell">{row.has_round ? `$${row.salary_used.toLocaleString("en-AU")}` : "—"}</td>
                   <td className="hidden px-4 py-3 text-right tabular-nums sm:table-cell" title="Overall season rank movement since the previous completed round">
