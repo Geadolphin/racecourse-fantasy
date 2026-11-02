@@ -1628,7 +1628,7 @@ export default function MyTeamPage() {
                             }
                           }
                         }}
-                        className={`group cursor-pointer overflow-hidden rounded-xl border px-2.5 py-2.5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 sm:px-3 sm:py-2.5 ${
+                        className={`group relative cursor-pointer overflow-hidden rounded-xl border px-2.5 py-2.5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 sm:px-3 sm:py-2.5 ${
                           isScratched
                             ? "border-red-300 bg-red-50 hover:border-red-400 focus:ring-red-500"
                             : selection.is_captain
@@ -1661,7 +1661,7 @@ export default function MyTeamPage() {
                                 </span>
                               )}
                               {editButtonVisible && (
-                                <span className="hidden shrink-0 items-center gap-1 opacity-100 transition-opacity duration-150 md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100" onClick={(event) => event.stopPropagation()}>
+                                <span className="absolute right-2 top-2 z-10 hidden items-center gap-1 rounded-full bg-white/95 p-1 shadow-sm ring-1 ring-slate-200 transition-opacity duration-150 md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100" onClick={(event) => event.stopPropagation()}>
                                   {!selection.is_captain && (
                                     <button
                                       type="button"
