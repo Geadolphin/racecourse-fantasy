@@ -14,8 +14,6 @@ type SeasonOption = { id: string; name: string };
 
 type RoundOption = { id: string; season_id: string; name: string; round_number: number };
 
-
-
 const emptyHorse = {
 
   name: "",
@@ -138,8 +136,6 @@ export default function HorsesPage() {
 
   }
 
-
-
   async function loadHorses() {
 
     setLoading(true);
@@ -237,6 +233,7 @@ export default function HorsesPage() {
     };
 
     let saveError;
+
     let savedHorse: Horse | null = null;
 
     if (editingHorseId) {
@@ -254,6 +251,7 @@ export default function HorsesPage() {
         .single();
 
       saveError = error;
+
       savedHorse = (data ?? null) as Horse | null;
 
     } else {
@@ -275,6 +273,7 @@ export default function HorsesPage() {
         .single();
 
       saveError = error;
+
       savedHorse = (data ?? null) as Horse | null;
 
     }
@@ -296,7 +295,9 @@ export default function HorsesPage() {
     closeModal();
 
     if (savedHorse) {
+
       setHorses((current) => [...current.filter((horse) => horse.id !== savedHorse!.id), savedHorse!].sort((a, b) => a.name.localeCompare(b.name)));
+
     }
 
   }
@@ -399,11 +400,9 @@ export default function HorsesPage() {
 
       );
 
-      const storagePath = `${horse.id}/silks.${
-
-        safeExtension || "png"
-
-      }`;
+      // A new object path on every upload prevents stale CDN/browser images.
+      const uniqueFileId = crypto.randomUUID();
+      const storagePath = `${horse.id}/silks-${uniqueFileId}.${safeExtension || "png"}`;
 
       const { error: uploadError } =
 
@@ -415,7 +414,7 @@ export default function HorsesPage() {
 
             cacheControl: "3600",
 
-            upsert: true,
+            upsert: false,
 
             contentType: file.type,
 
@@ -787,7 +786,7 @@ export default function HorsesPage() {
 
       Boolean(parsedUrl.username || parsedUrl.password || parsedUrl.port) ||
 
-      !/\/FreeFields\/(Form|Acceptances)\.aspx$/i.test(parsedUrl.pathname) ||
+      !/^\/FreeFields\/(Form|Acceptances)\.aspx$/i.test(parsedUrl.pathname) ||
 
       !/^\d{4}[A-Za-z]{3}\d{2},[A-Za-z]{2,3},.+$/.test(parsedUrl.searchParams.get("Key") ?? "")
 
