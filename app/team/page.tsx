@@ -427,6 +427,39 @@ export default function MyTeamPage() {
     entry_status: string; horse: { name: string; silks_url: string | null } | null;
     race: { race_name: string; race_number: number; grade: Race["grade"]; scheduled_start: string; racecourse: Racecourse | null } | null;
   }>>([]);
+  // Fetch entries by the round's race IDs rather than relying on a nested
+  // PostgREST relationship filter. Normalize joined rows: Supabase may return
+  // one-to-one relations as arrays depending on its generated types.
+  const fetchRoundHorseEntries = useCallback(async (roundId: string) => {
+    const { data: roundRaces, error: racesError } = await supabase
+      .from("races")
+      .select("id")
+      .eq("round_id", roundId);
+    if (racesError) throw racesError;
+    const raceIds = (roundRaces ?? []).map((race) => race.id);
+    if (raceIds.length === 0) return [] as typeof replacementEntries;
+
+    const { data, error } = await supabase.from("race_entries")
+      .select(`id, horse_id, price_at_entry, projected_points, entry_status,
+        horse:horses(name, silks_url),
+        race:races(race_name, race_number, grade, scheduled_start,
+          racecourse:racecourses(name))`)
+      .in("race_id", raceIds);
+    if (error) throw error;
+    return (data ?? []).map((raw) => {
+      const horse = Array.isArray(raw.horse) ? raw.horse[0] ?? null : raw.horse;
+      const race = Array.isArray(raw.race) ? raw.race[0] ?? null : raw.race;
+      const racecourse = race && (Array.isArray(race.racecourse)
+        ? race.racecourse[0] ?? null : race.racecourse);
+      return {
+        ...raw,
+        price_at_entry: Number(raw.price_at_entry ?? 0),
+        projected_points: raw.projected_points == null ? null : Number(raw.projected_points),
+        horse,
+        race: race ? { ...race, racecourse } : null,
+      };
+    }) as unknown as typeof replacementEntries;
+  }, []);
   const [newTeamEntries, setNewTeamEntries] = useState<typeof replacementEntries>([]);
   const [newTeamCaptainId, setNewTeamCaptainId] = useState<string | null>(null);
   const [newTeamSearch, setNewTeamSearch] = useState("");
@@ -477,22 +510,26 @@ export default function MyTeamPage() {
   }, [newTeamDirty, team, round, lockoutHasStarted, newTeamEntries, newTeamCaptainId, flushNewTeamAutoSave]);
 
   useEffect(() => {
-    if (team || !round || newTeamLoadedRoundId === round.id) return;
+    if (team || !round) return;
     let cancelled = false;
-    setNewTeamLoadedRoundId(round.id);
+    setNewTeamLoadedRoundId(null);
+    setReplacementLoading(true);
+    setNewTeamError("");
     void (async () => {
-      const { data, error } = await supabase.from("race_entries")
-        .select(`id, horse_id, price_at_entry, projected_points, entry_status,
-          horse:horses(name, silks_url),
-          race:races!inner(race_name, race_number, grade, scheduled_start,
-            racecourse:racecourses(name))`)
-        .eq("race.round_id", round.id).eq("entry_status", "runner");
-      if (cancelled) return;
-      if (error) setNewTeamError(error.message);
-      else setReplacementEntries(data as unknown as typeof replacementEntries);
+      try {
+        const entries = await fetchRoundHorseEntries(round.id);
+        if (!cancelled) {
+          setReplacementEntries(entries);
+          setNewTeamLoadedRoundId(round.id);
+        }
+      } catch (error) {
+        if (!cancelled) setNewTeamError(error instanceof Error ? error.message : "Unable to load round horses.");
+      } finally {
+        if (!cancelled) setReplacementLoading(false);
+      }
     })();
     return () => { cancelled = true; };
-  }, [team, round, newTeamLoadedRoundId]);
+  }, [team?.id, round?.id, fetchRoundHorseEntries]);
   async function saveNewTeamDraft() {
     if (!round || newTeamSaving || lockoutHasStarted || newTeamEntries.length === 0) return;
     setNewTeamSaving(true);
@@ -1098,14 +1135,7 @@ export default function MyTeamPage() {
     if (replacementEntries.length > 0) return;
     setReplacementLoading(true);
     try {
-      const { data, error } = await supabase.from("race_entries")
-        .select(`id, horse_id, price_at_entry, projected_points, entry_status,
-          horse:horses(name, silks_url),
-          race:races!inner(race_name, race_number, grade, scheduled_start,
-            racecourse:racecourses(name))`)
-        .eq("race.round_id", round!.id);
-      if (error) throw error;
-      setReplacementEntries((data ?? []) as unknown as typeof replacementEntries);
+      setReplacementEntries(await fetchRoundHorseEntries(round!.id));
     } catch (error) {
       setReplacementError(error instanceof Error ? error.message : "Unable to load available horses.");
     } finally {
@@ -1175,19 +1205,19 @@ export default function MyTeamPage() {
     let cancelled = false;
     setReplacementLoading(true);
     void (async () => {
-      const { data, error } = await supabase.from("race_entries")
-        .select(`id, horse_id, price_at_entry, projected_points, entry_status,
-          horse:horses(name, silks_url),
-          race:races!inner(race_name, race_number, grade, scheduled_start,
-            racecourse:racecourses(name))`)
-        .eq("race.round_id", round.id);
-      if (cancelled) return;
-      if (error) setReplacementError(error.message);
-      else setReplacementEntries((data ?? []) as unknown as typeof replacementEntries);
+      try {
+        const entries = await fetchRoundHorseEntries(round.id);
+        if (cancelled) return;
+        setReplacementEntries(entries);
+        setReplacementError("");
+      } catch (error) {
+        if (cancelled) return;
+        setReplacementError(error instanceof Error ? error.message : "Unable to load round horses.");
+      }
       setReplacementLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [round?.id, team?.id, team?.status, selections.length, season?.team_size, lockoutHasStarted]);
+  }, [round?.id, team?.id, team?.status, selections.length, season?.team_size, lockoutHasStarted, fetchRoundHorseEntries]);
 
   const availableReplacementEntries = replacementEntries
     .filter((entry) => {
@@ -1412,7 +1442,8 @@ export default function MyTeamPage() {
             <aside className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <h2 className="text-base font-black text-slate-900">Horse Selection</h2>
               <input type="search" value={newTeamSearch} onChange={event=>setNewTeamSearch(event.target.value)} placeholder="Search horses…" aria-label="Search available horses" className="mt-2 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"/>
-              <p className="my-2 text-xs text-slate-500">{matches.length} available race entries</p>
+              <p className="my-2 text-xs text-slate-500">{replacementLoading ? "Loading round horses…" : `${matches.length} available race entries`}</p>
+              {!replacementLoading && matches.length === 0 && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">No horses found for this round. {newTeamError ? "Check the error above." : "Check that race entries have been imported for the current round."}</p>}
               <div className="max-h-[650px] overflow-y-auto divide-y divide-slate-100">
                 {matches.map(entry => {
                   const affordable=newTeamSalary+entry.price_at_entry<=salaryCap;
