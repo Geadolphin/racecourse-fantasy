@@ -413,6 +413,7 @@ export default function MyTeamPage() {
   );
   const [shareOpen, setShareOpen] = useState(false);
   const [teamActionBusy, setTeamActionBusy] = useState(false);
+  const [replacementMode, setReplacementMode] = useState(false);
   const [outgoingSelections, setOutgoingSelections] = useState<TeamSelection[]>([]);
   const [incomingEntries, setIncomingEntries] = useState<Array<{
     id: string; horse_id: string; price_at_entry: number; projected_points: number | null;
@@ -1059,6 +1060,7 @@ export default function MyTeamPage() {
   async function removeHorseFromTeam(selection: TeamSelection) {
     if (!editButtonVisible || teamActionBusy) return;
     if (outgoingSelections.some((item) => item.id === selection.id)) return;
+    setReplacementMode(true);
     setOutgoingSelections((previous) => [...previous, selection]);
     if (outgoingSelections.length === 0) {
       window.setTimeout(() => document.getElementById("horse-selector")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
@@ -1128,6 +1130,7 @@ export default function MyTeamPage() {
       if (error) throw error;
       cancelReplacement();
       await loadTeam();
+      setReplacementMode(false);
       setTeamActionSuccess("All horse replacements saved.");
     } catch (error) {
       setReplacementError(error instanceof Error ? error.message : "Unable to save replacements.");
@@ -1411,13 +1414,23 @@ export default function MyTeamPage() {
                   Share Team
                 </button>
                 {editButtonVisible && (
-                  <Link
-                    href="/team/edit"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (replacementMode) {
+                        cancelReplacement();
+                        setReplacementMode(false);
+                      } else {
+                        setReplacementMode(true);
+                        window.setTimeout(() => document.getElementById("selected-team")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+                      }
+                    }}
+                    aria-pressed={replacementMode}
                     className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-white/30 bg-white/15 px-3 py-2 text-xs font-black text-white shadow-sm backdrop-blur-md transition hover:border-white/50 hover:bg-white/25 sm:min-h-0 sm:flex-none sm:py-1.5"
                   >
                     <Icon name="edit" className="mr-1.5 h-3.5 w-3.5" />
-                    Edit Team
-                  </Link>
+                    {replacementMode ? "Done Editing" : "Edit Team"}
+                  </button>
                 )}
               </div>
             </div>
@@ -1488,7 +1501,7 @@ export default function MyTeamPage() {
         {teamActionSuccess && (
           <p role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm font-semibold text-teal-800">{teamActionSuccess}</p>
         )}
-        <section className="mt-5 sm:mt-7">
+        <section id="selected-team" className="mt-5 sm:mt-7">
           <div className={`grid gap-4 xl:gap-5 ${outgoingSelections.length > 0 ? "xl:grid-cols-[minmax(0,1fr)_380px]" : "xl:grid-cols-[minmax(0,1fr)_380px]"}`}>
             <div className="min-w-0">
             <div className="min-w-0">
@@ -1838,6 +1851,13 @@ export default function MyTeamPage() {
             </div>
             </div>
             <aside className="min-w-0 space-y-4">
+        {replacementMode && outgoingSelections.length === 0 && editButtonVisible && (
+          <section aria-label="Replace horses" className="rounded-xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
+            <h2 className="text-sm font-black text-sky-950">Replace horses</h2>
+            <p className="mt-1 text-sm text-sky-800">Tap the red × on a horse in your selected team to open the replacement selector here. You can replace multiple horses before saving.</p>
+            <button type="button" onClick={() => setReplacementMode(false)} className="mt-3 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800">Cancel editing</button>
+          </section>
+        )}
         {outgoingSelections.length > 0 && editButtonVisible && (
           <section id="horse-selector" aria-label="Horse selection" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4">
             <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-900">
