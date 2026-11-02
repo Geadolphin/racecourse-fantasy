@@ -1801,7 +1801,7 @@ export default function EditTeamPage() {
               <button
                 type="button"
                 onClick={() => setShowScoringModal(true)}
-                className="lg:hidden rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 w-full sm:w-auto"
+                className="rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 w-full lg:hidden"
               >
                 Scoring System
               </button>
@@ -2073,6 +2073,10 @@ export default function EditTeamPage() {
           </div>
         </details>
 
+        <div className="mt-3 rounded-xl bg-gradient-to-r from-cyan-400 to-indigo-500 px-4 py-3 text-center text-base font-black text-white shadow-sm lg:hidden">
+          Remaining budget {formatCurrency(salaryRemaining)}
+        </div>
+
         <section id="mobile-horse-filters" className="mt-3 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:hidden">
           <div className="p-2.5 sm:p-3">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -2179,7 +2183,46 @@ export default function EditTeamPage() {
               <p className="text-xs font-medium text-slate-500">{filteredEntries.length} runners</p>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 gap-3">
+            {/* FPL-inspired compact mobile horse market; desktop cards remain unchanged. */}
+            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:hidden">
+              <div className="grid grid-cols-[minmax(0,1fr)_72px_72px_42px] items-center gap-1 border-b border-slate-200 bg-slate-50 px-2 py-3 text-[10px] font-black uppercase tracking-wide text-slate-600">
+                <span>Horse / Race</span><span className="text-center">Form</span><span className="text-right">Price</span><span className="text-center">Add</span>
+              </div>
+              {filteredEntries.length === 0 ? (
+                <p className="p-6 text-center text-sm text-slate-500">No horses match your filters.</p>
+              ) : filteredEntries.map((entry) => {
+                const isSelected = selectedEntryIds.includes(entry.id);
+                const isLocked = entryIsLocked(entry);
+                const isUnavailable = entry.entry_status !== "runner";
+                const overBudget = !isSelected && salaryUsed + entry.price_at_entry > salaryCap;
+                const disabled = isLocked || (!isSelected && (isUnavailable || selectedCount >= teamSize || overBudget));
+                return (
+                  <div key={entry.id} className={`grid grid-cols-[minmax(0,1fr)_72px_72px_42px] items-center gap-1 border-b border-slate-100 px-2 py-2.5 last:border-0 ${isSelected ? "bg-teal-50" : ""} ${isUnavailable ? "bg-red-50/50" : ""}`}>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <button type="button" onClick={() => entry.horse?.id && setSelectedHorseId(entry.horse.id)} className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded" aria-label={`View ${entry.horse?.name ?? "horse"} statistics`}>
+                        {entry.horse?.silks_url ? <img src={entry.horse.silks_url} alt="" className="h-full w-full object-contain" loading="lazy" /> : <span className="text-[9px] text-slate-400">Silks</span>}
+                      </button>
+                      <div className="min-w-0">
+                        <button type="button" onClick={() => entry.horse?.id && setSelectedHorseId(entry.horse.id)} className="block max-w-full truncate text-left text-sm font-bold text-slate-900">{entry.horse?.name ?? "Unknown horse"}</button>
+                        <p className="truncate text-[10px] text-slate-500">{entry.race?.racecourse?.name ?? "Race"} · R{entry.race?.race_number ?? "–"} · {entry.race?.grade ?? "–"}</p>
+                        {isUnavailable && <p className="text-[10px] font-bold text-red-700">{getEntryStatusLabel(entry.entry_status)}</p>}
+                        {isLocked && <p className="text-[10px] font-bold text-slate-500">Locked</p>}
+                        {isSelected && <p className="text-[10px] font-bold text-teal-700">Selected</p>}
+                      </div>
+                    </div>
+                    <span className="text-center text-xs font-semibold text-slate-700">{!isSpecialRacedays ? recentFormByHorseId[entry.horse_id] ?? "—" : "—"}</span>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-slate-900">${(entry.price_at_entry / 1000).toLocaleString("en-AU")}k</p>
+                      {projectionsVisible && <p className="text-[10px] text-sky-700">{entry.projected_points ?? "—"} pts</p>}
+                      {overBudget && <p className="text-[9px] text-red-600">Over cap</p>}
+                    </div>
+                    <button type="button" onClick={() => toggleEntry(entry)} disabled={disabled} aria-label={`${isSelected ? "Remove" : "Add"} ${entry.horse?.name ?? "horse"}`} className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold ${isSelected ? "bg-red-100 text-red-700" : "bg-teal-700 text-white"} disabled:bg-slate-100 disabled:text-slate-400`}>{isLocked ? "–" : isSelected ? "−" : "+"}</button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 hidden grid-cols-1 gap-3 lg:grid">
               {filteredEntries.length === 0 ? (
                 <div className="rounded-xl border bg-white p-8 text-center text-slate-500">
                   No horses match your filters.

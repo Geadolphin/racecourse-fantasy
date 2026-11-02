@@ -406,6 +406,103 @@ export default function MyTeamPage() {
     null
   );
   const [shareOpen, setShareOpen] = useState(false);
+  const [teamActionBusy, setTeamActionBusy] = useState(false);
+  const [outgoingSelections, setOutgoingSelections] = useState<TeamSelection[]>([]);
+  const [incomingEntries, setIncomingEntries] = useState<Array<{
+    id: string; horse_id: string; price_at_entry: number; projected_points: number | null;
+    entry_status: string; horse: { name: string; silks_url: string | null } | null;
+    race: { race_name: string; race_number: number; grade: Race["grade"]; scheduled_start: string; racecourse: Racecourse | null } | null;
+  }>>([]);
+  const [stagedCaptainEntryId, setStagedCaptainEntryId] = useState<string | null>(null);
+  const [replacementEntries, setReplacementEntries] = useState<Array<{
+    id: string; horse_id: string; price_at_entry: number; projected_points: number | null;
+    entry_status: string; horse: { name: string; silks_url: string | null } | null;
+    race: { race_name: string; race_number: number; grade: Race["grade"]; scheduled_start: string; racecourse: Racecourse | null } | null;
+  }>>([]);
+  const [replacementLoading, setReplacementLoading] = useState(false);
+  const [replacementError, setReplacementError] = useState("");
+  const [horseLookup, setHorseLookup] = useState("");
+  const [horseLookupResults, setHorseLookupResults] = useState<Array<{
+    id: string; name: string; current_price: number; silks_url: string | null; grades: string[];
+  }>>([]);
+  const [horseLookupLoading, setHorseLookupLoading] = useState(false);
+  const [horseLookupError, setHorseLookupError] = useState("");
+  useEffect(() => {
+    const term = horseLookup.trim();
+    if (!term || !round) {
+      setHorseLookupResults([]);
+      setHorseLookupLoading(false);
+      setHorseLookupError("");
+      return;
+    }
+    let cancelled = false;
+    setHorseLookupLoading(true);
+    setHorseLookupError("");
+    const timer = window.setTimeout(async () => {
+      const escaped = term.replace(/[\\%_]/g, "\\$&");
+      const { data, error } = await supabase
+        .from("horses")
+        .select("id, name, current_price, silks_url")
+        .ilike("name", `%${escaped}%`)
+        .order("name", { ascending: true })
+        .limit(1000);
+      if (cancelled) return;
+      if (error) {
+        setHorseLookupResults([]);
+        setHorseLookupError(error.message);
+        setHorseLookupLoading(false);
+        return;
+      }
+      const matches = (data ?? []) as Array<{ id: string; name: string; current_price: number; silks_url: string | null }>;
+      const gradesByHorse = new Map<string, Set<string>>();
+      if (round && matches.length) {
+        const ids = matches.map((horse) => horse.id);
+        // Look up the grade of each matching horse's race(s) in this round.
+        for (let offset = 0; offset < ids.length; offset += 200) {
+          const { data: nominations, error: gradeError } = await supabase
+            .from("race_entries")
+            .select("horse_id, race:races!inner(grade, round_id)")
+            .in("horse_id", ids.slice(offset, offset + 200))
+            .eq("race.round_id", round.id);
+          if (cancelled) return;
+          if (gradeError) {
+            setHorseLookupError(gradeError.message);
+            setHorseLookupLoading(false);
+            return;
+          }
+          for (const nomination of nominations ?? []) {
+            const record = nomination as unknown as { horse_id: string; race: { grade: string } | { grade: string }[] | null };
+            const races = Array.isArray(record.race) ? record.race : record.race ? [record.race] : [];
+            for (const race of races) {
+              if (!race.grade) continue;
+              if (!gradesByHorse.has(record.horse_id)) gradesByHorse.set(record.horse_id, new Set());
+              gradesByHorse.get(record.horse_id)!.add(race.grade);
+            }
+          }
+        }
+      }
+      if (cancelled) return;
+      setHorseLookupResults(matches
+        .filter((horse) => gradesByHorse.has(horse.id))
+        .map((horse) => ({
+          ...horse,
+          grades: [...(gradesByHorse.get(horse.id) ?? [])].sort((a, b) => ["G1", "G2", "G3", "L"].indexOf(a) - ["G1", "G2", "G3", "L"].indexOf(b)),
+        })));
+      setHorseLookupError("");
+      setHorseLookupLoading(false);
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [horseLookup, round?.id]);
+  const [replacementSearch, setReplacementSearch] = useState("");
+  const [replacementGrade, setReplacementGrade] = useState("all");
+  const [replacementSort, setReplacementSort] = useState("race");
+  const [teamActionError, setTeamActionError] = useState("");
+  const [teamActionSuccess, setTeamActionSuccess] = useState("");
+  useEffect(() => {
+    if (!teamActionSuccess) return;
+    const timeoutId = window.setTimeout(() => setTeamActionSuccess(""), 2000);
+    return () => window.clearTimeout(timeoutId);
+  }, [teamActionSuccess]);
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState("");
   const shareCardRef = useRef<HTMLDivElement | null>(null);
@@ -838,6 +935,164 @@ export default function MyTeamPage() {
     !lockoutHasStarted &&
     team?.status !== "locked" &&
     team?.status !== "scored";
+  // Edit directly from My Team, using the same secure RPC as Edit Team.
+  // The round-level lockout is deliberately conservative: no changes after it.
+  async function updateMyTeam(
+    nextSelections: TeamSelection[],
+    nextCaptainId: string | null,
+    action: "captain" | "remove"
+  ) {
+    if (!round || !team || !editButtonVisible || teamActionBusy) return;
+    setTeamActionBusy(true);
+    setTeamActionError("");
+    setTeamActionSuccess("");
+    const nextStatus = action === "remove" ? "draft" : team.status === "submitted" ? "submitted" : "draft";
+    try {
+      const { error } = await supabase.rpc("save_my_round_team", {
+        p_round_id: round.id,
+        p_entry_ids: nextSelections.map((selection) => selection.race_entry_id),
+        p_captain_entry_id: nextCaptainId,
+        p_status: nextStatus,
+      });
+      if (error) throw error;
+      await loadTeam();
+      setTeamActionSuccess(
+        action === "captain"
+          ? "Captain updated successfully."
+          : "Horse removed. Your team is now a draft; add a replacement and submit it before lockout."
+      );
+    } catch (error) {
+      setTeamActionError(error instanceof Error ? error.message : "Unable to save team changes.");
+    } finally {
+      setTeamActionBusy(false);
+    }
+  }
+
+  function changeCaptainFromTeam(selection: TeamSelection) {
+    if (selection.is_captain || !editButtonVisible || teamActionBusy) return;
+    void updateMyTeam(selections, selection.race_entry_id, "captain");
+  }
+
+  async function removeHorseFromTeam(selection: TeamSelection) {
+    if (!editButtonVisible || teamActionBusy) return;
+    if (outgoingSelections.some((item) => item.id === selection.id)) return;
+    setOutgoingSelections((previous) => [...previous, selection]);
+    if (outgoingSelections.length === 0) {
+      window.setTimeout(() => document.getElementById("horse-selector")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    }
+    setReplacementError("");
+    if (replacementEntries.length > 0) return;
+    setReplacementLoading(true);
+    try {
+      const { data, error } = await supabase.from("race_entries")
+        .select(`id, horse_id, price_at_entry, projected_points, entry_status,
+          horse:horses(name, silks_url),
+          race:races!inner(race_name, race_number, grade, scheduled_start,
+            racecourse:racecourses(name))`)
+        .eq("race.round_id", round!.id)
+        .eq("entry_status", "runner");
+      if (error) throw error;
+      setReplacementEntries((data ?? []) as unknown as typeof replacementEntries);
+    } catch (error) {
+      setReplacementError(error instanceof Error ? error.message : "Unable to load available horses.");
+    } finally {
+      setReplacementLoading(false);
+    }
+  }
+
+  const pendingSlots = outgoingSelections.length - incomingEntries.length;
+  const outgoingSalary = outgoingSelections.reduce((sum, selection) => sum + selection.selected_price, 0);
+  const incomingSalary = incomingEntries.reduce((sum, entry) => sum + entry.price_at_entry, 0);
+  const draftSalary = salaryUsed - outgoingSalary + incomingSalary;
+  const draftHorseIds = new Set([
+    ...selections.filter((selection) => !outgoingSelections.some((out) => out.id === selection.id))
+      .map((selection) => selection.race_entry?.horse?.id),
+    ...incomingEntries.map((entry) => entry.horse_id),
+  ]);
+
+  function stageReplacement(entry: (typeof replacementEntries)[number]) {
+    if (pendingSlots <= 0 || draftHorseIds.has(entry.horse_id)) return;
+    if (draftSalary + entry.price_at_entry > salaryCap) return;
+    setIncomingEntries((previous) => [...previous, entry]);
+    setReplacementError("");
+  }
+
+  function cancelReplacement() {
+    setOutgoingSelections([]);
+    setIncomingEntries([]);
+    setStagedCaptainEntryId(null);
+    setReplacementError("");
+  }
+
+  async function saveReplacements() {
+    if (!round || !team || teamActionBusy || outgoingSelections.length === 0 || pendingSlots !== 0) return;
+    const retained = selections.filter((selection) => !outgoingSelections.some((out) => out.id === selection.id));
+    const entryIds = [...retained.map((selection) => selection.race_entry_id), ...incomingEntries.map((entry) => entry.id)];
+    const previousCaptain = selections.find((selection) => selection.is_captain);
+    const captainOutgoingIndex = outgoingSelections.findIndex((selection) => selection.is_captain);
+    const captainId = stagedCaptainEntryId ?? (captainOutgoingIndex >= 0
+      ? incomingEntries[captainOutgoingIndex]?.id ?? incomingEntries[0]?.id ?? null
+      : previousCaptain?.race_entry_id ?? null);
+    setTeamActionBusy(true);
+    setReplacementError("");
+    try {
+      const { error } = await supabase.rpc("save_my_round_team", {
+        p_round_id: round.id,
+        p_entry_ids: entryIds,
+        p_captain_entry_id: captainId,
+        p_status: team.status === "submitted" ? "submitted" : "draft",
+      });
+      if (error) throw error;
+      cancelReplacement();
+      await loadTeam();
+      setTeamActionSuccess("All horse replacements saved.");
+    } catch (error) {
+      setReplacementError(error instanceof Error ? error.message : "Unable to save replacements.");
+    } finally {
+      setTeamActionBusy(false);
+    }
+  }
+
+  const availableReplacementEntries = replacementEntries
+    .filter((entry) => {
+      if (draftHorseIds.has(entry.horse_id)) return false;
+      if (replacementGrade !== "all" && entry.race?.grade !== replacementGrade) return false;
+      const query = replacementSearch.trim().toLowerCase();
+      return !query || [entry.horse?.name, entry.race?.race_name, entry.race?.racecourse?.name]
+        .some((value) => value?.toLowerCase().includes(query));
+    })
+    .sort((a, b) => replacementSort === "price-low"
+      ? a.price_at_entry - b.price_at_entry
+      : replacementSort === "price-high"
+        ? b.price_at_entry - a.price_at_entry
+        : replacementSort === "name"
+          ? (a.horse?.name ?? "").localeCompare(b.horse?.name ?? "")
+          : new Date(a.race?.scheduled_start ?? 0).getTime() - new Date(b.race?.scheduled_start ?? 0).getTime());
+
+  // Group replacements by race rather than presenting one continuous horse list.
+  // Keep races chronological, while applying the selected sort within each race.
+  const replacementRaceGroups = Array.from(
+    availableReplacementEntries.reduce((groups, entry) => {
+      const race = entry.race;
+      const key = `${race?.scheduled_start ?? ""}|${race?.racecourse?.name ?? ""}|${race?.race_number ?? ""}|${race?.race_name ?? ""}`;
+      const group = groups.get(key);
+      if (group) {
+        group.entries.push(entry);
+      } else {
+        groups.set(key, { key, race, entries: [entry] });
+      }
+      return groups;
+    }, new Map<string, {
+      key: string;
+      race: (typeof replacementEntries)[number]["race"];
+      entries: typeof replacementEntries;
+    }>()).values()
+  ).sort((a, b) =>
+    new Date(a.race?.scheduled_start ?? 0).getTime() -
+    new Date(b.race?.scheduled_start ?? 0).getTime() ||
+    (a.race?.race_number ?? 0) - (b.race?.race_number ?? 0)
+  );
+
   const handleShareTeam = useCallback(async () => {
     const card = shareCardRef.current;
     if (!card || !team || !round || shareBusy) return;
@@ -1143,8 +1398,15 @@ export default function MyTeamPage() {
             {errorMessage}
           </div>
         )}
+        {teamActionError && (
+          <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">{teamActionError}</p>
+        )}
+        {teamActionSuccess && (
+          <p role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm font-semibold text-teal-800">{teamActionSuccess}</p>
+        )}
         <section className="mt-5 sm:mt-7">
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className={`grid gap-4 xl:gap-5 ${outgoingSelections.length > 0 ? "xl:grid-cols-[minmax(0,1fr)_380px]" : "xl:grid-cols-[minmax(0,1fr)_380px]"}`}>
+            <div className="min-w-0">
             <div className="min-w-0">
               <div className="mb-3 flex flex-col gap-2 border-b border-slate-300 pb-3 sm:mb-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -1171,6 +1433,52 @@ export default function MyTeamPage() {
               ) : (
                 <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {sortedSelections.map((selection) => {
+                    const outgoingIndex = outgoingSelections.findIndex((out) => out.id === selection.id);
+                    if (outgoingIndex !== -1 && !incomingEntries[outgoingIndex]) {
+                      return (
+                        <div key={`slot-${selection.id}`} className="flex min-h-24 items-center justify-center rounded-xl border-2 border-dashed border-sky-300 bg-sky-50 p-3 text-center">
+                          <span aria-label="Vacant horse slot" title="Select a horse from the horse selection panel" className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-sky-300 bg-white text-3xl font-light text-sky-700">+</span>
+                        </div>
+                      );
+                    }
+                    const stagedEntry = outgoingIndex !== -1 ? incomingEntries[outgoingIndex] : null;
+                    if (stagedEntry) {
+                      selection = {
+                        ...selection,
+                        id: `staged-${stagedEntry.id}`,
+                        race_entry_id: stagedEntry.id,
+                        selected_price: stagedEntry.price_at_entry,
+                        is_captain: stagedCaptainEntryId ? stagedCaptainEntryId === stagedEntry.id : selection.is_captain,
+                        has_result: false,
+                        is_scratched: false,
+                        fantasy_points: 0,
+                        active_nominations: [],
+                        race_entry: {
+                          id: stagedEntry.id,
+                          race_id: `staged-race-${stagedEntry.id}`,
+                          horse_id: stagedEntry.horse_id,
+                          saddlecloth_number: null,
+                          price_at_entry: stagedEntry.price_at_entry,
+                          projected_points: stagedEntry.projected_points,
+                          horse: stagedEntry.horse ? {
+                            id: stagedEntry.horse_id,
+                            name: stagedEntry.horse.name,
+                            current_price: stagedEntry.price_at_entry,
+                          } : null,
+                          race: stagedEntry.race ? {
+                            id: `staged-race-${stagedEntry.id}`,
+                            race_number: stagedEntry.race.race_number,
+                            race_name: stagedEntry.race.race_name,
+                            grade: stagedEntry.race.grade,
+                            scheduled_start: stagedEntry.race.scheduled_start,
+                            racecourse: stagedEntry.race.racecourse,
+                          } : null,
+                        },
+                      };
+                    }
+                    if (stagedCaptainEntryId && !stagedEntry) {
+                      selection = { ...selection, is_captain: stagedCaptainEntryId === selection.race_entry_id };
+                    }
                     const entry = selection.race_entry;
                     const horse = entry?.horse;
                     const race = entry?.race;
@@ -1201,7 +1509,7 @@ export default function MyTeamPage() {
                             setSelectedHorseId(horse.id);
                           }
                         }}
-                        className={`cursor-pointer overflow-hidden rounded-xl border px-3 py-3 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 sm:py-2.5 ${
+                        className={`group cursor-pointer overflow-hidden rounded-xl border px-3 py-3 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 sm:py-2.5 ${
                           isScratched
                             ? "border-red-300 bg-red-50 hover:border-red-400 focus:ring-red-500"
                             : selection.is_captain
@@ -1214,10 +1522,10 @@ export default function MyTeamPage() {
                           <div className="flex min-w-0 items-stretch gap-2 sm:gap-2.5">
                             {showHorseSilks &&
                               horse?.id &&
-                              horseSilks[horse.id] && (
+                              (horseSilks[horse.id] || (stagedEntry && stagedEntry.horse?.silks_url)) && (
                                 <div className="flex w-9 shrink-0 items-center justify-center self-stretch sm:w-10">
                                   <img
-                                    src={horseSilks[horse.id] ?? ""}
+                                    src={horseSilks[horse.id] ?? stagedEntry?.horse?.silks_url ?? ""}
                                     alt={`${horse.name} silks`}
                                     className="h-full max-h-16 w-full object-contain"
                                   />
@@ -1231,6 +1539,45 @@ export default function MyTeamPage() {
                               {selection.is_captain && (
                                 <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950 shadow-sm">
                                   C
+                                </span>
+                              )}
+                              {editButtonVisible && (
+                                <span className="inline-flex shrink-0 items-center gap-1 opacity-100 transition-opacity duration-150 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100" onClick={(event) => event.stopPropagation()}>
+                                  {!selection.is_captain && (
+                                    <button
+                                      type="button"
+                                      title="Make captain"
+                                      aria-label={`Make ${horse?.name ?? "horse"} captain`}
+                                      disabled={teamActionBusy}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        if (stagedEntry) {
+                                          setStagedCaptainEntryId(stagedEntry.id);
+                                        } else if (outgoingSelections.length > 0) {
+                                          setStagedCaptainEntryId(selection.race_entry_id);
+                                        } else {
+                                          changeCaptainFromTeam(selection);
+                                        }
+                                      }}
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-400 text-xs font-black text-amber-950 transition hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:opacity-50"
+                                    >C</button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    title={stagedEntry ? "Undo incoming horse" : "Replace horse"}
+                                    aria-label={`${stagedEntry ? "Undo" : "Replace"} ${horse?.name ?? "horse"}`}
+                                    disabled={teamActionBusy}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      if (stagedEntry) {
+                                        setIncomingEntries((previous) => previous.filter((item) => item.id !== stagedEntry.id));
+                                        if (stagedCaptainEntryId === stagedEntry.id) setStagedCaptainEntryId(null);
+                                      } else {
+                                        removeHorseFromTeam(selection);
+                                      }
+                                    }}
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-sm font-black text-red-600 transition hover:bg-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:opacity-50"
+                                  >×</button>
                                 </span>
                               )}
                             </div>
@@ -1405,7 +1752,180 @@ export default function MyTeamPage() {
                 </div>
               )}
             </div>
-            <aside className="space-y-4">
+            </div>
+            <aside className="min-w-0 space-y-4">
+        {outgoingSelections.length > 0 && editButtonVisible && (
+          <section id="horse-selector" aria-label="Horse selection" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-900">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Team management</p>
+                <h2 className="text-sm font-black">Horse selection</h2>
+                <p className="text-[11px] text-slate-500">Select {pendingSlots} {pendingSlots === 1 ? "horse" : "horses"} to complete your changes.</p>
+              </div>
+              <button type="button" onClick={cancelReplacement} className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-600">Cancel</button>
+            </div>
+            <div className="border-b border-slate-200 bg-white px-3 py-2">
+              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Outgoing horses ({outgoingSelections.length})</p>
+              <div className="space-y-1.5">
+                {outgoingSelections.map((selection) => (
+                  <div key={selection.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+                    {showHorseSilks && selection.race_entry?.horse?.id && horseSilks[selection.race_entry.horse.id] && (
+                      <img
+                        src={horseSilks[selection.race_entry.horse.id] ?? ""}
+                        alt={`${selection.race_entry.horse.name} silks`}
+                        className="h-8 w-7 shrink-0 object-contain"
+                      />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">{selection.race_entry?.horse?.name ?? "Unknown horse"}{selection.is_captain ? " (C)" : ""}</span>
+                    <span className="text-xs font-semibold text-slate-600">{formatCurrency(selection.selected_price)}</span>
+                    <button type="button" onClick={() => setOutgoingSelections((previous) => previous.filter((item) => item.id !== selection.id))}
+                      disabled={incomingEntries.length > 0}
+                      title="Restore outgoing horse" className="rounded px-2 py-1 text-xs font-bold text-red-700 disabled:opacity-30">Undo</button>
+                  </div>
+                ))}
+              </div>
+              {incomingEntries.length > 0 && (
+                <>
+                  <p className="mb-1.5 mt-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Incoming horses ({incomingEntries.length})</p>
+                  {incomingEntries.map((entry) => (
+                    <div key={entry.id} className="mb-1 flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
+                      {showHorseSilks && entry.horse?.silks_url && (
+                        <img src={entry.horse.silks_url} alt={`${entry.horse.name} silks`} className="h-8 w-7 shrink-0 object-contain" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold">{entry.horse?.name}</span>
+                      <span className="text-xs font-semibold">{formatCurrency(entry.price_at_entry)}</span>
+                      <button type="button" onClick={() => { setIncomingEntries((previous) => previous.filter((item) => item.id !== entry.id)); if (stagedCaptainEntryId === entry.id) setStagedCaptainEntryId(null); }}
+                        className="rounded px-2 py-1 text-xs font-bold text-red-700">Undo</button>
+                    </div>
+                  ))}
+                </>
+              )}
+              <p className="mt-2 text-xs font-bold text-slate-700">{pendingSlots} {pendingSlots === 1 ? "replacement" : "replacements"} remaining</p>
+              <div className="mt-2 flex gap-2">
+                <button type="button" onClick={() => void saveReplacements()} disabled={pendingSlots !== 0 || teamActionBusy}
+                  className="min-h-9 flex-1 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:bg-slate-200 disabled:text-slate-500">
+                  {teamActionBusy ? "Saving…" : "Save all replacements"}
+                </button>
+                <button type="button" onClick={cancelReplacement} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs font-semibold text-slate-700">Cancel all</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-1 px-2.5 py-2">
+              <input aria-label="Search horses" value={replacementSearch} onChange={(e) => setReplacementSearch(e.target.value)}
+                placeholder="Search horses or races…" className="col-span-2 h-8 rounded-md border border-slate-300 px-2.5 text-xs text-slate-950" />
+              <select aria-label="Filter grade" value={replacementGrade} onChange={(e) => setReplacementGrade(e.target.value)}
+                className="h-8 min-w-0 rounded-md border border-slate-300 px-2 text-xs text-slate-950">
+                <option value="all">All grades</option><option value="G1">G1</option><option value="G2">G2</option><option value="G3">G3</option><option value="L">Listed</option>
+              </select>
+              <select aria-label="Sort horses" value={replacementSort} onChange={(e) => setReplacementSort(e.target.value)}
+                className="h-8 min-w-0 rounded-md border border-slate-300 px-2 text-xs text-slate-950">
+                <option value="race">Race time</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Horse name</option>
+              </select>
+            </div>
+            <p className="px-2.5 pb-1.5 text-[11px] font-semibold text-slate-600">
+              Available for replacement: {formatCurrency(salaryCap - draftSalary)}
+            </p>
+            {replacementError && <p role="alert" className="mx-4 mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{replacementError}</p>}
+            {replacementLoading ? <p className="p-5 text-sm text-slate-600">Loading available horses…</p> : (
+              <div className="max-h-[65vh] min-h-[320px] divide-y divide-slate-100 overflow-y-auto overscroll-contain border-t border-slate-200">
+                {availableReplacementEntries.length === 0 && <p className="p-5 text-sm text-slate-600">No matching eligible horses found.</p>}
+                {replacementRaceGroups.map((group) => (
+                  <details key={group.key} open className="group/race border-b border-slate-200 bg-white">
+                    <summary className="sticky top-0 z-10 flex cursor-pointer list-none items-center justify-between gap-2 border-b border-slate-200 bg-slate-100 px-2.5 py-1 text-slate-900 marker:hidden [&::-webkit-details-marker]:hidden">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="shrink-0 text-xs font-black text-slate-700">R{group.race?.race_number ?? "—"}</span>
+                          <span className="truncate text-xs font-bold">{group.race?.race_name ?? "Race unavailable"}</span>
+                          {group.race?.grade && <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${getGradeClasses(group.race.grade)}`}>{getGradeLabel(group.race.grade)}</span>}
+                        </div>
+                        <p className="text-[10px] font-medium leading-tight text-slate-600">{group.race?.racecourse?.name ?? "Racecourse unavailable"} · {group.race?.scheduled_start ? formatRaceTime(group.race.scheduled_start) : "Time TBC"} · {group.entries.length} {group.entries.length === 1 ? "horse" : "horses"}</p>
+                      </div>
+                      <span className="shrink-0 text-xs font-bold text-sky-700 group-open/race:rotate-180">⌄</span>
+                    </summary>
+                    <div className="divide-y divide-slate-100">
+                      {group.entries.map((entry) => {
+                      const affordable = entry.price_at_entry <= salaryCap - draftSalary;
+                      return (
+                        <div key={entry.id} className="flex h-10 items-center gap-2 px-2.5 hover:bg-slate-50">
+                      {entry.horse?.silks_url ? <img src={entry.horse.silks_url} alt="" className="h-7 w-6 shrink-0 object-contain" /> : <span className="flex h-7 w-6 shrink-0 items-center justify-center rounded bg-slate-100 text-xs text-slate-400">—</span>}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-slate-950">{entry.horse?.name ?? "Unknown horse"}</p>
+                      </div>
+                      <div className="shrink-0 text-right"><p className="text-xs font-semibold text-slate-900">{formatCurrency(entry.price_at_entry)}</p>
+                        {projectionsVisible && <p className="text-[10px] leading-tight text-slate-500">{entry.projected_points ?? "—"} proj.</p>}
+                      </div>
+                      <button type="button" disabled={!affordable || teamActionBusy || pendingSlots <= 0}
+                        onClick={() => stageReplacement(entry)}
+                        aria-label={`Add ${entry.horse?.name ?? "horse"} to team`}
+                        title={pendingSlots <= 0 ? "All vacant slots filled" : affordable ? "Add horse" : "Over salary cap"}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-base font-medium text-slate-800 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-35">
+                        {pendingSlots <= 0 ? "✓" : affordable ? "+" : "×"}
+                      </button>
+                    </div>
+                      );
+                    })}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+              {outgoingSelections.length === 0 && (
+                <>
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-label="Horse search">
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+                  <h2 className="text-sm font-black text-slate-900">Horse Search</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Search horses entered in the current round.</p>
+                </div>
+                <div className="p-3">
+                  <input
+                    type="search"
+                    aria-label="Search horses racing in this round"
+                    value={horseLookup}
+                    onChange={(event) => setHorseLookup(event.target.value)}
+                    placeholder="Enter a horse name…"
+                    className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  />
+                  {horseLookup.trim() && (
+                    <div className="mt-2 max-h-80 overflow-y-auto rounded-lg border border-slate-200" aria-live="polite">
+                      {horseLookupLoading ? (
+                        <p className="px-3 py-4 text-xs text-slate-500">Searching horses…</p>
+                      ) : horseLookupError ? (
+                        <p role="alert" className="px-3 py-4 text-xs text-red-700">{horseLookupError}</p>
+                      ) : horseLookupResults.length === 0 ? (
+                        <p className="px-3 py-4 text-xs text-slate-500">No horses racing in this round match your search.</p>
+                      ) : (
+                        <>
+                          <p className="border-b border-slate-100 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-500">
+                            {horseLookupResults.length} matching {horseLookupResults.length === 1 ? "horse" : "horses"}
+                          </p>
+                          <div className="divide-y divide-slate-100">
+                            {horseLookupResults.map((horse) => (
+                              <button key={horse.id} type="button" onClick={() => setSelectedHorseId(horse.id)}
+                                className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-sky-50 focus-visible:bg-sky-50">
+                                {horse.silks_url ? (
+                                  <img src={horse.silks_url} alt="" className="h-8 w-7 shrink-0 object-contain" />
+                                ) : (
+                                  <span className="flex h-8 w-7 shrink-0 items-center justify-center rounded bg-slate-100 text-xs text-slate-400">—</span>
+                                )}
+                                <span className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+                                  <span className="truncate text-sm font-bold text-slate-900">{horse.name}</span>
+                                  {horse.grades.map((grade) => (
+                                    <span key={grade} className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-black ${grade === "G1" ? "bg-amber-100 text-amber-900" : grade === "G2" ? "bg-slate-200 text-slate-800" : grade === "G3" ? "bg-teal-100 text-teal-800" : "bg-sky-100 text-sky-800"}`}>{grade}</span>
+                                  ))}
+                                </span>
+                                <span className="shrink-0 text-xs font-semibold text-slate-600">{formatCurrency(horse.current_price)}</span>
+                                <span aria-hidden="true" className="text-slate-400">›</span>
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </section>
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-sky-300 bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-3 text-white">
                   <div className="flex items-center gap-2">
@@ -1554,6 +2074,8 @@ export default function MyTeamPage() {
                   )}
                 </div>
               </div>
+                </>
+              )}
             </aside>
           </div>
         </section>
