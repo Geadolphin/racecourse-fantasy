@@ -1637,12 +1637,12 @@ export default function MyTeamPage() {
                         }`}
                         aria-label={horse ? `View statistics for ${horse.name}` : "Horse statistics unavailable"}
                       >
-                        <div className="grid grid-cols-[minmax(0,1fr)_76px] items-center gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-3">
-                          <div className="flex min-w-0 items-center gap-2 sm:items-stretch sm:gap-2.5">
+                        <div className="grid grid-cols-[minmax(0,1fr)_76px] items-start gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-3">
+                          <div className="flex min-w-0 items-start gap-2 sm:gap-2.5">
                             {showHorseSilks &&
                               horse?.id &&
                               (horseSilks[horse.id] || (stagedEntry && stagedEntry.horse?.silks_url)) && (
-                                <div className="flex h-12 w-9 shrink-0 items-center justify-center sm:h-auto sm:w-10 sm:self-stretch">
+                                <div className="flex h-12 w-9 shrink-0 items-center justify-center sm:h-16 sm:w-10">
                                   <img
                                     src={horseSilks[horse.id] ?? stagedEntry?.horse?.silks_url ?? ""}
                                     alt={`${horse.name} silks`}
@@ -1650,7 +1650,7 @@ export default function MyTeamPage() {
                                   />
                                 </div>
                               )}
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1 self-start">
                             <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 sm:gap-2">
                               <h3 className="min-w-0 truncate text-[13px] font-bold leading-tight text-slate-950 sm:text-base md:text-lg">
                                 {horse?.name ?? "Unknown horse"}
@@ -1781,7 +1781,7 @@ export default function MyTeamPage() {
                             </div>
                             </div>
                           </div>
-                          <div className="flex min-w-0 flex-col items-end sm:min-w-[92px]">
+                          <div className="flex min-w-0 flex-col items-end self-start sm:min-w-[92px]">
                             <Icon
                               name="chevron"
                               className="mb-1 hidden h-4 w-4 text-slate-300 sm:block"
