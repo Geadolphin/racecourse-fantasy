@@ -1839,6 +1839,24 @@ export default function EditTeamPage() {
           </div>
         </header>
 
+        <nav aria-label="Mobile team selection shortcuts" className="sticky top-0 z-30 -mx-2.5 mt-2 border-y border-cyan-200 bg-white/95 px-2.5 py-2 shadow-sm backdrop-blur sm:-mx-4 sm:px-4 lg:hidden">
+          <div className="flex items-center gap-2">
+            <a href="#mobile-selected-team" className="flex min-h-11 flex-1 items-center justify-center rounded-lg bg-cyan-600 px-2 text-xs font-black text-white">
+              My Team ({selectedCount}/{teamSize})
+            </a>
+            <a href="#available-horses" className="flex min-h-11 flex-1 items-center justify-center rounded-lg bg-sky-100 px-2 text-xs font-black text-sky-800">
+              Find Horses
+            </a>
+            <div className="min-w-0 flex-1 text-right">
+              <p className="text-[10px] font-semibold text-slate-500">Remaining</p>
+              <p className={`truncate text-xs font-black ${salaryRemaining < 0 ? "text-red-700" : "text-slate-900"}`}>{formatCurrency(salaryRemaining)}</p>
+            </div>
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Team selection progress" aria-valuemin={0} aria-valuemax={teamSize} aria-valuenow={selectedCount}>
+            <div className="h-full rounded-full bg-cyan-500 transition-all" style={{ width: `${teamSize ? Math.min(100, selectedCount / teamSize * 100) : 0}%` }} />
+          </div>
+        </nav>
+
         <section className="mt-3 hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:mt-4 lg:block">
           <div className="p-2.5 sm:p-3">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -1943,7 +1961,7 @@ export default function EditTeamPage() {
           </div>
         )}
 
-        <details className="mt-3 rounded-xl border bg-white shadow-sm lg:hidden" open={selectedEntries.length > 0}>
+        <details id="mobile-selected-team" className="mt-3 scroll-mt-28 rounded-xl border bg-white shadow-sm lg:hidden">
           <summary className="cursor-pointer list-none px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -2055,7 +2073,7 @@ export default function EditTeamPage() {
           </div>
         </details>
 
-        <section className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:hidden">
+        <section id="mobile-horse-filters" className="mt-3 scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:hidden">
           <div className="p-2.5 sm:p-3">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Lockouts</span>
@@ -2074,14 +2092,16 @@ export default function EditTeamPage() {
             })}
           </div>
 
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search horse, race or track"
-              className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-            />
+          <div className="mt-2 space-y-2">
+            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search horses, races or tracks" aria-label="Search horses, races or tracks"
+              className="min-h-12 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100" />
+            <details className="group rounded-lg border border-slate-200 bg-slate-50" open={false}>
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-sm font-bold text-sky-800">
+                <span>Filters &amp; sorting{raceTypeFilter !== "all" || raceFilter !== "all" || maxPriceFilter !== null || sortOption !== "race" ? " · Active" : ""}</span>
+                <span className="text-slate-500 group-open:rotate-180">⌄</span>
+              </summary>
+              <div className="grid grid-cols-1 gap-2 border-t border-slate-200 p-2 sm:grid-cols-2">
             <select
               value={raceTypeFilter}
               onChange={(event) => setRaceTypeFilter(event.target.value as RaceTypeFilter)}
@@ -2143,12 +2163,14 @@ export default function EditTeamPage() {
               <option value="price-low">Price: lowest first</option>
               <option value="name">Horse name</option>
             </select>
+              </div>
+            </details>
           </div>
           </div>
         </section>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)] 2xl:grid-cols-[minmax(0,0.30fr)_minmax(0,0.70fr)_280px]">
-          <section className="min-w-0">
+          <section id="available-horses" className="min-w-0 scroll-mt-28">
             <div className="flex items-end justify-between border-b border-slate-300 pb-2">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-700">Race Fields</p>

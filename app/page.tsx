@@ -109,6 +109,14 @@ export default function LandingPage() {
               </Link>
 
               <Link
+                href="/login"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-teal-300 bg-white/10 px-6 py-3.5 font-bold text-white transition hover:bg-white/20"
+              >
+                Log in
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+
+              <Link
                 href="/rules"
                 className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/5 px-6 py-3.5 font-bold text-white backdrop-blur transition hover:bg-white/10"
               >
