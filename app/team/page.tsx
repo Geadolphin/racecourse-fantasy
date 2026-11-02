@@ -510,6 +510,34 @@ export default function MyTeamPage() {
       setNewTeamError(error instanceof Error ? error.message : "Unable to save draft.");
     } finally { setNewTeamSaving(false); }
   }
+  const [replacementRecentForms, setReplacementRecentForms] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!selectedSeasonId || replacementEntries.length === 0) {
+      setReplacementRecentForms({});
+      return;
+    }
+    let cancelled = false;
+    const horseIds = [...new Set(replacementEntries.map((entry) => entry.horse_id))];
+    void (async () => {
+      const forms: Record<string, string> = {};
+      for (let i = 0; i < horseIds.length; i += 200) {
+        const { data, error } = await supabase.rpc("get_horse_recent_forms", {
+          p_horse_ids: horseIds.slice(i, i + 200),
+          p_season_id: selectedSeasonId,
+        });
+        if (cancelled) return;
+        if (error) {
+          console.error("Could not load replacement horse forms:", error);
+          return;
+        }
+        for (const row of (data ?? []) as Array<{ horse_id: string; recent_form: string | null }>) {
+          forms[row.horse_id] = row.recent_form ?? "";
+        }
+      }
+      if (!cancelled) setReplacementRecentForms(forms);
+    })();
+    return () => { cancelled = true; };
+  }, [replacementEntries, selectedSeasonId]);
   const [replacementLoading, setReplacementLoading] = useState(false);
   const [replacementError, setReplacementError] = useState("");
   const [horseLookup, setHorseLookup] = useState("");
@@ -1075,8 +1103,7 @@ export default function MyTeamPage() {
           horse:horses(name, silks_url),
           race:races!inner(race_name, race_number, grade, scheduled_start,
             racecourse:racecourses(name))`)
-        .eq("race.round_id", round!.id)
-        .eq("entry_status", "runner");
+        .eq("race.round_id", round!.id);
       if (error) throw error;
       setReplacementEntries((data ?? []) as unknown as typeof replacementEntries);
     } catch (error) {
@@ -1097,7 +1124,7 @@ export default function MyTeamPage() {
   ]);
 
   function stageReplacement(entry: (typeof replacementEntries)[number]) {
-    if (pendingSlots <= 0 || draftHorseIds.has(entry.horse_id)) return;
+    if (pendingSlots <= 0 || draftHorseIds.has(entry.horse_id) || entry.entry_status !== "runner") return;
     if (draftSalary + entry.price_at_entry > salaryCap) return;
     setIncomingEntries((previous) => [...previous, entry]);
     setReplacementError("");
@@ -1142,7 +1169,6 @@ export default function MyTeamPage() {
 
   const availableReplacementEntries = replacementEntries
     .filter((entry) => {
-      if (draftHorseIds.has(entry.horse_id)) return false;
       if (replacementGrade !== "all" && entry.race?.grade !== replacementGrade) return false;
       const query = replacementSearch.trim().toLowerCase();
       return !query || [entry.horse?.name, entry.race?.race_name, entry.race?.racecourse?.name]
@@ -1782,10 +1808,6 @@ export default function MyTeamPage() {
                             </div>
                           </div>
                           <div className="flex min-w-0 flex-col items-end self-start sm:min-w-[92px]">
-                            <Icon
-                              name="chevron"
-                              className="mb-1 hidden h-4 w-4 text-slate-300 sm:block"
-                            />
                             {!selection.has_result ? (
                               <div className="text-right">
                                 {isScratched ? (
@@ -2012,7 +2034,7 @@ export default function MyTeamPage() {
             {replacementError && <p role="alert" className="mx-4 mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{replacementError}</p>}
             {replacementLoading ? <p className="p-5 text-sm text-slate-600">Loading available horses…</p> : (
               <div className="max-h-[65vh] min-h-[320px] divide-y divide-slate-100 overflow-y-auto overscroll-contain border-t border-slate-200">
-                {availableReplacementEntries.length === 0 && <p className="p-5 text-sm text-slate-600">No matching eligible horses found.</p>}
+                {availableReplacementEntries.length === 0 && <p className="p-5 text-sm text-slate-600">No horses match your filters.</p>}
                 {replacementRaceGroups.map((group) => (
                   <details key={group.key} open className="group/race border-b border-slate-200 bg-white">
                     <summary className="sticky top-0 z-10 flex cursor-pointer list-none items-center justify-between gap-2 border-b border-slate-200 bg-slate-100 px-2.5 py-1 text-slate-900 marker:hidden [&::-webkit-details-marker]:hidden">
@@ -2028,22 +2050,31 @@ export default function MyTeamPage() {
                     </summary>
                     <div className="divide-y divide-slate-100">
                       {group.entries.map((entry) => {
+                      const selected = draftHorseIds.has(entry.horse_id);
+                      const scratched = entry.entry_status !== "runner";
                       const affordable = entry.price_at_entry <= salaryCap - draftSalary;
+                      const canAdd = !selected && !scratched && affordable && pendingSlots > 0;
                       return (
-                        <div key={entry.id} className="flex h-10 items-center gap-2 px-2.5 hover:bg-slate-50">
+                        <div key={entry.id} className={`flex min-h-10 items-center gap-2 px-2.5 py-1 ${scratched ? "bg-red-50/70" : selected ? "bg-sky-50/70" : "hover:bg-slate-50"}`}>
+
                       {entry.horse?.silks_url ? <img src={entry.horse.silks_url} alt="" className="h-7 w-6 shrink-0 object-contain" /> : <span className="flex h-7 w-6 shrink-0 items-center justify-center rounded bg-slate-100 text-xs text-slate-400">—</span>}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-slate-950">{entry.horse?.name ?? "Unknown horse"}</p>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <p className="min-w-0 truncate text-sm font-bold text-slate-950">{entry.horse?.name ?? "Unknown horse"}</p>
+                          <span className="shrink-0 rounded bg-slate-100 px-1 py-0.5 font-mono text-[10px] font-semibold text-slate-600" title="Recent form">{replacementRecentForms[entry.horse_id] || "—"}</span>
+                          {scratched && <span className="shrink-0 rounded bg-red-100 px-1 py-0.5 text-[10px] font-bold text-red-700">Scratched</span>}
+                          {!scratched && selected && <span className="shrink-0 rounded bg-sky-100 px-1 py-0.5 text-[10px] font-bold text-sky-800">Selected</span>}
+                        </div>
                       </div>
                       <div className="shrink-0 text-right"><p className="text-xs font-semibold text-slate-900">{formatCurrency(entry.price_at_entry)}</p>
                         {projectionsVisible && <p className="text-[10px] leading-tight text-slate-500">{entry.projected_points ?? "—"} proj.</p>}
                       </div>
-                      <button type="button" disabled={!affordable || teamActionBusy || pendingSlots <= 0}
+                      <button type="button" disabled={!canAdd || teamActionBusy}
                         onClick={() => stageReplacement(entry)}
-                        aria-label={`Add ${entry.horse?.name ?? "horse"} to team`}
-                        title={pendingSlots <= 0 ? "All vacant slots filled" : affordable ? "Add horse" : "Over salary cap"}
+                        aria-label={scratched ? `${entry.horse?.name ?? "Horse"} scratched` : selected ? `${entry.horse?.name ?? "Horse"} already selected` : `Add ${entry.horse?.name ?? "horse"} to team`}
+                        title={scratched ? "Scratched" : selected ? "Already selected" : pendingSlots <= 0 ? "All vacant slots filled" : affordable ? "Add horse" : "Over salary cap"}
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-base font-medium text-slate-800 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-35">
-                        {pendingSlots <= 0 ? "✓" : affordable ? "+" : "×"}
+                        {selected ? "✓" : scratched ? "×" : pendingSlots <= 0 ? "✓" : affordable ? "+" : "×"}
                       </button>
                     </div>
                       );
