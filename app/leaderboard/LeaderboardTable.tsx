@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useSeason } from "@/components/SeasonProvider";
 import type { RoundLeaderboardRow, SeasonLeaderboardRow } from "./types";
@@ -37,8 +37,6 @@ export default function LeaderboardTable({ type = "combined", rows, roundRows, s
   const [hasEarlyProjectionAccess, setHasEarlyProjectionAccess] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("round");
   const [sortAscending, setSortAscending] = useState(false);
-  const [mobileSearch, setMobileSearch] = useState("");
-  const [mobileShowMine, setMobileShowMine] = useState(false);
   type HorseCompare = { horse_id: string; horse_name: string; silks_url: string | null; race_number: number | null; race_grade: string | null; racecourse_name: string | null; is_captain: boolean; live_points: number; race_status: string };
   type CompareData = { my_user_id: string; opponent_user_id: string; my_name: string; opponent_name: string; my_score: number; opponent_score: number; my_team: HorseCompare[]; opponent_team: HorseCompare[]; my_autofill_penalty: number; opponent_autofill_penalty: number };
   const [compareOpen, setCompareOpen] = useState(false);
@@ -161,17 +159,6 @@ export default function LeaderboardTable({ type = "combined", rows, roundRows, s
     return sortAscending ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />;
   }
 
-  const visibleMobileRows = sorted.filter(row =>
-    (!mobileShowMine || row.user_id === currentUserId) &&
-    row.display_name.toLowerCase().includes(mobileSearch.trim().toLowerCase())
-  );
-  const myRankIndex = sorted.findIndex(row => row.user_id === currentUserId);
-  const myRank = myRankIndex < 0 ? null : sorted.findIndex(row => {
-    const score = sortKey === "round" ? row.round_points : sortKey === "total" ? row.total_points : row.projected_score;
-    const myRow = sorted[myRankIndex];
-    return score === (sortKey === "round" ? myRow.round_points : sortKey === "total" ? myRow.total_points : myRow.projected_score);
-  }) + 1;
-
   if (!sorted.length) return <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-500">No leaderboard results available for this selection.</div>;
 
   return (
@@ -179,83 +166,18 @@ export default function LeaderboardTable({ type = "combined", rows, roundRows, s
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
         <p className="text-sm font-bold text-slate-900">Rankings <span className="ml-1 font-normal text-slate-500">· {sorted.length} players</span></p>
       </div>
-      {/* Phone experience: quick sort, find-player, personal rank and compact tap targets. */}
-      <div className="sm:hidden">
-        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur">
-          <div className="flex gap-2" role="group" aria-label="Rank leaderboard by">
-            {([["round", "Round"], ["total", "Overall"], ...(projectionsVisible ? [["projected", "Projected"]] : [])] as [SortKey, string][]).map(([key, label]) => (
-              <button key={key} type="button" onClick={() => { setSortKey(key); setSortAscending(false); }}
-                aria-pressed={sortKey === key}
-                className={`min-h-11 flex-1 rounded-lg px-2 text-xs font-extrabold transition ${sortKey === key ? "bg-cyan-600 text-white shadow-sm" : "bg-slate-100 text-slate-700"}`}>{label}</button>
-            ))}
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
-              <input type="search" value={mobileSearch} onChange={e => setMobileSearch(e.target.value)}
-                placeholder="Find a player" aria-label="Find a player"
-                className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100" />
-            </div>
-            {currentUserId && <button type="button" aria-pressed={mobileShowMine}
-              onClick={() => { setMobileShowMine(v => !v); setMobileSearch(""); }}
-              className={`min-h-11 shrink-0 rounded-lg px-3 text-xs font-extrabold ${mobileShowMine ? "bg-amber-300 text-amber-950" : "border border-amber-200 bg-amber-50 text-amber-900"}`}>
-              {mobileShowMine ? "Show all" : "My rank"}
-            </button>}
-          </div>
-          {myRank !== null && !mobileShowMine && !mobileSearch && <p className="mt-2 text-xs text-slate-600">
-            Your position: <span className="font-black text-cyan-800">#{myRank}</span>
-            <span className="ml-2 text-slate-400">· Tap a player to compare teams</span>
-          </p>}
-        </div>
-        <div className="divide-y divide-slate-100">
-          {visibleMobileRows.length === 0 && <p className="px-4 py-8 text-center text-sm text-slate-500">No matching players.</p>}
-          {visibleMobileRows.map(row => {
-            const index = sorted.findIndex(item => item.user_id === row.user_id);
-            const points = sortKey === "round" ? row.round_points : sortKey === "projected" ? row.projected_score : row.total_points;
-            const rank = sorted.findIndex(candidate => (sortKey === "round" ? candidate.round_points : sortKey === "projected" ? candidate.projected_score : candidate.total_points) === points) + 1;
-            const mine = row.user_id === currentUserId;
-            const primaryMissing = sortKey === "total" ? !row.has_season : !row.has_round;
-            return <div key={row.user_id} className={`px-3 py-3 ${mine ? "bg-amber-50" : "bg-white"}`}>
-              <div className="flex items-center gap-2.5">
-                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black tabular-nums ${mine ? "bg-amber-200 text-amber-950" : "bg-cyan-50 text-cyan-800"}`}>{rank}</span>
-                <div className="min-w-0 flex-1">
-                  {mine ? <Link href={`/players/${row.user_id}`} className="block min-h-7 truncate py-1 text-sm font-extrabold text-cyan-800">{row.display_name} <span className="text-[10px] text-amber-700">YOU</span></Link> :
-                    <button type="button" onClick={() => void openComparison(row.user_id)}
-                      className="block min-h-9 w-full truncate text-left text-sm font-extrabold text-cyan-800 active:text-cyan-600"
-                      aria-label={`Compare your team with ${row.display_name}`}>{row.display_name}</button>}
-                  <p className="truncate text-[11px] text-slate-500">
-                    {row.has_round ? `${row.runners_used}/10 runners` : "No round entry"}
-                    {row.has_round ? ` · $${row.salary_used.toLocaleString("en-AU")}` : ""}
-                    {row.captain_ran ? " · Captain raced" : ""}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <div className="text-xl font-black tabular-nums text-slate-900">{primaryMissing ? "—" : points.toLocaleString("en-AU")}</div>
-                  <div className="text-[10px] font-bold uppercase text-slate-500">{sortKey === "round" ? "Round pts" : sortKey === "total" ? "Overall pts" : "Projected"}</div>
-                </div>
-              </div>
-              <div className="mt-2 grid grid-cols-3 gap-1 rounded-lg bg-slate-50 px-2 py-2 text-center">
-                <div><p className="text-[10px] text-slate-500">Round</p><p className="text-xs font-bold tabular-nums text-slate-800">{row.has_round ? row.round_points.toLocaleString("en-AU") : "—"}</p></div>
-                <div><p className="text-[10px] text-slate-500">Overall</p><p className="text-xs font-bold tabular-nums text-slate-800">{row.has_season ? row.total_points.toLocaleString("en-AU") : "—"}</p></div>
-                <div><p className="text-[10px] text-slate-500">Rank change</p><p className={`flex items-center justify-center gap-0.5 text-xs font-bold ${row.rank_change != null && row.rank_change > 0 ? "text-emerald-700" : row.rank_change != null && row.rank_change < 0 ? "text-red-700" : "text-slate-400"}`}>{!row.rank_change ? "—" : <>{row.rank_change > 0 ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}{Math.abs(row.rank_change)}</>}</p></div>
-              </div>
-              {!isSpecialRacedays && <p className="mt-1 text-right text-[11px] text-slate-500">Projected: <span className="font-bold text-amber-700">{!row.has_round ? "—" : projectionsVisible ? row.projected_score.toLocaleString("en-AU") : "Hidden"}</span></p>}
-            </div>;
-          })}
-        </div>
-      </div>
-      <div className="hidden overflow-x-auto sm:block">
-        <table className="min-w-full whitespace-nowrap text-sm">
+      <div className="overflow-x-auto overscroll-x-contain">
+        <table className="min-w-max whitespace-nowrap text-xs sm:min-w-full sm:text-sm">
           <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3 text-left">Rank</th>
-              <th className="px-4 py-3 text-left">Player</th>
-              <th className="px-4 py-3 text-right"><button type="button" onClick={() => selectSort("round")} className="inline-flex items-center gap-1 hover:text-cyan-700">Round points <SortIcon column="round" /></button></th>
-              <th className="px-4 py-3 text-right"><button type="button" onClick={() => selectSort("total")} className="inline-flex items-center gap-1 hover:text-cyan-700">Total points <SortIcon column="total" /></button></th>
-              {!isSpecialRacedays && <th className="px-4 py-3 text-right"><button type="button" onClick={() => selectSort("projected")} disabled={!projectionsVisible} title={projectionsVisible ? "Sort by projected points" : "Projected points are hidden"} className={`inline-flex items-center gap-1 ${projectionsVisible ? "hover:text-cyan-700" : "cursor-default opacity-60"}`}>Projected {projectionsVisible && <SortIcon column="projected" />}</button></th>}
-              <th className="px-4 py-3 text-right">Runners</th>
-              <th className="px-4 py-3 text-right">Salary used</th>
-              <th className="px-4 py-3 text-right" title="Change in overall season rank since the previous completed round">Overall Change</th>
+              <th className="sticky left-0 z-20 w-12 min-w-12 bg-slate-50 px-2 py-3 text-left shadow-[1px_0_0_#e2e8f0] sm:static sm:w-auto sm:min-w-0 sm:px-4 sm:shadow-none">Rank</th>
+              <th className="sticky left-12 z-20 w-36 min-w-36 max-w-36 bg-slate-50 px-2 py-3 text-left shadow-[2px_0_3px_-2px_#94a3b8] sm:static sm:w-auto sm:min-w-0 sm:max-w-none sm:px-4 sm:shadow-none">Player</th>
+              <th className="px-3 py-3 text-right sm:px-4"><button type="button" onClick={() => selectSort("round")} className="inline-flex items-center gap-1 hover:text-cyan-700">Round points <SortIcon column="round" /></button></th>
+              <th className="px-3 py-3 text-right sm:px-4"><button type="button" onClick={() => selectSort("total")} className="inline-flex items-center gap-1 hover:text-cyan-700">Total points <SortIcon column="total" /></button></th>
+              {!isSpecialRacedays && <th className="px-3 py-3 text-right sm:px-4"><button type="button" onClick={() => selectSort("projected")} disabled={!projectionsVisible} title={projectionsVisible ? "Sort by projected points" : "Projected points are hidden"} className={`inline-flex items-center gap-1 ${projectionsVisible ? "hover:text-cyan-700" : "cursor-default opacity-60"}`}>Projected {projectionsVisible && <SortIcon column="projected" />}</button></th>}
+              <th className="px-3 py-3 text-right sm:px-4">Runners</th>
+              <th className="px-3 py-3 text-right sm:px-4">Salary used</th>
+              <th className="px-3 py-3 text-right sm:px-4" title="Change in overall season rank since the previous completed round">Overall Change</th>
             </tr>
           </thead>
           <tbody>
@@ -268,8 +190,8 @@ export default function LeaderboardTable({ type = "combined", rows, roundRows, s
               const mine = row.user_id === currentUserId;
               return (
                 <tr key={row.user_id} className={`border-t border-slate-100 ${mine ? "bg-amber-100 hover:bg-amber-100" : "hover:bg-slate-50"}`}>
-                  <td className="px-4 py-3 font-black tabular-nums text-slate-900">{rank}</td>
-                  <td className="px-4 py-3">{mine ? <Link href={`/players/${row.user_id}`} className="font-semibold text-cyan-700 hover:underline" title="View your profile">{row.display_name}</Link> : <button type="button" onClick={() => void openComparison(row.user_id)} className="font-semibold text-cyan-700 hover:underline" title={`Compare your team with ${row.display_name}`}>{row.display_name}</button>}{mine && <span className="ml-2 text-[10px] font-black text-amber-800">YOU</span>}</td>
+                  <td className={`sticky left-0 z-10 w-12 min-w-12 px-2 py-3 font-black tabular-nums text-slate-900 shadow-[1px_0_0_#e2e8f0] sm:static sm:w-auto sm:min-w-0 sm:px-4 sm:shadow-none ${mine ? "bg-amber-100" : "bg-white"}`}>{rank}</td>
+                  <td className={`sticky left-12 z-10 w-36 min-w-36 max-w-36 overflow-hidden px-2 py-3 shadow-[2px_0_3px_-2px_#94a3b8] sm:static sm:w-auto sm:min-w-0 sm:max-w-none sm:px-4 sm:shadow-none ${mine ? "bg-amber-100" : "bg-white"}`}><div className="max-w-full truncate">{mine ? <Link href={`/players/${row.user_id}`} className="font-semibold text-cyan-700 hover:underline" title="View your profile">{row.display_name}</Link> : <button type="button" onClick={() => void openComparison(row.user_id)} className="font-semibold text-cyan-700 hover:underline" title={`Compare your team with ${row.display_name}`}>{row.display_name}</button>}{mine && <span className="ml-2 text-[10px] font-black text-amber-800">YOU</span>}</div></td>
                   <td className={`px-4 py-3 text-right tabular-nums ${sortKey === "round" ? "font-black text-slate-900" : "text-slate-700"}`}>{row.has_round ? row.round_points.toLocaleString("en-AU") : "—"}</td>
                   <td className={`px-4 py-3 text-right tabular-nums ${sortKey === "total" ? "font-black text-slate-900" : "text-slate-700"}`}>{row.has_season ? row.total_points.toLocaleString("en-AU") : "—"}</td>
                   {!isSpecialRacedays && <td className={`px-4 py-3 text-right tabular-nums text-amber-600 ${sortKey === "projected" ? "font-black" : "font-semibold"}`}>{!row.has_round ? "—" : projectionsVisible ? row.projected_score.toLocaleString("en-AU") : "Hidden"}</td>}
