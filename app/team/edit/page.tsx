@@ -1801,7 +1801,7 @@ export default function EditTeamPage() {
               <button
                 type="button"
                 onClick={() => setShowScoringModal(true)}
-                className="rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 w-full sm:w-auto"
+                className="lg:hidden rounded-lg border border-white/30 bg-white/15 px-3 py-2.5 text-xs font-bold text-white shadow-sm backdrop-blur-md transition hover:bg-white/25 w-full sm:w-auto"
               >
                 Scoring System
               </button>
