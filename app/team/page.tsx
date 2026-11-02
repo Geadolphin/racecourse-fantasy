@@ -1889,6 +1889,47 @@ export default function MyTeamPage() {
                 </div>
               )}
             </div>
+            {replacementMode && (
+            <section aria-label="Fantasy scoring system" className="mt-5 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md">
+              <div className="border-b border-slate-800 bg-slate-950 px-4 py-4 text-white">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-teal-300">Racecourse Fantasy</p>
+                <h2 className="mt-1 text-xl font-black">Scoring System</h2>
+                <p className="mt-1 text-xs text-slate-300">Captain scores double points.</p>
+              </div>
+              <div className="p-3">
+                <div className="overflow-hidden rounded-xl border border-slate-200">
+                  <table className="w-full table-fixed text-center text-xs">
+                    <thead>
+                      <tr className="text-[10px] font-black uppercase tracking-wide">
+                        <th className="bg-slate-100 px-2 py-2.5 text-left text-slate-600">Finish</th>
+                        <th className="bg-amber-400 px-1 py-2.5 text-amber-950">G1</th>
+                        <th className="bg-slate-400 px-1 py-2.5 text-white">G2</th>
+                        <th className="bg-teal-500 px-1 py-2.5 text-white">G3</th>
+                        <th className="bg-blue-100 px-1 py-2.5 text-blue-800">L</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
+                      {[
+                        ["1st", 45, 35, 30, 25], ["2nd", 35, 30, 25, 20],
+                        ["3rd", 30, 25, 20, 18], ["4th", 25, 20, 18, 16],
+                        ["5th", 20, 18, 16, 14], ["6th", 18, 16, 14, 12],
+                        ["7th", 16, 14, 12, 10], ["8th", 14, 12, 10, 8],
+                        ["9th", 12, 10, 8, 6], ["10th", 10, 8, 6, 4],
+                      ].map(([finish, g1, g2, g3, listed]) => (
+                        <tr key={finish} className="bg-white">
+                          <td className="px-2 py-2 text-left font-black text-slate-950">{finish}</td>
+                          <td className="px-1 py-2">{g1}</td>
+                          <td className="px-1 py-2">{g2}</td>
+                          <td className="px-1 py-2">{g3}</td>
+                          <td className="px-1 py-2">{listed}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+            )}
             </div>
             <aside className="min-w-0 space-y-4">
         {replacementMode && outgoingSelections.length === 0 && editButtonVisible && (
