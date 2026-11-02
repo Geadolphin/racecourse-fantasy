@@ -35,8 +35,8 @@ export default function AdminRacecoursesPage() {
   useEffect(() => {
     loadRacecourses();
   }, []);
-  async function loadRacecourses() {
-    setLoading(true);
+  async function loadRacecourses(silent = false) {
+    if (!silent) setLoading(true);
     setErrorMessage("");
     const { data, error } = await supabase
       .from("racecourses")
@@ -49,7 +49,7 @@ export default function AdminRacecoursesPage() {
     } else {
       setRacecourses(data ?? []);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }
   const filteredRacecourses = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
@@ -150,7 +150,7 @@ export default function AdminRacecoursesPage() {
       setSaving(false);
       return;
     }
-    await loadRacecourses();
+    await loadRacecourses(true);
     setSaving(false);
     setShowModal(false);
     setEditingRacecourse(null);
@@ -168,7 +168,7 @@ export default function AdminRacecoursesPage() {
       setErrorMessage(error.message);
       return;
     }
-    await loadRacecourses();
+    await loadRacecourses(true);
   }
   async function deleteRacecourse(racecourse: RacecourseWithCountry) {
     const confirmed = window.confirm(
@@ -186,17 +186,17 @@ export default function AdminRacecoursesPage() {
       setErrorMessage(error.message);
       return;
     }
-    await loadRacecourses();
+    await loadRacecourses(true);
   }
   return (
-    <main className="min-h-screen p-6 md:p-10">
+    <main className="min-h-screen p-4 md:p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="mb-1 text-sm font-semibold uppercase tracking-wider text-amber-600">
               Race management
             </p>
-            <h1 className="text-3xl font-bold text-slate-900">
+            <h1 className="text-xl font-bold text-slate-900">
               Racecourses
             </h1>
             <p className="mt-2 text-slate-600">
@@ -206,7 +206,7 @@ export default function AdminRacecoursesPage() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white transition hover:bg-teal-800"
+            className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white transition hover:bg-teal-800"
           >
             New Racecourse
           </button>
@@ -216,7 +216,7 @@ export default function AdminRacecoursesPage() {
             {errorMessage}
           </div>
         )}
-        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <label
             htmlFor="racecourse-search"
             className="mb-2 block text-sm font-semibold text-slate-700"
@@ -229,7 +229,7 @@ export default function AdminRacecoursesPage() {
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="Search by racecourse, city, state or country"
-            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
           />
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -251,22 +251,22 @@ export default function AdminRacecoursesPage() {
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Racecourse
                     </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       City
                     </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Country
                     </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       State
                     </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Status
                     </th>
-                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Actions
                     </th>
                   </tr>
@@ -277,19 +277,19 @@ export default function AdminRacecoursesPage() {
                       key={racecourse.id}
                       className="hover:bg-slate-50"
                     >
-                      <td className="whitespace-nowrap px-5 py-4 font-semibold text-slate-900">
+                      <td className="whitespace-nowrap px-3 py-2.5 font-semibold text-slate-900">
                         {racecourse.name}
                       </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-slate-700">
                         {racecourse.city || "—"}
                       </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-slate-700">
                         {racecourse.country || "Australia"}
                       </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-slate-700">
                         {racecourse.state || "—"}
                       </td>
-                      <td className="whitespace-nowrap px-5 py-4">
+                      <td className="whitespace-nowrap px-3 py-2.5">
                         <span
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                             racecourse.is_active
@@ -302,7 +302,7 @@ export default function AdminRacecoursesPage() {
                             : "Inactive"}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-right">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right">
                         <button
                           type="button"
                           onClick={() => openEditModal(racecourse)}
@@ -337,10 +337,10 @@ export default function AdminRacecoursesPage() {
       </div>
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
-            <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">
+                <h2 className="text-xl font-bold text-slate-900">
                   {editingRacecourse
                     ? "Edit Racecourse"
                     : "Create Racecourse"}
@@ -363,7 +363,7 @@ export default function AdminRacecoursesPage() {
                 {errorMessage}
               </div>
             )}
-            <form onSubmit={saveRacecourse} className="space-y-5">
+            <form onSubmit={saveRacecourse} className="space-y-4">
               <div>
                 <label
                   htmlFor="racecourse-name"
@@ -380,10 +380,10 @@ export default function AdminRacecoursesPage() {
                   }
                   placeholder="Flemington"
                   required
-                  className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                 />
               </div>
-              <div className="grid gap-5 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label
                     htmlFor="racecourse-country"
@@ -408,7 +408,7 @@ export default function AdminRacecoursesPage() {
                     }}
                     placeholder="Australia"
                     required
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                   />
                 </div>
                 <div>
@@ -426,7 +426,7 @@ export default function AdminRacecoursesPage() {
                       updateForm("city", event.target.value)
                     }
                     placeholder="Melbourne"
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                   />
                 </div>
                 {form.country.trim().toLowerCase() === "australia" && (
@@ -444,7 +444,7 @@ export default function AdminRacecoursesPage() {
                         updateForm("state", event.target.value)
                       }
                       required
-                      className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
                     >
                       <option value="">Select a state</option>
                       {australianStates.map((state) => (
@@ -479,14 +479,14 @@ export default function AdminRacecoursesPage() {
                   type="button"
                   onClick={closeModal}
                   disabled={saving}
-                  className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
                 >
                   {saving
                     ? "Saving..."
