@@ -1183,7 +1183,7 @@ export default function MyTeamPage() {
         .eq("race.round_id", round.id);
       if (cancelled) return;
       if (error) setReplacementError(error.message);
-      else setReplacementEntries((data ?? []) as typeof replacementEntries);
+      else setReplacementEntries((data ?? []) as unknown as typeof replacementEntries);
       setReplacementLoading(false);
     })();
     return () => { cancelled = true; };
