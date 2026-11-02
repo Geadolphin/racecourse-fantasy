@@ -166,7 +166,50 @@ export default function LeaderboardTable({ type = "combined", rows, roundRows, s
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
         <p className="text-sm font-bold text-slate-900">Rankings <span className="ml-1 font-normal text-slate-500">· {sorted.length} players</span></p>
       </div>
-      <div className="overflow-x-auto">
+      {/* Mobile-first leaderboard: readable cards without horizontal scrolling. */}
+      <div className="border-b border-slate-200 bg-slate-50 p-3 sm:hidden">
+        <label htmlFor="mobile-leaderboard-sort" className="mb-1 block text-xs font-bold text-slate-600">Rank by</label>
+        <select id="mobile-leaderboard-sort" value={sortKey} onChange={(event) => { setSortKey(event.target.value as SortKey); setSortAscending(false); }} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-200">
+          <option value="round">Round points</option>
+          <option value="total">Total points</option>
+          {projectionsVisible && <option value="projected">Projected points</option>}
+        </select>
+      </div>
+      <div className="divide-y divide-slate-100 sm:hidden">
+        {sorted.map((row, index) => {
+          const points = sortKey === "round" ? row.round_points : sortKey === "projected" ? row.projected_score : row.total_points;
+          const firstEqualIndex = sorted.findIndex(candidate => (sortKey === "round" ? candidate.round_points : sortKey === "projected" ? candidate.projected_score : candidate.total_points) === points);
+          const rank = firstEqualIndex + 1;
+          const mine = row.user_id === currentUserId;
+          return <div key={row.user_id} className={`px-3 py-3 ${mine ? "bg-amber-50" : "bg-white"}`}>
+            <div className="flex items-center gap-3">
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black tabular-nums ${mine ? "bg-amber-200 text-amber-900" : "bg-cyan-50 text-cyan-800"}`}>{rank}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {mine ? <Link href={`/players/${row.user_id}`} className="truncate text-sm font-bold text-cyan-700 hover:underline">{row.display_name}</Link> : <button type="button" onClick={() => void openComparison(row.user_id)} className="min-w-0 truncate text-left text-sm font-bold text-cyan-700 hover:underline">{row.display_name}</button>}
+                  {mine && <span className="shrink-0 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-black text-amber-900">YOU</span>}
+                </div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                  <span>{row.has_round ? `${row.runners_used}/10 runners` : "No round entry"}</span>
+                  {row.captain_ran && <span className="rounded bg-amber-300 px-1 font-black text-amber-950">C raced</span>}
+                  {row.has_round && <span>${row.salary_used.toLocaleString("en-AU")} salary</span>}
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="text-lg font-black tabular-nums text-slate-900">{sortKey === "round" && !row.has_round || sortKey === "total" && !row.has_season ? "—" : points.toLocaleString("en-AU")}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{sortKey === "round" ? "Round pts" : sortKey === "total" ? "Total pts" : "Projected"}</div>
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 rounded-lg bg-slate-50 px-2 py-2 text-center">
+              <div><div className="text-[10px] text-slate-500">Round</div><div className="text-xs font-bold tabular-nums text-slate-800">{row.has_round ? row.round_points.toLocaleString("en-AU") : "—"}</div></div>
+              <div><div className="text-[10px] text-slate-500">Overall</div><div className="text-xs font-bold tabular-nums text-slate-800">{row.has_season ? row.total_points.toLocaleString("en-AU") : "—"}</div></div>
+              <div><div className="text-[10px] text-slate-500">Rank change</div><div className={`flex items-center justify-center gap-0.5 text-xs font-bold tabular-nums ${row.rank_change != null && row.rank_change > 0 ? "text-emerald-600" : row.rank_change != null && row.rank_change < 0 ? "text-red-600" : "text-slate-400"}`}>{row.rank_change == null || row.rank_change === 0 ? "—" : <>{row.rank_change > 0 ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}{Math.abs(row.rank_change)}</>}</div></div>
+            </div>
+            {!isSpecialRacedays && <div className="mt-1.5 text-right text-[11px] text-slate-500">Projected: <span className="font-semibold text-amber-700">{!row.has_round ? "—" : projectionsVisible ? row.projected_score.toLocaleString("en-AU") : "Hidden"}</span></div>}
+          </div>;
+        })}
+      </div>
+      <div className="hidden overflow-x-auto sm:block">
         <table className="min-w-full whitespace-nowrap text-sm">
           <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
             <tr>
