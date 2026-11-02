@@ -1143,7 +1143,7 @@ export default function MyTeamPage() {
     }
   }
 
-  const vacantDraftSlots = team?.status === "draft" ? Math.max(0, (season?.team_size ?? 10) - selections.length) : 0;
+  const vacantDraftSlots = (!team || team.status === "draft") ? Math.max(0, (season?.team_size ?? 10) - selections.length) : 0;
   const pendingSlots = outgoingSelections.length + vacantDraftSlots - incomingEntries.length;
   const outgoingSalary = outgoingSelections.reduce((sum, selection) => sum + selection.selected_price, 0);
   const incomingSalary = incomingEntries.reduce((sum, entry) => sum + entry.price_at_entry, 0);
@@ -1169,12 +1169,12 @@ export default function MyTeamPage() {
   }
 
   async function saveReplacements() {
-    if (!round || !team || teamActionBusy || (outgoingSelections.length === 0 && vacantDraftSlots === 0) || pendingSlots !== 0) return;
+    if (!round || teamActionBusy || (outgoingSelections.length === 0 && vacantDraftSlots === 0) || (team?.status === "submitted" && pendingSlots !== 0) || incomingEntries.length === 0) return;
     const retained = selections.filter((selection) => !outgoingSelections.some((out) => out.id === selection.id));
     const entryIds = [...retained.map((selection) => selection.race_entry_id), ...incomingEntries.map((entry) => entry.id)];
     const previousCaptain = selections.find((selection) => selection.is_captain);
     const captainOutgoingIndex = outgoingSelections.findIndex((selection) => selection.is_captain);
-    const captainId = stagedCaptainEntryId ?? (captainOutgoingIndex >= 0
+    const captainId = (stagedCaptainEntryId && entryIds.includes(stagedCaptainEntryId) ? stagedCaptainEntryId : null) ?? (captainOutgoingIndex >= 0
       ? incomingEntries[captainOutgoingIndex]?.id ?? incomingEntries[0]?.id ?? null
       : previousCaptain?.race_entry_id ?? incomingEntries[0]?.id ?? null);
     setTeamActionBusy(true);
@@ -1184,13 +1184,15 @@ export default function MyTeamPage() {
         p_round_id: round.id,
         p_entry_ids: entryIds,
         p_captain_entry_id: captainId,
-        p_status: team.status === "submitted" ? "submitted" : "draft",
+        p_status: team?.status === "submitted" ? "submitted" : "draft",
       });
       if (error) throw error;
       cancelReplacement();
       await loadTeam();
       setReplacementMode(false);
-      setTeamActionSuccess(vacantDraftSlots > 0 ? "Horses added to your draft team." : "All horse replacements saved.");
+      setReplacementEntries([]);
+      setReplacementLoading(false);
+      setTeamActionSuccess(vacantDraftSlots > 0 ? "Draft saved. You can continue adding horses." : "All horse replacements saved.");
     } catch (error) {
       setReplacementError(error instanceof Error ? error.message : "Unable to save replacements.");
     } finally {
@@ -1201,7 +1203,7 @@ export default function MyTeamPage() {
   // A draft created by auto-save may contain fewer than the required horses.
   // Load the selector for these vacant slots, even when no horse is being replaced.
   useEffect(() => {
-    if (!round || !team || team.status !== "draft" || selections.length >= (season?.team_size ?? 10) || lockoutHasStarted) return;
+    if (!round || (team && team.status !== "draft") || selections.length >= (season?.team_size ?? 10) || lockoutHasStarted) return;
     let cancelled = false;
     setReplacementLoading(true);
     void (async () => {
@@ -1330,7 +1332,7 @@ export default function MyTeamPage() {
         if (canShareFiles) {
           try {
             await navigator.share({
-              title: `${team.team_name?.trim() || "My Team"} — Racecourse Fantasy`,
+              title: `${team?.team_name?.trim() || "My Team"} — Racecourse Fantasy`,
               text: `My Racecourse Fantasy team for Round ${round.round_number}`,
               files: [file],
             });
@@ -1389,78 +1391,6 @@ export default function MyTeamPage() {
       </main>
     );
   }
-  if (!team) {
-    const newTeamSalary = newTeamEntries.reduce((sum, entry) => sum + entry.price_at_entry, 0);
-    const maxHorses = season.team_size ?? 10;
-    const selectedHorseIds = new Set(newTeamEntries.map((entry) => entry.horse_id));
-    const matches = replacementEntries.filter((entry) =>
-      !selectedHorseIds.has(entry.horse_id) &&
-      (entry.horse?.name ?? "").toLowerCase().includes(newTeamSearch.toLowerCase().trim())
-    ).sort((a, b) => new Date(a.race?.scheduled_start ?? 0).getTime() - new Date(b.race?.scheduled_start ?? 0).getTime());
-    return (
-      <main className="min-h-screen bg-slate-100 px-3 py-5 sm:px-6">
-        <div className="mx-auto max-w-6xl">
-          <header className="rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 p-5 text-white shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-wider text-white/80">{season.name} · Round {round.round_number}</p>
-            <h1 className="mt-1 text-2xl font-black">Create My Team</h1>
-            <p className="mt-2 text-sm">Select up to {maxHorses} horses and choose your captain. Save your selections as a draft.</p>
-          </header>
-          {newTeamError && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{newTeamError}</p>}
-          {lockoutHasStarted && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Team creation is closed after round lockout.</p>}
-          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-            <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-black text-slate-900">Selected Horses ({newTeamEntries.length}/{maxHorses})</h2>
-              <p className="mt-1 text-sm text-slate-600">Remaining: {formatCurrency(salaryCap - newTeamSalary)}</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {Array.from({length:maxHorses},(_,index) => {
-                  const entry=newTeamEntries[index];
-                  return entry ? (
-                    <div key={entry.id} className="rounded-xl border border-slate-200 p-3">
-                      <div role="button" tabIndex={0} aria-expanded={mobileExpandedHorseId === entry.id} onClick={() => setMobileExpandedHorseId(current => current === entry.id ? null : entry.id)} onKeyDown={event => { if(event.key === "Enter" || event.key === " ") { event.preventDefault(); setMobileExpandedHorseId(current => current === entry.id ? null : entry.id); } }} className="flex min-h-14 cursor-pointer items-center gap-2">
-                      {entry.horse?.silks_url && <img src={entry.horse.silks_url} alt="" className="h-10 w-9 object-contain"/>}
-                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-900">{entry.horse?.name}</p><p className="text-xs text-slate-500">{entry.race?.grade} · {formatCurrency(entry.price_at_entry)}</p></div>
-                      <span className="text-xs text-slate-400 md:hidden">{mobileExpandedHorseId === entry.id ? "▴" : "▾"}</span>
-                      <div className="hidden items-center gap-1 md:flex">
-                        <button type="button" disabled={lockoutHasStarted} onClick={event => {event.stopPropagation();setNewTeamDirty(true);setNewTeamCaptainId(entry.id);}} aria-label={`Make ${entry.horse?.name} captain`} className={`rounded-md px-2 py-1 text-xs font-black ${newTeamCaptainId===entry.id ? "bg-amber-400 text-amber-950" : "bg-slate-100 text-slate-600"}`}>C</button>
-                        <button type="button" disabled={lockoutHasStarted} onClick={event => {event.stopPropagation();setNewTeamDirty(true);setNewTeamEntries(items=>items.filter(item=>item.id!==entry.id));if(newTeamCaptainId===entry.id)setNewTeamCaptainId(null);}} aria-label={`Remove ${entry.horse?.name}`} className="rounded-md px-2 py-1 text-sm font-bold text-red-600">×</button>
-                      </div>
-                      </div>
-                      {mobileExpandedHorseId === entry.id && <div className="mt-2 grid grid-cols-3 gap-2 border-t border-slate-200 pt-2 md:hidden">
-                        <button type="button" disabled={lockoutHasStarted} onClick={() => {setNewTeamDirty(true);setNewTeamEntries(items=>items.filter(item=>item.id!==entry.id));if(newTeamCaptainId===entry.id)setNewTeamCaptainId(null);setMobileExpandedHorseId(null);}} className="min-h-11 rounded-lg bg-red-50 text-xs font-bold text-red-700">Remove</button>
-                        <button type="button" disabled={lockoutHasStarted || newTeamCaptainId===entry.id} onClick={() => {setNewTeamDirty(true);setNewTeamCaptainId(entry.id);setMobileExpandedHorseId(null);}} className="min-h-11 rounded-lg bg-amber-50 text-xs font-bold text-amber-900 disabled:opacity-40">Captain</button>
-                        <button type="button" onClick={() => entry.horse_id && setSelectedHorseId(entry.horse_id)} className="min-h-11 rounded-lg bg-sky-50 text-xs font-bold text-sky-800">Profile</button>
-                      </div>}
-                    </div>
-                  ) : <div key={`empty-${index}`} className="flex min-h-20 items-center justify-center rounded-xl border-2 border-dashed border-sky-200 bg-sky-50 text-3xl font-light text-sky-600">+</div>;
-                })}
-              </div>
-              <p role="status" className={`mt-3 text-xs font-semibold ${newTeamAutoSaveStatus === "error" ? "text-red-700" : "text-slate-500"}`}>
-                {newTeamAutoSaveStatus === "pending" ? "Changes pending…" : newTeamAutoSaveStatus === "saving" ? "Auto-saving draft…" : newTeamAutoSaveStatus === "saved" ? "Draft auto-saved" : newTeamAutoSaveStatus === "error" ? "Auto-save failed — use Save Draft to retry" : "Changes will auto-save as a draft"}
-              </p>
-              <button type="button" onClick={() => void saveNewTeamDraft()} disabled={lockoutHasStarted || newTeamSaving || newTeamEntries.length===0} className="mt-4 w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">{newTeamSaving ? "Saving…" : "Save Draft"}</button>
-            </section>
-            <aside className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-              <h2 className="text-base font-black text-slate-900">Horse Selection</h2>
-              <input type="search" value={newTeamSearch} onChange={event=>setNewTeamSearch(event.target.value)} placeholder="Search horses…" aria-label="Search available horses" className="mt-2 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"/>
-              <p className="my-2 text-xs text-slate-500">{replacementLoading ? "Loading round horses…" : `${matches.length} available race entries`}</p>
-              {!replacementLoading && matches.length === 0 && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">No horses found for this round. {newTeamError ? "Check the error above." : "Check that race entries have been imported for the current round."}</p>}
-              <div className="max-h-[650px] overflow-y-auto divide-y divide-slate-100">
-                {matches.map(entry => {
-                  const affordable=newTeamSalary+entry.price_at_entry<=salaryCap;
-                  return <div key={entry.id} className="flex h-12 items-center gap-2 px-1">
-                    {entry.horse?.silks_url ? <img src={entry.horse.silks_url} alt="" className="h-8 w-7 object-contain"/> : <div className="w-7"/>}
-                    <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-900">{entry.horse?.name} <span className="text-slate-500">{entry.race?.grade}</span></p><p className="text-[10px] text-slate-500">{entry.race?.race_name}</p></div>
-                    <span className="text-xs font-semibold text-slate-700">{formatCurrency(entry.price_at_entry)}</span>
-                    <button type="button" disabled={lockoutHasStarted || !affordable || newTeamEntries.length>=maxHorses} onClick={()=>{setNewTeamDirty(true);setNewTeamEntries(items=>[...items,entry]);}} aria-label={`Add ${entry.horse?.name}`} className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 font-bold text-sky-800 disabled:opacity-30">+</button>
-                  </div>;
-                })}
-              </div>
-            </aside>
-          </div>
-        </div>
-      </main>
-    );
-  }
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-8 md:py-10">
@@ -1490,10 +1420,11 @@ export default function MyTeamPage() {
               </div>
               <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                 <span className="rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white shadow-sm backdrop-blur-md">
-                  {getStatusLabel(team.status)}
+                  {team ? getStatusLabel(team.status) : "New Team"}
                 </span>
                 <button
                   type="button"
+                  disabled={!team}
                   onClick={() => {
                     setShareError("");
                     setShareOpen(true);
@@ -1532,7 +1463,7 @@ export default function MyTeamPage() {
                   My Team
                 </p>
                 <h1 className="mt-1 truncate text-xl font-black tracking-tight sm:text-2xl md:text-3xl">
-                  {team.team_name?.trim() || "My Team"}
+                  {team?.team_name?.trim() || "My Team"}
                 </h1>
               </div>
             </div>
@@ -1618,13 +1549,27 @@ export default function MyTeamPage() {
                   {vacantDraftSlots} vacant {vacantDraftSlots === 1 ? "position" : "positions"} — add horses using the selector below.
                 </p>
               )}
-              {sortedSelections.length === 0 && vacantDraftSlots === 0 ? (
+              {sortedSelections.length === 0 && vacantDraftSlots === 0 && incomingEntries.length === 0 ? (
                 <div className="rounded-xl border bg-white p-10 text-center text-slate-500 shadow-sm">
                   No horses have been selected.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-                  {sortedSelections.map((selection) => {
+                  {[...sortedSelections, ...incomingEntries.slice(outgoingSelections.length).map((entry): TeamSelection => ({
+                    id: `staged-${entry.id}`, team_id: team?.id ?? "new-team", race_entry_id: entry.id,
+                    is_captain: stagedCaptainEntryId === entry.id || (!stagedCaptainEntryId && selections.length === 0 && incomingEntries[0]?.id === entry.id),
+                    selected_price: entry.price_at_entry, fantasy_points: 0, has_result: false, is_scratched: false,
+                    active_nominations: [],
+                    race_entry: {
+                      id: entry.id, race_id: `staged-race-${entry.id}`, horse_id: entry.horse_id,
+                      saddlecloth_number: null, price_at_entry: entry.price_at_entry,
+                      projected_points: entry.projected_points,
+                      horse: entry.horse ? { id: entry.horse_id, name: entry.horse.name, current_price: entry.price_at_entry } : null,
+                      race: entry.race ? { id: `staged-race-${entry.id}`, race_number: entry.race.race_number,
+                        race_name: entry.race.race_name, grade: entry.race.grade, scheduled_start: entry.race.scheduled_start,
+                        racecourse: entry.race.racecourse ? { id: `staged-course-${entry.id}`, name: entry.race.racecourse.name } : null } : null,
+                    },
+                  }))].map((selection) => {
                     const outgoingIndex = outgoingSelections.findIndex((out) => out.id === selection.id);
                     if (outgoingIndex !== -1 && !incomingEntries[outgoingIndex]) {
                       return (
@@ -1756,7 +1701,7 @@ export default function MyTeamPage() {
                                         event.stopPropagation();
                                         if (stagedEntry) {
                                           setStagedCaptainEntryId(stagedEntry.id);
-                                        } else if (outgoingSelections.length > 0) {
+                                        } else if (outgoingSelections.length > 0 || selection.id.startsWith("staged-")) {
                                           setStagedCaptainEntryId(selection.race_entry_id);
                                         } else {
                                           changeCaptainFromTeam(selection);
@@ -1775,6 +1720,8 @@ export default function MyTeamPage() {
                                       if (stagedEntry) {
                                         setIncomingEntries((previous) => previous.filter((item) => item.id !== stagedEntry.id));
                                         if (stagedCaptainEntryId === stagedEntry.id) setStagedCaptainEntryId(null);
+                                      } else if (selection.id.startsWith("staged-")) {
+                                        setIncomingEntries((previous) => previous.filter((item) => item.id !== selection.race_entry_id));
                                       } else {
                                         removeHorseFromTeam(selection);
                                       }
@@ -1951,12 +1898,12 @@ export default function MyTeamPage() {
                               if (stagedEntry) {
                                 setIncomingEntries((previous) => previous.filter((item) => item.id !== stagedEntry.id));
                                 if (stagedCaptainEntryId === stagedEntry.id) setStagedCaptainEntryId(null);
-                              } else { void removeHorseFromTeam(selection); }
+                              } else if (selection.id.startsWith("staged-")) { setIncomingEntries((previous) => previous.filter((item) => item.id !== selection.race_entry_id)); } else { void removeHorseFromTeam(selection); }
                               setMobileExpandedHorseId(null);
                             }} className="min-h-11 rounded-lg border border-red-200 bg-red-50 px-2 text-xs font-bold text-red-700 disabled:opacity-40">Remove</button>
                             <button type="button" disabled={!editButtonVisible || teamActionBusy || selection.is_captain} onClick={() => {
                               if (stagedEntry) setStagedCaptainEntryId(stagedEntry.id);
-                              else if (outgoingSelections.length > 0) setStagedCaptainEntryId(selection.race_entry_id);
+                              else if (outgoingSelections.length > 0 || selection.id.startsWith("staged-")) setStagedCaptainEntryId(selection.race_entry_id);
                               else void changeCaptainFromTeam(selection);
                               setMobileExpandedHorseId(null);
                             }} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-2 text-xs font-bold text-amber-900 disabled:opacity-40">Captain</button>
@@ -1966,6 +1913,11 @@ export default function MyTeamPage() {
                       </article>
                     );
                   })}
+                  {Array.from({ length: Math.max(0, vacantDraftSlots - incomingEntries.slice(outgoingSelections.length).length) }, (_, index) => (
+                    <div key={`vacant-draft-${index}`} className="flex min-h-[88px] items-center justify-center rounded-xl border-2 border-dashed border-sky-300 bg-sky-50 p-3">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-sky-300 bg-white text-3xl text-sky-700">+</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -2067,9 +2019,9 @@ export default function MyTeamPage() {
               )}
               <p className="mt-2 text-xs font-bold text-slate-700">{pendingSlots} {pendingSlots === 1 ? "position" : "positions"} remaining</p>
               <div className="mt-2 flex gap-2">
-                <button type="button" onClick={() => void saveReplacements()} disabled={pendingSlots !== 0 || teamActionBusy}
+                <button type="button" onClick={() => void saveReplacements()} disabled={teamActionBusy || incomingEntries.length === 0 || (team?.status === "submitted" && pendingSlots !== 0)}
                   className="min-h-9 flex-1 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:bg-slate-200 disabled:text-slate-500">
-                  {teamActionBusy ? "Saving…" : vacantDraftSlots > 0 ? "Save added horses" : "Save all replacements"}
+                  {teamActionBusy ? "Saving…" : vacantDraftSlots > 0 ? "Save draft horses" : "Save all replacements"}
                 </button>
                 <button type="button" onClick={cancelReplacement} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs font-semibold text-slate-700">Cancel all</button>
               </div>
@@ -2414,7 +2366,7 @@ export default function MyTeamPage() {
                           Racecourse Fantasy
                         </p>
                         <h2 className="mt-1 truncate text-[24px] font-black leading-tight">
-                          {team.team_name?.trim() || "My Team"}
+                          {team?.team_name?.trim() || "My Team"}
                         </h2>
                         <p className="mt-1 text-[11px] font-bold opacity-75">
                           Round {round.round_number}
