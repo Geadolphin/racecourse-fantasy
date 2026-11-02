@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -12,12 +11,8 @@ import {
   ShieldOff,
   Trash2,
   UserRound,
-  CheckCircle2,
-  XCircle,
 } from "lucide-react";
-
 import { supabase } from "@/lib/supabase";
-
 type AdminUser = {
   id: string;
   display_name: string | null;
@@ -25,13 +20,11 @@ type AdminUser = {
   created_at: string;
   updated_at: string;
 };
-
 type AdminUsersData = {
   success: boolean;
   current_user_id: string;
   users: AdminUser[];
 };
-
 type AdminRound = {
   id: string;
   round_number: number;
@@ -40,7 +33,6 @@ type AdminRound = {
   status: string;
   lockout_at: string | null;
 };
-
 type RoundTeamUser = {
   user_id: string;
   display_name: string | null;
@@ -48,9 +40,10 @@ type RoundTeamUser = {
   team_id: string | null;
   team_name: string | null;
   team_status: string | null;
+  auto_filled?: boolean | null;
+  auto_filled_at?: string | null;
   team_created_at: string | null;
 };
-
 type AdminRoundTeamStatusData = {
   success: boolean;
   selected_round_id: string | null;
@@ -59,10 +52,15 @@ type AdminRoundTeamStatusData = {
   registered_users: number;
   users: RoundTeamUser[];
 };
-
+type RoundTeamCategory = "created" | "not_created" | "auto_filled" | "draft";
+function getRoundTeamCategory(team?: RoundTeamUser): RoundTeamCategory {
+  if (!team?.has_created_team) return "not_created";
+  if (team.auto_filled === true || Boolean(team.auto_filled_at)) return "auto_filled";
+  if (team.team_status?.toLowerCase() === "draft") return "draft";
+  return "created";
+}
 type SortKey = "display_name" | "is_admin" | "created_at";
 type SortDirection = "asc" | "desc";
-
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-AU", {
     dateStyle: "medium",
@@ -70,7 +68,6 @@ function formatDate(value: string) {
     timeZone: "Australia/Melbourne",
   }).format(new Date(value));
 }
-
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -78,19 +75,16 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] =
     useState<"all" | "admin" | "player">("all");
   const [roundTeamFilter, setRoundTeamFilter] =
-    useState<"all" | "created" | "not_created">("all");
-
+    useState<"all" | "created" | "not_created" | "auto_filled" | "draft">("all");
   const [rounds, setRounds] = useState<AdminRound[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState("");
   const [roundTeamUsers, setRoundTeamUsers] = useState<RoundTeamUser[]>([]);
   const [teamsCreated, setTeamsCreated] = useState(0);
   const [roundStatusLoading, setRoundStatusLoading] = useState(true);
-
   const [sortKey, setSortKey] =
     useState<SortKey>("created_at");
   const [sortDirection, setSortDirection] =
     useState<SortDirection>("desc");
-
   const [loading, setLoading] = useState(true);
   const [updatingUserId, setUpdatingUserId] =
     useState<string | null>(null);
@@ -100,26 +94,21 @@ export default function AdminUsersPage() {
     useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-
   useEffect(() => {
     void loadUsers();
     void loadRoundTeamStatus();
   }, []);
-
   useEffect(() => {
     if (selectedRoundId) {
       void loadRoundTeamStatus(selectedRoundId);
     }
   }, [selectedRoundId]);
-
   async function loadUsers() {
     setLoading(true);
     setErrorMessage("");
-
     const { data, error } = await supabase.rpc(
       "get_admin_users"
     );
-
     if (error) {
       console.error("Admin users RPC error:", error);
       setErrorMessage(
@@ -129,24 +118,19 @@ export default function AdminUsersPage() {
       setLoading(false);
       return;
     }
-
     const loadedData = data as unknown as AdminUsersData;
-
     setUsers(loadedData.users ?? []);
     setCurrentUserId(loadedData.current_user_id ?? "");
     setLoading(false);
   }
-
   async function loadRoundTeamStatus(roundId?: string) {
     setRoundStatusLoading(true);
-
     const { data, error } = await supabase.rpc(
       "get_admin_round_team_status",
       {
         p_round_id: roundId || null,
       }
     );
-
     if (error) {
       console.error("Admin round team status RPC error:", error);
       setErrorMessage(
@@ -155,22 +139,17 @@ export default function AdminUsersPage() {
       setRoundStatusLoading(false);
       return;
     }
-
     const loadedData =
       data as unknown as AdminRoundTeamStatusData;
-
     setRounds(loadedData.rounds ?? []);
     setRoundTeamUsers(loadedData.users ?? []);
     setTeamsCreated(Number(loadedData.teams_created ?? 0));
-
     const nextRoundId = loadedData.selected_round_id ?? "";
     if (nextRoundId && nextRoundId !== selectedRoundId) {
       setSelectedRoundId(nextRoundId);
     }
-
     setRoundStatusLoading(false);
   }
-
   const roundTeamByUserId = useMemo(
     () =>
       new Map(
@@ -178,40 +157,26 @@ export default function AdminUsersPage() {
       ),
     [roundTeamUsers]
   );
-
   const filteredUsers = useMemo(() => {
     const normalisedSearch = searchTerm.trim().toLowerCase();
-
     const filtered = users.filter((user) => {
       const displayName =
         user.display_name?.trim() || "Unnamed Player";
-
       const matchesSearch =
         normalisedSearch.length === 0 ||
         displayName.toLowerCase().includes(normalisedSearch);
-
       const matchesRole =
         roleFilter === "all" ||
         (roleFilter === "admin"
           ? user.is_admin
           : !user.is_admin);
-
       const roundTeamStatus = roundTeamByUserId.get(user.id);
-      const hasCreatedTeam =
-        roundTeamStatus?.has_created_team ?? false;
-
-      const matchesRoundTeam =
-        roundTeamFilter === "all" ||
-        (roundTeamFilter === "created"
-          ? hasCreatedTeam
-          : !hasCreatedTeam);
-
+      const category = getRoundTeamCategory(roundTeamStatus);
+      const matchesRoundTeam = roundTeamFilter === "all" || roundTeamFilter === category;
       return matchesSearch && matchesRole && matchesRoundTeam;
     });
-
     return [...filtered].sort((a, b) => {
       let comparison = 0;
-
       if (sortKey === "display_name") {
         comparison = (
           a.display_name?.trim() || "Unnamed Player"
@@ -219,17 +184,14 @@ export default function AdminUsersPage() {
           b.display_name?.trim() || "Unnamed Player"
         );
       }
-
       if (sortKey === "is_admin") {
         comparison = Number(a.is_admin) - Number(b.is_admin);
       }
-
       if (sortKey === "created_at") {
         comparison =
           new Date(a.created_at).getTime() -
           new Date(b.created_at).getTime();
       }
-
       if (comparison === 0) {
         comparison = (
           a.display_name?.trim() || "Unnamed Player"
@@ -237,7 +199,6 @@ export default function AdminUsersPage() {
           b.display_name?.trim() || "Unnamed Player"
         );
       }
-
       return sortDirection === "asc"
         ? comparison
         : -comparison;
@@ -251,17 +212,14 @@ export default function AdminUsersPage() {
     sortKey,
     users,
   ]);
-
   const adminCount = useMemo(
     () => users.filter((user) => user.is_admin).length,
     [users]
   );
-
   const selectedRound = useMemo(
     () => rounds.find((round) => round.id === selectedRoundId) ?? null,
     [rounds, selectedRoundId]
   );
-
   function changeSort(nextKey: SortKey) {
     if (sortKey === nextKey) {
       setSortDirection((current) =>
@@ -269,28 +227,23 @@ export default function AdminUsersPage() {
       );
       return;
     }
-
     setSortKey(nextKey);
     setSortDirection(
       nextKey === "display_name" ? "asc" : "desc"
     );
   }
-
   function sortIcon(column: SortKey) {
     if (sortKey !== column) {
       return <ArrowUpDown className="h-4 w-4 text-slate-400" />;
     }
-
     return sortDirection === "asc" ? (
       <ArrowUp className="h-4 w-4 text-teal-700" />
     ) : (
       <ArrowDown className="h-4 w-4 text-teal-700" />
     );
   }
-
   async function toggleAdmin(user: AdminUser) {
     const nextIsAdmin = !user.is_admin;
-
     const confirmed = window.confirm(
       nextIsAdmin
         ? `Make ${
@@ -300,15 +253,12 @@ export default function AdminUsersPage() {
             user.display_name || "this player"
           }?`
     );
-
     if (!confirmed) {
       return;
     }
-
     setUpdatingUserId(user.id);
     setErrorMessage("");
     setSuccessMessage("");
-
     const { error } = await supabase.rpc(
       "set_user_admin",
       {
@@ -316,7 +266,6 @@ export default function AdminUsersPage() {
         p_is_admin: nextIsAdmin,
       }
     );
-
     if (error) {
       console.error("Admin status update error:", error);
       setErrorMessage(
@@ -325,7 +274,6 @@ export default function AdminUsersPage() {
       setUpdatingUserId(null);
       return;
     }
-
     setUsers((current) =>
       current.map((item) =>
         item.id === user.id
@@ -337,7 +285,6 @@ export default function AdminUsersPage() {
           : item
       )
     );
-
     setSuccessMessage(
       nextIsAdmin
         ? `${
@@ -347,24 +294,18 @@ export default function AdminUsersPage() {
             user.display_name || "the player"
           }.`
     );
-
     setUpdatingUserId(null);
   }
-
   async function editUserEmail(user: AdminUser) {
     const displayName =
       user.display_name?.trim() || "this player";
-
     const newEmail = window.prompt(
       `Enter the corrected email address for ${displayName}.`
     );
-
     if (newEmail === null) {
       return;
     }
-
     const cleanedEmail = newEmail.trim().toLowerCase();
-
     if (
       !cleanedEmail ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
@@ -372,24 +313,19 @@ export default function AdminUsersPage() {
       setErrorMessage("Enter a valid email address.");
       return;
     }
-
     const confirmed = window.confirm(
       `Change ${displayName}'s login email to:\n\n${cleanedEmail}\n\nTheir existing user ID and Racecourse Fantasy data will be preserved.`
     );
-
     if (!confirmed) {
       return;
     }
-
     setEditingEmailUserId(user.id);
     setErrorMessage("");
     setSuccessMessage("");
-
     const {
       data: { session },
       error: sessionError,
     } = await supabase.auth.getSession();
-
     if (sessionError || !session?.access_token) {
       setErrorMessage(
         sessionError?.message ||
@@ -398,7 +334,6 @@ export default function AdminUsersPage() {
       setEditingEmailUserId(null);
       return;
     }
-
     try {
       const response = await fetch(
         `/api/admin/users/${user.id}`,
@@ -413,16 +348,13 @@ export default function AdminUsersPage() {
           }),
         }
       );
-
       const responseText = await response.text();
-
       let responseData: {
         success?: boolean;
         error?: string;
         email?: string;
         display_name?: string;
       } = {};
-
       if (responseText) {
         try {
           responseData = JSON.parse(responseText);
@@ -432,27 +364,23 @@ export default function AdminUsersPage() {
           );
         }
       }
-
       if (!response.ok) {
         throw new Error(
           responseData.error ||
             `The email update failed with status ${response.status}.`
         );
       }
-
       if (!responseData.success) {
         throw new Error(
           responseData.error ||
             "The user's email could not be updated."
         );
       }
-
       setSuccessMessage(
         `${responseData.display_name || displayName}'s email was updated to ${responseData.email || cleanedEmail}.`
       );
     } catch (error) {
       console.error("Edit user email error:", error);
-
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -462,44 +390,35 @@ export default function AdminUsersPage() {
       setEditingEmailUserId(null);
     }
   }
-
   async function deregisterUser(user: AdminUser) {
     if (user.id === currentUserId) {
       setErrorMessage("You cannot deregister your own account.");
       return;
     }
-
     const displayName =
       user.display_name?.trim() || "this player";
-
     const confirmed = window.confirm(
       `Permanently deregister ${displayName}?\n\n` +
         "This deletes their Supabase Authentication account. " +
         "It may also delete their profile and related data, depending " +
         "on your database foreign-key rules. This cannot be undone."
     );
-
     if (!confirmed) {
       return;
     }
-
     const typedConfirmation = window.prompt(
       `Type DELETE to permanently deregister ${displayName}.`
     );
-
     if (typedConfirmation !== "DELETE") {
       return;
     }
-
     setDeletingUserId(user.id);
     setErrorMessage("");
     setSuccessMessage("");
-
     const {
       data: { session },
       error: sessionError,
     } = await supabase.auth.getSession();
-
     if (sessionError || !session?.access_token) {
       setErrorMessage(
         sessionError?.message ||
@@ -508,7 +427,6 @@ export default function AdminUsersPage() {
       setDeletingUserId(null);
       return;
     }
-
     try {
       const response = await fetch(
         `/api/admin/users/${user.id}`,
@@ -519,15 +437,12 @@ export default function AdminUsersPage() {
           },
         }
       );
-
       const responseText = await response.text();
-
       let responseData: {
         success?: boolean;
         error?: string;
         display_name?: string;
       } = {};
-
       if (responseText) {
         try {
           responseData = JSON.parse(responseText);
@@ -537,25 +452,21 @@ export default function AdminUsersPage() {
           );
         }
       }
-
       if (!response.ok) {
         throw new Error(
           responseData.error ||
             `The deregistration request failed with status ${response.status}.`
         );
       }
-
       if (!responseData.success) {
         throw new Error(
           responseData.error ||
             "The user could not be deregistered."
         );
       }
-
       setUsers((current) =>
         current.filter((item) => item.id !== user.id)
       );
-
       setSuccessMessage(
         `${
           responseData.display_name || displayName
@@ -563,7 +474,6 @@ export default function AdminUsersPage() {
       );
     } catch (error) {
       console.error("Deregister user error:", error);
-
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -573,76 +483,63 @@ export default function AdminUsersPage() {
       setDeletingUserId(null);
     }
   }
-
   if (loading) {
     return (
-      <main className="min-h-screen p-6 md:p-10">
+      <main className="min-h-screen p-4 md:p-6">
         <div className="mx-auto max-w-7xl rounded-xl border bg-white p-10 text-center text-slate-500">
           Loading users...
         </div>
       </main>
     );
   }
-
   return (
-    <main className="min-h-screen p-6 md:p-10">
+    <main className="min-h-screen p-4 md:p-6">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-8">
+        <header className="mb-5">
           <p className="text-sm font-semibold uppercase tracking-wider text-amber-600">
             Account management
           </p>
-
-          <h1 className="mt-1 text-3xl font-bold text-slate-900">
+          <h1 className="mt-1 text-2xl font-bold text-slate-900">
             Users
           </h1>
-
           <p className="mt-2 text-slate-600">
             View registered players and manage administrator access.
           </p>
         </header>
-
         {errorMessage && (
           <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
             {errorMessage}
           </div>
         )}
-
         {successMessage && (
           <div className="mb-6 rounded-lg border border-green-300 bg-green-50 p-4 text-green-800">
             {successMessage}
           </div>
         )}
-
         <section className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="rounded-lg border bg-white p-3 shadow-sm">
             <p className="text-sm font-semibold text-slate-500">
               Registered Players
             </p>
-
-            <p className="mt-2 text-3xl font-bold text-slate-950">
+            <p className="mt-2 text-2xl font-bold text-slate-950">
               {users.length}
             </p>
           </div>
-
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="rounded-lg border bg-white p-3 shadow-sm">
             <p className="text-sm font-semibold text-slate-500">
               Administrators
             </p>
-
-            <p className="mt-2 text-3xl font-bold text-slate-950">
+            <p className="mt-2 text-2xl font-bold text-slate-950">
               {adminCount}
             </p>
           </div>
-
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="rounded-lg border bg-white p-3 shadow-sm">
             <p className="text-sm font-semibold text-slate-500">
               Teams Created
             </p>
-
-            <p className="mt-2 text-3xl font-bold text-slate-950">
+            <p className="mt-2 text-2xl font-bold text-slate-950">
               {roundStatusLoading ? "—" : `${teamsCreated} / ${users.length}`}
             </p>
-
             {selectedRound && (
               <p className="mt-1 text-xs font-semibold text-teal-700">
                 Round {selectedRound.round_number}
@@ -651,12 +548,10 @@ export default function AdminUsersPage() {
             )}
           </div>
         </section>
-
-        <section className="mt-6 rounded-xl border bg-white p-5 shadow-sm">
+        <section className="mt-4 rounded-lg border bg-white p-3 shadow-sm">
           <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px_260px]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-
               <input
                 type="search"
                 value={searchTerm}
@@ -664,10 +559,9 @@ export default function AdminUsersPage() {
                   setSearchTerm(event.target.value)
                 }
                 placeholder="Search by display name"
-                className="w-full rounded-lg border border-slate-300 py-3 pl-10 pr-4 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
               />
             </div>
-
             <select
               value={roleFilter}
               onChange={(event) =>
@@ -678,13 +572,12 @@ export default function AdminUsersPage() {
                     | "player"
                 )
               }
-              className="rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
             >
               <option value="all">All roles</option>
               <option value="player">Players</option>
               <option value="admin">Administrators</option>
             </select>
-
             <select
               value={roundTeamFilter}
               onChange={(event) =>
@@ -693,22 +586,23 @@ export default function AdminUsersPage() {
                     | "all"
                     | "created"
                     | "not_created"
+                    | "auto_filled"
+                    | "draft"
                 )
               }
-              className="rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
             >
               <option value="all">All team statuses</option>
               <option value="created">Team created</option>
               <option value="not_created">Team not created</option>
             </select>
-
             <select
               value={selectedRoundId}
               onChange={(event) =>
                 setSelectedRoundId(event.target.value)
               }
               disabled={roundStatusLoading}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:opacity-60"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:opacity-60"
             >
               {rounds.map((round) => (
                 <option key={round.id} value={round.id}>
@@ -719,13 +613,11 @@ export default function AdminUsersPage() {
               ))}
             </select>
           </div>
-
           <p className="mt-4 text-sm text-slate-500">
             Showing {filteredUsers.length} of {users.length} users
           </p>
         </section>
-
-        <section className="mt-6 overflow-hidden rounded-xl border bg-white shadow-sm">
+        <section className="mt-4 overflow-hidden rounded-xl border bg-white shadow-sm">
           {filteredUsers.length === 0 ? (
             <div className="p-10 text-center text-slate-500">
               No users match your search and filters.
@@ -735,7 +627,7 @@ export default function AdminUsersPage() {
               <table className="w-full min-w-[1020px]">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-5 py-4 text-left">
+                    <th className="px-3 py-2.5 text-left">
                       <button
                         type="button"
                         onClick={() =>
@@ -747,12 +639,10 @@ export default function AdminUsersPage() {
                         {sortIcon("display_name")}
                       </button>
                     </th>
-
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Round Team
                     </th>
-
-                    <th className="px-5 py-4 text-left">
+                    <th className="px-3 py-2.5 text-left">
                       <button
                         type="button"
                         onClick={() => changeSort("is_admin")}
@@ -762,8 +652,7 @@ export default function AdminUsersPage() {
                         {sortIcon("is_admin")}
                       </button>
                     </th>
-
-                    <th className="px-5 py-4 text-left">
+                    <th className="px-3 py-2.5 text-left">
                       <button
                         type="button"
                         onClick={() =>
@@ -775,33 +664,28 @@ export default function AdminUsersPage() {
                         {sortIcon("created_at")}
                       </button>
                     </th>
-
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Updated
                     </th>
-
-                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Actions
                     </th>
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-slate-100">
                   {filteredUsers.map((user) => {
                     const isCurrentUser =
                       user.id === currentUserId;
-
                     return (
                       <tr
                         key={user.id}
                         className="hover:bg-slate-50"
                       >
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5">
                           <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
                               <UserRound className="h-5 w-5" />
                             </div>
-
                             <div>
                               <Link
                                 href={`/players/${user.id}`}
@@ -810,7 +694,6 @@ export default function AdminUsersPage() {
                                 {user.display_name?.trim() ||
                                   "Unnamed Player"}
                               </Link>
-
                               {isCurrentUser && (
                                 <p className="mt-1 text-xs font-semibold text-teal-700">
                                   Your account
@@ -819,34 +702,34 @@ export default function AdminUsersPage() {
                             </div>
                           </div>
                         </td>
-
-                        <td className="px-5 py-4">
+                        <td className="px-3 py-2.5">
                           {roundStatusLoading ? (
-                            <span className="text-sm text-slate-400">
-                              Loading...
-                            </span>
-                          ) : roundTeamByUserId.get(user.id)?.has_created_team ? (
-                            <div>
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-                                <CheckCircle2 className="h-4 w-4" />
-                                Created
-                              </span>
-
-                              {roundTeamByUserId.get(user.id)?.team_name && (
-                                <p className="mt-1 max-w-[180px] truncate text-xs text-slate-500">
-                                  {roundTeamByUserId.get(user.id)?.team_name}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
-                              <XCircle className="h-4 w-4" />
-                              Not Created
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4">
+                              <span className="text-xs text-slate-400">Loading...</span>
+                            ) : (() => {
+                              const team = roundTeamByUserId.get(user.id);
+                              const category = getRoundTeamCategory(team);
+                              const labels: Record<RoundTeamCategory, string> = {
+                                created: "Created",
+                                not_created: "Not Created",
+                                auto_filled: "Auto Filled",
+                                draft: "Draft",
+                              };
+                              const colours: Record<RoundTeamCategory, string> = {
+                                created: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                not_created: "bg-red-50 text-red-700 border-red-200",
+                                auto_filled: "bg-blue-50 text-blue-700 border-blue-200",
+                                draft: "bg-amber-50 text-amber-800 border-amber-200",
+                              };
+                              return (
+                                <div>
+                                  <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold ${colours[category]}`}>
+                                    {labels[category]}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+</td>
+                        <td className="px-3 py-2.5">
                           <span
                             className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
                               user.is_admin
@@ -859,22 +742,18 @@ export default function AdminUsersPage() {
                             ) : (
                               <UserRound className="h-4 w-4" />
                             )}
-
                             {user.is_admin
                               ? "Administrator"
                               : "Player"}
                           </span>
                         </td>
-
-                        <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-700">
+                        <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
                           {formatDate(user.created_at)}
                         </td>
-
-                        <td className="whitespace-nowrap px-5 py-4 text-sm text-slate-700">
+                        <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
                           {formatDate(user.updated_at)}
                         </td>
-
-                        <td className="whitespace-nowrap px-5 py-4 text-right">
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right">
                           <div className="flex justify-end gap-3">
                             <Link
                               href={`/players/${user.id}`}
@@ -882,7 +761,6 @@ export default function AdminUsersPage() {
                             >
                               View Profile
                             </Link>
-
                             <button
                               type="button"
                               onClick={() => editUserEmail(user)}
@@ -893,12 +771,10 @@ export default function AdminUsersPage() {
                               className="inline-flex items-center gap-2 rounded-lg border border-teal-300 px-3 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <Mail className="h-4 w-4" />
-
                               {editingEmailUserId === user.id
                                 ? "Updating Email..."
                                 : "Edit Email"}
                             </button>
-
                             <button
                               type="button"
                               onClick={() => toggleAdmin(user)}
@@ -918,14 +794,12 @@ export default function AdminUsersPage() {
                               ) : (
                                 <Shield className="h-4 w-4" />
                               )}
-
                               {updatingUserId === user.id
                                 ? "Updating..."
                                 : user.is_admin
                                   ? "Remove Admin"
                                   : "Make Admin"}
                             </button>
-
                             <button
                               type="button"
                               onClick={() => deregisterUser(user)}
@@ -938,7 +812,6 @@ export default function AdminUsersPage() {
                               className="inline-flex items-center gap-2 rounded-lg border border-red-400 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <Trash2 className="h-4 w-4" />
-
                               {deletingUserId === user.id
                                 ? "Deregistering..."
                                 : "Deregister"}
