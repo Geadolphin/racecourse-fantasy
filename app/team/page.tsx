@@ -483,7 +483,7 @@ export default function MyTeamPage() {
   const [newTeamDirty, setNewTeamDirty] = useState(false);
   const [newTeamAutoSaveStatus, setNewTeamAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const newTeamAutoSaveInFlight = useRef(false);
-  const newTeamAutoSaveQueued = useRef<null | { roundId: string; entryIds: string[]; captainId: string | null }>(null);
+  const newTeamAutoSaveQueued = useRef<null | { roundId: string; entryIds: string[]; captainId: string | null; status: "draft" | "submitted" }>(null);
   const flushNewTeamAutoSave = useCallback(async () => {
     if (newTeamAutoSaveInFlight.current) return;
     const payload = newTeamAutoSaveQueued.current;
@@ -495,7 +495,7 @@ export default function MyTeamPage() {
       p_round_id: payload.roundId,
       p_entry_ids: payload.entryIds,
       p_captain_entry_id: payload.captainId,
-      p_status: "draft",
+      p_status: payload.status,
     });
     newTeamAutoSaveInFlight.current = false;
     if (error) {
@@ -515,11 +515,12 @@ export default function MyTeamPage() {
         roundId: round.id,
         entryIds: newTeamEntries.map((entry) => entry.id),
         captainId: newTeamCaptainId,
+        status: newTeamEntries.length === (season?.team_size ?? 10) && newTeamCaptainId ? "submitted" : "draft",
       };
       void flushNewTeamAutoSave();
     }, 750);
     return () => window.clearTimeout(timer);
-  }, [newTeamDirty, team, round, lockoutHasStarted, newTeamEntries, newTeamCaptainId, flushNewTeamAutoSave]);
+  }, [newTeamDirty, team, round, lockoutHasStarted, newTeamEntries, newTeamCaptainId, season?.team_size, flushNewTeamAutoSave]);
 
   useEffect(() => {
     if (team || !round) return;
@@ -551,7 +552,7 @@ export default function MyTeamPage() {
         p_round_id: round.id,
         p_entry_ids: newTeamEntries.map((entry) => entry.id),
         p_captain_entry_id: newTeamCaptainId,
-        p_status: "draft",
+        p_status: newTeamEntries.length === (season?.team_size ?? 10) && newTeamCaptainId ? "submitted" : "draft",
       });
       if (error) throw error;
       await loadTeam();
@@ -1108,7 +1109,7 @@ export default function MyTeamPage() {
     setTeamActionBusy(true);
     setTeamActionError("");
     setTeamActionSuccess("");
-    const nextStatus = action === "remove" ? "draft" : team.status === "submitted" ? "submitted" : "draft";
+    const nextStatus = nextSelections.length === (season?.team_size ?? 10) && nextCaptainId ? "submitted" : "draft";
     try {
       const { error } = await supabase.rpc("save_my_round_team", {
         p_round_id: round.id,
@@ -1155,6 +1156,31 @@ export default function MyTeamPage() {
     }
   }
 
+  // Recover complete drafts created before automatic submission was enabled.
+  // A round-specific guard prevents duplicate requests while loadTeam refreshes.
+  const autoSubmitInFlight = useRef<string | null>(null);
+  useEffect(() => {
+    if (!round || !team || team.status !== "draft" || lockoutHasStarted ||
+        selections.length !== (season?.team_size ?? 10)) return;
+    const captainId = selections.find((selection) => selection.is_captain)?.race_entry_id;
+    if (!captainId || autoSubmitInFlight.current === round.id) return;
+    autoSubmitInFlight.current = round.id;
+    void (async () => {
+      const { error } = await supabase.rpc("save_my_round_team", {
+        p_round_id: round.id,
+        p_entry_ids: selections.map((selection) => selection.race_entry_id),
+        p_captain_entry_id: captainId,
+        p_status: "submitted",
+      });
+      if (error) {
+        setTeamActionError(error.message);
+        autoSubmitInFlight.current = null;
+      } else {
+        await loadTeam();
+        setTeamActionSuccess("Team automatically submitted.");
+      }
+    })();
+  }, [round?.id, team?.status, selections, season?.team_size, lockoutHasStarted, loadTeam]);
   const vacantDraftSlots = (!team || team.status === "draft") ? Math.max(0, (season?.team_size ?? 10) - selections.length) : 0;
   const pendingSlots = outgoingSelections.length + vacantDraftSlots - incomingEntries.length;
   const outgoingSalary = outgoingSelections.reduce((sum, selection) => sum + selection.selected_price, 0);
@@ -1196,7 +1222,7 @@ export default function MyTeamPage() {
         p_round_id: round.id,
         p_entry_ids: entryIds,
         p_captain_entry_id: captainId,
-        p_status: team?.status === "submitted" ? "submitted" : "draft",
+        p_status: entryIds.length === (season?.team_size ?? 10) && captainId ? "submitted" : "draft",
       });
       if (error) throw error;
       cancelReplacement();
@@ -1204,7 +1230,7 @@ export default function MyTeamPage() {
       setReplacementMode(false);
       setReplacementEntries([]);
       setReplacementLoading(false);
-      setTeamActionSuccess(vacantDraftSlots > 0 ? "Draft saved. You can continue adding horses." : "All horse replacements saved.");
+      setTeamActionSuccess(entryIds.length === (season?.team_size ?? 10) ? "Team automatically submitted." : "Draft saved. You can continue adding horses.");
     } catch (error) {
       setReplacementError(error instanceof Error ? error.message : "Unable to save replacements.");
     } finally {
