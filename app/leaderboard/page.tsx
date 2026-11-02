@@ -421,7 +421,7 @@ export default function LeaderboardPage() {
           <p className="text-xs font-bold uppercase tracking-wider text-sky-600">{selectedSeason?.name ?? "Season"}</p>
           <h2 className="text-xl font-black text-slate-900">{selectedRound ? `Round ${selectedRound.round_number}${selectedRound.name ? ` · ${selectedRound.name}` : ""}` : "Rankings"}</h2>
         </div>
-        <LeaderboardTable type="combined" roundRows={selectedRoundRows} seasonRows={selectedSeasonRows} selectedRoundId={selectedRoundId} />
+        <LeaderboardTable roundRows={selectedRoundRows} seasonRows={selectedSeasonRows} selectedRoundId={selectedRoundId} />
       </div>
     </main>
   );

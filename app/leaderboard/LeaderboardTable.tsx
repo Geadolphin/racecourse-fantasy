@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useSeason } from "@/components/SeasonProvider";
 import type { RoundLeaderboardRow, SeasonLeaderboardRow } from "./types";
@@ -96,6 +95,13 @@ export default function LeaderboardTable({ type = "combined", rows, roundRows, s
   const isSpecialRacedays = /special\s*racedays/i.test(selectedSeason?.name ?? "");
   const projectionsVisible = !isSpecialRacedays && (showProjectedScores || (showSpecialTeamProjections && hasEarlyProjectionAccess));
 
+  useEffect(() => {
+    if (sortKey === "projected" && !projectionsVisible) {
+      setSortKey("round");
+      setSortAscending(false);
+    }
+  }, [sortKey, projectionsVisible]);
+
   const combined = useMemo(() => {
     const byUser = new Map<string, CombinedRow>();
     for (const row of effectiveSeasonRows ?? []) {
@@ -185,7 +191,7 @@ export default function LeaderboardTable({ type = "combined", rows, roundRows, s
               return (
                 <tr key={row.user_id} className={`border-t border-slate-100 ${mine ? "bg-amber-100 hover:bg-amber-100" : "hover:bg-slate-50"}`}>
                   <td className="px-4 py-3 font-black tabular-nums text-slate-900">{rank}</td>
-                  <td className="px-4 py-3"><button type="button" onClick={() => void openComparison(row.user_id)} className="font-semibold text-cyan-700 hover:underline" title={`Compare your team with ${row.display_name}`}>{row.display_name}</button>{mine && <span className="ml-2 text-[10px] font-black text-amber-800">YOU</span>}</td>
+                  <td className="px-4 py-3">{mine ? <Link href={`/players/${row.user_id}`} className="font-semibold text-cyan-700 hover:underline" title="View your profile">{row.display_name}</Link> : <button type="button" onClick={() => void openComparison(row.user_id)} className="font-semibold text-cyan-700 hover:underline" title={`Compare your team with ${row.display_name}`}>{row.display_name}</button>}{mine && <span className="ml-2 text-[10px] font-black text-amber-800">YOU</span>}</td>
                   <td className={`px-4 py-3 text-right tabular-nums ${sortKey === "round" ? "font-black text-slate-900" : "text-slate-700"}`}>{row.has_round ? row.round_points.toLocaleString("en-AU") : "—"}</td>
                   <td className={`px-4 py-3 text-right tabular-nums ${sortKey === "total" ? "font-black text-slate-900" : "text-slate-700"}`}>{row.has_season ? row.total_points.toLocaleString("en-AU") : "—"}</td>
                   {!isSpecialRacedays && <td className={`px-4 py-3 text-right tabular-nums text-amber-600 ${sortKey === "projected" ? "font-black" : "font-semibold"}`}>{!row.has_round ? "—" : projectionsVisible ? row.projected_score.toLocaleString("en-AU") : "Hidden"}</td>}
