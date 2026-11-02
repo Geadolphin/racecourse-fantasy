@@ -131,8 +131,8 @@ export default function AdminCupsPage() {
   const [successMessage, setSuccessMessage] =
     useState("");
 
-  async function loadData() {
-    setLoading(true);
+  async function loadData(options?: { silent?: boolean }) {
+    if (!options?.silent) setLoading(true);
     setError("");
 
     try {
@@ -253,7 +253,7 @@ export default function AdminCupsPage() {
           : "Unable to load Cup competitions."
       );
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
   }
 
@@ -466,7 +466,7 @@ export default function AdminCupsPage() {
 
       setSaving(false);
 
-      await loadData();
+      await loadData({ silent: true });
       return;
     }
 
@@ -482,7 +482,7 @@ export default function AdminCupsPage() {
 
     setSaving(false);
 
-    await loadData();
+    await loadData({ silent: true });
   }
 
   async function handleDeleteCup(
@@ -537,13 +537,12 @@ export default function AdminCupsPage() {
     );
 
     setDeletingCupId(null);
-
-    await loadData();
+    setCups((current) => current.filter((item) => item.id !== cup.id));
   }
 
   if (loading) {
     return (
-      <main className="p-6 md:p-8">
+      <main className="p-3 sm:p-4 lg:p-5">
         <div className="rounded-xl border bg-white p-10 text-center text-slate-500 shadow-sm">
           Loading Cups...
         </div>
@@ -552,18 +551,18 @@ export default function AdminCupsPage() {
   }
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-teal-700">
+    <main className="p-3 sm:p-4 lg:p-5">
+      <div className="mx-auto max-w-[1500px]">
+        <div className="mb-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-teal-700">
             Administration
           </p>
 
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-950">
             Cups
           </h1>
 
-          <p className="mt-2 max-w-3xl text-slate-600">
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">
             Create and manage configurable
             group-stage and knockout Cup
             competitions.
@@ -571,24 +570,24 @@ export default function AdminCupsPage() {
         </div>
 
         {error && (
-          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+          <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
           </div>
         )}
 
         {successMessage && (
-          <div className="mb-5 rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm font-medium text-teal-800">
+          <div className="mb-3 rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800">
             {successMessage}
           </div>
         )}
 
-        <section className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="grid items-start gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
           <form
             onSubmit={handleCreateCup}
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
           >
-            <div className="border-b border-slate-200 pb-4">
-              <h2 className="text-xl font-bold text-slate-950">
+            <div className="border-b border-slate-200 pb-3">
+              <h2 className="text-base font-semibold text-slate-950">
                 Create Cup
               </h2>
 
@@ -599,9 +598,9 @@ export default function AdminCupsPage() {
               </p>
             </div>
 
-            <div className="mt-5 space-y-4">
+            <div className="mt-3 space-y-3">
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                <label className="mb-1 block text-xs font-semibold text-slate-600">
                   Season
                 </label>
 
@@ -619,7 +618,7 @@ export default function AdminCupsPage() {
                       })
                     )
                   }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                 >
                   {seasons.map(
                     (season) => (
@@ -636,7 +635,7 @@ export default function AdminCupsPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                <label className="mb-1 block text-xs font-semibold text-slate-600">
                   Cup name
                 </label>
 
@@ -653,12 +652,12 @@ export default function AdminCupsPage() {
                     )
                   }
                   placeholder="Spring Cup"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                <label className="mb-1 block text-xs font-semibold text-slate-600">
                   Entry method
                 </label>
 
@@ -678,7 +677,7 @@ export default function AdminCupsPage() {
                       })
                     )
                   }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                 >
                   <option value="admin">
                     Admin selected
@@ -690,9 +689,9 @@ export default function AdminCupsPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">
                     Competing teams
                   </label>
 
@@ -708,12 +707,12 @@ export default function AdminCupsPage() {
                         event.target.value
                       )
                     }
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                    className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">
                     Groups
                   </label>
 
@@ -729,12 +728,12 @@ export default function AdminCupsPage() {
                         event.target.value
                       )
                     }
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                    className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">
                     Teams per group
                   </label>
 
@@ -750,12 +749,12 @@ export default function AdminCupsPage() {
                         event.target.value
                       )
                     }
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                    className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">
                     Qualifiers / group
                   </label>
 
@@ -771,14 +770,14 @@ export default function AdminCupsPage() {
                         event.target.value
                       )
                     }
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                    className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">
                     Additional position
                   </label>
 
@@ -799,12 +798,12 @@ export default function AdminCupsPage() {
                       0
                     }
                     placeholder="3"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 disabled:bg-slate-100"
+                    className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm disabled:bg-slate-100"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">
                     Additional qualifiers
                   </label>
 
@@ -837,13 +836,13 @@ export default function AdminCupsPage() {
                         })
                       );
                     }}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                    className="w-full rounded-md border border-slate-300 px-2.5 py-2 text-sm"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="mt-5 rounded-xl bg-slate-50 p-4">
+            <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Tournament Structure
               </p>
@@ -878,7 +877,7 @@ export default function AdminCupsPage() {
                 </p>
               )}
 
-              <div className="mt-4 border-t border-slate-200 pt-4">
+              <div className="mt-3 border-t border-slate-200 pt-3">
                 <p className="font-bold text-slate-900">
                   {knockoutTeamCount} knockout
                   teams
@@ -925,7 +924,7 @@ export default function AdminCupsPage() {
             <button
               type="submit"
               disabled={!canSave}
-              className="mt-5 w-full rounded-lg bg-teal-600 px-4 py-3 font-bold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-3 w-full rounded-md bg-teal-700 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving
                 ? "Creating Cup..."
@@ -933,10 +932,10 @@ export default function AdminCupsPage() {
             </button>
           </form>
 
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-end sm:justify-between">
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-950">
+                <h2 className="text-base font-semibold text-slate-950">
                   Cup Competitions
                 </h2>
 
@@ -946,7 +945,7 @@ export default function AdminCupsPage() {
                 </p>
               </div>
 
-              <div className="w-full sm:w-64">
+              <div className="w-full sm:w-52">
                 <label
                   htmlFor="cup-season-filter"
                   className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500"
@@ -960,7 +959,7 @@ export default function AdminCupsPage() {
                   onChange={(event) =>
                     setSelectedSeasonId(event.target.value)
                   }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                 >
                   {seasons.map((season) => (
                     <option
@@ -975,19 +974,19 @@ export default function AdminCupsPage() {
             </div>
 
             {filteredCups.length === 0 ? (
-              <div className="p-10 text-center text-slate-500">
+              <div className="p-8 text-center text-sm text-slate-500">
                 No Cups have been created for this season.
               </div>
             ) : (
-              <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div className="grid gap-2.5 p-3 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 {filteredCups.map((cup) => (
                   <div
                     key={cup.id}
-                    className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:shadow-sm"
+                    className="rounded-md border border-slate-200 bg-white p-3 transition hover:border-slate-300 hover:shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-base font-bold text-slate-950">
+                        <p className="truncate text-sm font-semibold text-slate-950">
                           {cup.name}
                         </p>
 
@@ -1001,8 +1000,8 @@ export default function AdminCupsPage() {
                       </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
+                    <div className="mt-3 grid grid-cols-3 gap-1.5">
+                      <div className="rounded-md bg-slate-50 px-2 py-1.5">
                         <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                           Teams
                         </p>
@@ -1011,7 +1010,7 @@ export default function AdminCupsPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <div className="rounded-md bg-slate-50 px-2 py-1.5">
                         <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                           Groups
                         </p>
@@ -1020,7 +1019,7 @@ export default function AdminCupsPage() {
                         </p>
                       </div>
 
-                      <div className="rounded-lg bg-slate-50 px-3 py-2">
+                      <div className="rounded-md bg-slate-50 px-2 py-1.5">
                         <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                           Knockout
                         </p>
@@ -1030,7 +1029,7 @@ export default function AdminCupsPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs text-slate-500">
                         {cup.entry_method === "admin"
                           ? "Admin selected"
@@ -1046,7 +1045,7 @@ export default function AdminCupsPage() {
                           disabled={
                             deletingCupId === cup.id
                           }
-                          className="rounded-lg border border-red-200 px-3 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {deletingCupId === cup.id
                             ? "Deleting..."
@@ -1055,7 +1054,7 @@ export default function AdminCupsPage() {
 
                         <Link
                           href={`/admin/cups/${cup.id}`}
-                          className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-teal-700"
+                          className="rounded-md bg-teal-700 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-teal-800"
                         >
                           Manage
                         </Link>
