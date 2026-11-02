@@ -412,6 +412,18 @@ export default function MyTeamPage() {
     null
   );
   const [mobileExpandedHorseId, setMobileExpandedHorseId] = useState<string | null>(null);
+
+  // Close touch actions when the user taps anywhere outside a horse card.
+  useEffect(() => {
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && !target.closest('[data-horse-action-card="true"]')) {
+        setMobileExpandedHorseId(null);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, []);
   const [shareOpen, setShareOpen] = useState(false);
   const [teamActionBusy, setTeamActionBusy] = useState(false);
   const [replacementMode, setReplacementMode] = useState(false);
@@ -1641,7 +1653,7 @@ export default function MyTeamPage() {
                         tabIndex={0}
                         onClick={() => {
                           if (!horse?.id) return;
-                          if (window.matchMedia("(max-width: 767px)").matches) {
+                          if (window.matchMedia("(max-width: 767px), (hover: none), (pointer: coarse)").matches) {
                             setMobileExpandedHorseId((current) => current === selection.id ? null : selection.id);
                           } else {
                             setSelectedHorseId(horse.id);
@@ -1650,13 +1662,14 @@ export default function MyTeamPage() {
                         onKeyDown={(event) => {
                           if ((event.key === "Enter" || event.key === " ") && horse?.id) {
                             event.preventDefault();
-                            if (window.matchMedia("(max-width: 767px)").matches) {
+                            if (window.matchMedia("(max-width: 767px), (hover: none), (pointer: coarse)").matches) {
                               setMobileExpandedHorseId((current) => current === selection.id ? null : selection.id);
                             } else {
                               setSelectedHorseId(horse.id);
                             }
                           }
                         }}
+                        data-horse-action-card="true"
                         className={`group relative cursor-pointer overflow-hidden rounded-xl border px-2.5 py-2.5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 sm:px-3 sm:py-2.5 ${
                           isScratched
                             ? "border-red-300 bg-red-50 hover:border-red-400 focus:ring-red-500"
@@ -1690,7 +1703,7 @@ export default function MyTeamPage() {
                                 </span>
                               )}
                               {editButtonVisible && (
-                                <span className="absolute right-2 top-2 z-10 hidden items-center gap-1 rounded-full bg-white/95 p-1 shadow-sm ring-1 ring-slate-200 transition-opacity duration-150 md:inline-flex md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100" onClick={(event) => event.stopPropagation()}>
+                                <span className="absolute right-2 top-2 z-10 hidden items-center gap-1 rounded-full bg-white/95 p-1 shadow-sm ring-1 ring-slate-200 transition-opacity duration-150 md:inline-flex md:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:group-focus-within:opacity-100 [@media(hover:none)]:md:hidden [@media(pointer:coarse)]:md:hidden" onClick={(event) => event.stopPropagation()}>
                                   {!selection.is_captain && (
                                     <button
                                       type="button"
@@ -1893,7 +1906,7 @@ export default function MyTeamPage() {
                           </div>
                         </div>
                         {mobileExpandedHorseId === selection.id && (
-                          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 md:hidden" onClick={(event) => event.stopPropagation()}>
+                          <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 md:[@media(hover:none)]:grid md:[@media(pointer:coarse)]:grid md:[@media(hover:hover)_and_(pointer:fine)]:hidden" onClick={(event) => event.stopPropagation()}>
                             <button type="button" disabled={!editButtonVisible || teamActionBusy} onClick={() => {
                               if (stagedEntry) {
                                 setIncomingEntries((previous) => previous.filter((item) => item.id !== stagedEntry.id));
@@ -1907,7 +1920,7 @@ export default function MyTeamPage() {
                               else void changeCaptainFromTeam(selection);
                               setMobileExpandedHorseId(null);
                             }} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-2 text-xs font-bold text-amber-900 disabled:opacity-40">Captain</button>
-                            <button type="button" disabled={!horse?.id} onClick={() => { if (horse?.id) setSelectedHorseId(horse.id); }} className="min-h-11 rounded-lg border border-sky-200 bg-sky-50 px-2 text-xs font-bold text-sky-800 disabled:opacity-40">Profile</button>
+                            <button type="button" disabled={!horse?.id} onClick={() => { if (horse?.id) setSelectedHorseId(horse.id); setMobileExpandedHorseId(null); }} className="min-h-11 rounded-lg border border-sky-200 bg-sky-50 px-2 text-xs font-bold text-sky-800 disabled:opacity-40">Profile</button>
                           </div>
                         )}
                       </article>
