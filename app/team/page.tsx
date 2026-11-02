@@ -1113,7 +1113,8 @@ export default function MyTeamPage() {
     }
   }
 
-  const pendingSlots = outgoingSelections.length - incomingEntries.length;
+  const vacantDraftSlots = team?.status === "draft" ? Math.max(0, (season?.team_size ?? 10) - selections.length) : 0;
+  const pendingSlots = outgoingSelections.length + vacantDraftSlots - incomingEntries.length;
   const outgoingSalary = outgoingSelections.reduce((sum, selection) => sum + selection.selected_price, 0);
   const incomingSalary = incomingEntries.reduce((sum, entry) => sum + entry.price_at_entry, 0);
   const draftSalary = salaryUsed - outgoingSalary + incomingSalary;
@@ -1138,14 +1139,14 @@ export default function MyTeamPage() {
   }
 
   async function saveReplacements() {
-    if (!round || !team || teamActionBusy || outgoingSelections.length === 0 || pendingSlots !== 0) return;
+    if (!round || !team || teamActionBusy || (outgoingSelections.length === 0 && vacantDraftSlots === 0) || pendingSlots !== 0) return;
     const retained = selections.filter((selection) => !outgoingSelections.some((out) => out.id === selection.id));
     const entryIds = [...retained.map((selection) => selection.race_entry_id), ...incomingEntries.map((entry) => entry.id)];
     const previousCaptain = selections.find((selection) => selection.is_captain);
     const captainOutgoingIndex = outgoingSelections.findIndex((selection) => selection.is_captain);
     const captainId = stagedCaptainEntryId ?? (captainOutgoingIndex >= 0
       ? incomingEntries[captainOutgoingIndex]?.id ?? incomingEntries[0]?.id ?? null
-      : previousCaptain?.race_entry_id ?? null);
+      : previousCaptain?.race_entry_id ?? incomingEntries[0]?.id ?? null);
     setTeamActionBusy(true);
     setReplacementError("");
     try {
@@ -1159,13 +1160,34 @@ export default function MyTeamPage() {
       cancelReplacement();
       await loadTeam();
       setReplacementMode(false);
-      setTeamActionSuccess("All horse replacements saved.");
+      setTeamActionSuccess(vacantDraftSlots > 0 ? "Horses added to your draft team." : "All horse replacements saved.");
     } catch (error) {
       setReplacementError(error instanceof Error ? error.message : "Unable to save replacements.");
     } finally {
       setTeamActionBusy(false);
     }
   }
+
+  // A draft created by auto-save may contain fewer than the required horses.
+  // Load the selector for these vacant slots, even when no horse is being replaced.
+  useEffect(() => {
+    if (!round || !team || team.status !== "draft" || selections.length >= (season?.team_size ?? 10) || lockoutHasStarted) return;
+    let cancelled = false;
+    setReplacementLoading(true);
+    void (async () => {
+      const { data, error } = await supabase.from("race_entries")
+        .select(`id, horse_id, price_at_entry, projected_points, entry_status,
+          horse:horses(name, silks_url),
+          race:races!inner(race_name, race_number, grade, scheduled_start,
+            racecourse:racecourses(name))`)
+        .eq("race.round_id", round.id);
+      if (cancelled) return;
+      if (error) setReplacementError(error.message);
+      else setReplacementEntries((data ?? []) as typeof replacementEntries);
+      setReplacementLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [round?.id, team?.id, team?.status, selections.length, season?.team_size, lockoutHasStarted]);
 
   const availableReplacementEntries = replacementEntries
     .filter((entry) => {
@@ -1560,7 +1582,12 @@ export default function MyTeamPage() {
                   Captain scores 2× points
                 </p>
               </div>
-              {sortedSelections.length === 0 ? (
+              {vacantDraftSlots > 0 && editButtonVisible && (
+                <p className="mb-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">
+                  {vacantDraftSlots} vacant {vacantDraftSlots === 1 ? "position" : "positions"} — add horses using the selector below.
+                </p>
+              )}
+              {sortedSelections.length === 0 && vacantDraftSlots === 0 ? (
                 <div className="rounded-xl border bg-white p-10 text-center text-slate-500 shadow-sm">
                   No horses have been selected.
                 </div>
@@ -1954,25 +1981,25 @@ export default function MyTeamPage() {
             )}
             </div>
             <aside className="min-w-0 space-y-4">
-        {replacementMode && outgoingSelections.length === 0 && editButtonVisible && (
+        {replacementMode && outgoingSelections.length === 0 && vacantDraftSlots === 0 && editButtonVisible && (
           <section aria-label="Replace horses" className="rounded-xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
             <h2 className="text-sm font-black text-sky-950">Replace horses</h2>
             <p className="mt-1 text-sm text-sky-800">Tap the red × on a horse in your selected team to open the replacement selector here. You can replace multiple horses before saving.</p>
             <button type="button" onClick={() => setReplacementMode(false)} className="mt-3 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800">Cancel editing</button>
           </section>
         )}
-        {outgoingSelections.length > 0 && editButtonVisible && (
+        {(outgoingSelections.length > 0 || vacantDraftSlots > 0) && editButtonVisible && (
           <section id="horse-selector" aria-label="Horse selection" className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4">
             <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-900">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Team management</p>
                 <h2 className="text-sm font-black">Horse selection</h2>
-                <p className="text-[11px] text-slate-500">Select {pendingSlots} {pendingSlots === 1 ? "horse" : "horses"} to complete your changes.</p>
+                <p className="text-[11px] text-slate-500">Select {pendingSlots} {pendingSlots === 1 ? "horse" : "horses"} to complete your team changes.</p>
               </div>
               <button type="button" onClick={cancelReplacement} className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-600">Cancel</button>
             </div>
             <div className="border-b border-slate-200 bg-white px-3 py-2">
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Outgoing horses ({outgoingSelections.length})</p>
+              {outgoingSelections.length > 0 && <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">Outgoing horses ({outgoingSelections.length})</p>}
               <div className="space-y-1.5">
                 {outgoingSelections.map((selection) => (
                   <div key={selection.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
@@ -2007,11 +2034,11 @@ export default function MyTeamPage() {
                   ))}
                 </>
               )}
-              <p className="mt-2 text-xs font-bold text-slate-700">{pendingSlots} {pendingSlots === 1 ? "replacement" : "replacements"} remaining</p>
+              <p className="mt-2 text-xs font-bold text-slate-700">{pendingSlots} {pendingSlots === 1 ? "position" : "positions"} remaining</p>
               <div className="mt-2 flex gap-2">
                 <button type="button" onClick={() => void saveReplacements()} disabled={pendingSlots !== 0 || teamActionBusy}
                   className="min-h-9 flex-1 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:bg-slate-200 disabled:text-slate-500">
-                  {teamActionBusy ? "Saving…" : "Save all replacements"}
+                  {teamActionBusy ? "Saving…" : vacantDraftSlots > 0 ? "Save added horses" : "Save all replacements"}
                 </button>
                 <button type="button" onClick={cancelReplacement} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs font-semibold text-slate-700">Cancel all</button>
               </div>
@@ -2029,7 +2056,7 @@ export default function MyTeamPage() {
               </select>
             </div>
             <p className="px-2.5 pb-1.5 text-[11px] font-semibold text-slate-600">
-              Available for replacement: {formatCurrency(salaryCap - draftSalary)}
+              Available salary: {formatCurrency(salaryCap - draftSalary)}
             </p>
             {replacementError && <p role="alert" className="mx-4 mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{replacementError}</p>}
             {replacementLoading ? <p className="p-5 text-sm text-slate-600">Loading available horses…</p> : (
@@ -2087,7 +2114,7 @@ export default function MyTeamPage() {
           </section>
         )}
 
-              {outgoingSelections.length === 0 && (
+              {outgoingSelections.length === 0 && vacantDraftSlots === 0 && (
                 <>
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-label="Horse search">
                 <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
