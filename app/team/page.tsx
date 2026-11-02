@@ -370,6 +370,12 @@ export default function MyTeamPage() {
   const [season, setSeason] = useState<Season | null>(null);
   const [round, setRound] = useState<Round | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
+  const [currentTime, setCurrentTime] = useState(() =>
+    Date.now()
+  );
+  const lockoutHasStarted =
+    round !== null &&
+    currentTime >= new Date(round.lockout_at).getTime();
   const [salaryCap, setSalaryCap] = useState(0);
   const [roundRank, setRoundRank] = useState<number | null>(null);
   const [overallRank, setOverallRank] = useState<number | null>(null);
@@ -419,6 +425,89 @@ export default function MyTeamPage() {
     entry_status: string; horse: { name: string; silks_url: string | null } | null;
     race: { race_name: string; race_number: number; grade: Race["grade"]; scheduled_start: string; racecourse: Racecourse | null } | null;
   }>>([]);
+  const [newTeamEntries, setNewTeamEntries] = useState<typeof replacementEntries>([]);
+  const [newTeamCaptainId, setNewTeamCaptainId] = useState<string | null>(null);
+  const [newTeamSearch, setNewTeamSearch] = useState("");
+  const [newTeamSaving, setNewTeamSaving] = useState(false);
+  const [newTeamError, setNewTeamError] = useState("");
+  const [newTeamLoadedRoundId, setNewTeamLoadedRoundId] = useState<string | null>(null);
+  // Auto-save new-team drafts after selection/captain changes, without
+  // changing the submitted-team replacement workflow.
+  const [newTeamDirty, setNewTeamDirty] = useState(false);
+  const [newTeamAutoSaveStatus, setNewTeamAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
+  const newTeamAutoSaveInFlight = useRef(false);
+  const newTeamAutoSaveQueued = useRef<null | { roundId: string; entryIds: string[]; captainId: string | null }>(null);
+  const flushNewTeamAutoSave = useCallback(async () => {
+    if (newTeamAutoSaveInFlight.current) return;
+    const payload = newTeamAutoSaveQueued.current;
+    if (!payload) return;
+    newTeamAutoSaveQueued.current = null;
+    newTeamAutoSaveInFlight.current = true;
+    setNewTeamAutoSaveStatus("saving");
+    const { error } = await supabase.rpc("save_my_round_team", {
+      p_round_id: payload.roundId,
+      p_entry_ids: payload.entryIds,
+      p_captain_entry_id: payload.captainId,
+      p_status: "draft",
+    });
+    newTeamAutoSaveInFlight.current = false;
+    if (error) {
+      setNewTeamAutoSaveStatus("error");
+      setNewTeamError(error.message);
+    } else {
+      setNewTeamAutoSaveStatus("saved");
+      setNewTeamError("");
+    }
+    if (newTeamAutoSaveQueued.current) void flushNewTeamAutoSave();
+  }, []);
+  useEffect(() => {
+    if (!newTeamDirty || team || !round || lockoutHasStarted || newTeamEntries.length === 0) return;
+    setNewTeamAutoSaveStatus("pending");
+    const timer = window.setTimeout(() => {
+      newTeamAutoSaveQueued.current = {
+        roundId: round.id,
+        entryIds: newTeamEntries.map((entry) => entry.id),
+        captainId: newTeamCaptainId,
+      };
+      void flushNewTeamAutoSave();
+    }, 750);
+    return () => window.clearTimeout(timer);
+  }, [newTeamDirty, team, round, lockoutHasStarted, newTeamEntries, newTeamCaptainId, flushNewTeamAutoSave]);
+
+  useEffect(() => {
+    if (team || !round || newTeamLoadedRoundId === round.id) return;
+    let cancelled = false;
+    setNewTeamLoadedRoundId(round.id);
+    void (async () => {
+      const { data, error } = await supabase.from("race_entries")
+        .select(`id, horse_id, price_at_entry, projected_points, entry_status,
+          horse:horses(name, silks_url),
+          race:races!inner(race_name, race_number, grade, scheduled_start,
+            racecourse:racecourses(name))`)
+        .eq("race.round_id", round.id).eq("entry_status", "runner");
+      if (cancelled) return;
+      if (error) setNewTeamError(error.message);
+      else setReplacementEntries(data as unknown as typeof replacementEntries);
+    })();
+    return () => { cancelled = true; };
+  }, [team, round, newTeamLoadedRoundId]);
+  async function saveNewTeamDraft() {
+    if (!round || newTeamSaving || lockoutHasStarted || newTeamEntries.length === 0) return;
+    setNewTeamSaving(true);
+    setNewTeamError("");
+    try {
+      const { error } = await supabase.rpc("save_my_round_team", {
+        p_round_id: round.id,
+        p_entry_ids: newTeamEntries.map((entry) => entry.id),
+        p_captain_entry_id: newTeamCaptainId,
+        p_status: "draft",
+      });
+      if (error) throw error;
+      await loadTeam();
+    } catch (error) {
+      setNewTeamError(error instanceof Error ? error.message : "Unable to save draft.");
+    } finally { setNewTeamSaving(false); }
+  }
   const [replacementLoading, setReplacementLoading] = useState(false);
   const [replacementError, setReplacementError] = useState("");
   const [horseLookup, setHorseLookup] = useState("");
@@ -506,9 +595,6 @@ export default function MyTeamPage() {
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState("");
   const shareCardRef = useRef<HTMLDivElement | null>(null);
-  const [currentTime, setCurrentTime] = useState(() =>
-    Date.now()
-  );
   const [showHorseSilks, setShowHorseSilks] = useState(true);
   const [horseSilks, setHorseSilks] = useState<Record<string, string | null>>(
     {}
@@ -924,9 +1010,6 @@ export default function MyTeamPage() {
   const salaryRemaining =
     salaryCap - salaryUsed;
   const roundIsComplete = round?.status === "completed";
-  const lockoutHasStarted =
-    round !== null &&
-    currentTime >= new Date(round.lockout_at).getTime();
   const projectionsVisible =
     showProjectedScores ||
     (showSpecialTeamProjections && hasEarlyProjectionAccess);
@@ -1225,61 +1308,62 @@ export default function MyTeamPage() {
     );
   }
   if (!team) {
+    const newTeamSalary = newTeamEntries.reduce((sum, entry) => sum + entry.price_at_entry, 0);
+    const maxHorses = season.team_size ?? 10;
+    const selectedHorseIds = new Set(newTeamEntries.map((entry) => entry.horse_id));
+    const matches = replacementEntries.filter((entry) =>
+      !selectedHorseIds.has(entry.horse_id) &&
+      (entry.horse?.name ?? "").toLowerCase().includes(newTeamSearch.toLowerCase().trim())
+    ).sort((a, b) => new Date(a.race?.scheduled_start ?? 0).getTime() - new Date(b.race?.scheduled_start ?? 0).getTime());
     return (
-      <main className="min-h-screen bg-slate-100 p-4 md:p-8">
+      <main className="min-h-screen bg-slate-100 px-3 py-5 sm:px-6">
         <div className="mx-auto max-w-6xl">
-          <header className="rounded-2xl border border-sky-300 bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-500 p-6 text-white shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-wide text-white/80">
-              {season.name}
-            </p>
-            <h1 className="mt-1 text-3xl font-bold">
-              My Team
-            </h1>
-            <p className="mt-2 text-white/85">
-              Round {round.round_number}
-              {round.name ? ` — ${round.name}` : ""}
-            </p>
-            <div className="mt-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-white/75">
-                {lockoutHasStarted
-                  ? "Lockout Status"
-                  : "Lockout Countdown"}
-              </p>
-              <p className="mt-1 text-2xl font-bold">
-                {lockoutHasStarted && "🔒 "}
-                {getCountdown(
-                  round.lockout_at,
-                  currentTime
-                )}
-              </p>
-              <p className="mt-2 text-sm text-white/80">
-                Lockout:{" "}
-                {formatDateTime(round.lockout_at)}
-              </p>
-            </div>
+          <header className="rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-500 p-5 text-white shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-white/80">{season.name} · Round {round.round_number}</p>
+            <h1 className="mt-1 text-2xl font-black">Create My Team</h1>
+            <p className="mt-2 text-sm">Select up to {maxHorses} horses and choose your captain. Save your selections as a draft.</p>
           </header>
-          <section className="mt-6 rounded-xl border bg-white p-10 text-center">
-            <h2 className="text-2xl font-bold text-slate-900">
-              You have not created a team yet
-            </h2>
-            <p className="mt-3 text-slate-600">
-              Select your horses and captain before the
-              round lockout.
-            </p>
-            {!lockoutHasStarted ? (
-              <Link
-                href="/team/edit"
-                className="mt-6 inline-flex rounded-lg bg-gradient-to-r from-cyan-500 to-sky-500 px-6 py-3 font-bold text-white shadow-sm transition hover:brightness-105"
-              >
-                Create Team
-              </Link>
-            ) : (
-              <p className="mt-6 font-semibold text-red-700">
-                Team selection is closed because round
-                lockout has commenced.
+          {newTeamError && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{newTeamError}</p>}
+          {lockoutHasStarted && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Team creation is closed after round lockout.</p>}
+          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+            <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h2 className="text-lg font-black text-slate-900">Selected Horses ({newTeamEntries.length}/{maxHorses})</h2>
+              <p className="mt-1 text-sm text-slate-600">Remaining: {formatCurrency(salaryCap - newTeamSalary)}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {Array.from({length:maxHorses},(_,index) => {
+                  const entry=newTeamEntries[index];
+                  return entry ? (
+                    <div key={entry.id} className="flex min-h-20 items-center gap-2 rounded-xl border border-slate-200 p-3">
+                      {entry.horse?.silks_url && <img src={entry.horse.silks_url} alt="" className="h-10 w-9 object-contain"/>}
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-900">{entry.horse?.name}</p><p className="text-xs text-slate-500">{entry.race?.grade} · {formatCurrency(entry.price_at_entry)}</p></div>
+                      <button type="button" disabled={lockoutHasStarted} onClick={() => { setNewTeamDirty(true); setNewTeamCaptainId(entry.id); }} aria-label={`Make ${entry.horse?.name} captain`} className={`rounded-md px-2 py-1 text-xs font-black ${newTeamCaptainId===entry.id ? "bg-amber-400 text-amber-950" : "bg-slate-100 text-slate-600"}`}>C</button>
+                      <button type="button" disabled={lockoutHasStarted} onClick={() => {setNewTeamDirty(true);setNewTeamEntries(items=>items.filter(item=>item.id!==entry.id));if(newTeamCaptainId===entry.id)setNewTeamCaptainId(null);}} aria-label={`Remove ${entry.horse?.name}`} className="rounded-md px-2 py-1 text-sm font-bold text-red-600">×</button>
+                    </div>
+                  ) : <div key={`empty-${index}`} className="flex min-h-20 items-center justify-center rounded-xl border-2 border-dashed border-sky-200 bg-sky-50 text-3xl font-light text-sky-600">+</div>;
+                })}
+              </div>
+              <p role="status" className={`mt-3 text-xs font-semibold ${newTeamAutoSaveStatus === "error" ? "text-red-700" : "text-slate-500"}`}>
+                {newTeamAutoSaveStatus === "pending" ? "Changes pending…" : newTeamAutoSaveStatus === "saving" ? "Auto-saving draft…" : newTeamAutoSaveStatus === "saved" ? "Draft auto-saved" : newTeamAutoSaveStatus === "error" ? "Auto-save failed — use Save Draft to retry" : "Changes will auto-save as a draft"}
               </p>
-            )}
-          </section>
+              <button type="button" onClick={() => void saveNewTeamDraft()} disabled={lockoutHasStarted || newTeamSaving || newTeamEntries.length===0} className="mt-4 w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">{newTeamSaving ? "Saving…" : "Save Draft"}</button>
+            </section>
+            <aside className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <h2 className="text-base font-black text-slate-900">Horse Selection</h2>
+              <input type="search" value={newTeamSearch} onChange={event=>setNewTeamSearch(event.target.value)} placeholder="Search horses…" aria-label="Search available horses" className="mt-2 h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"/>
+              <p className="my-2 text-xs text-slate-500">{matches.length} available race entries</p>
+              <div className="max-h-[650px] overflow-y-auto divide-y divide-slate-100">
+                {matches.map(entry => {
+                  const affordable=newTeamSalary+entry.price_at_entry<=salaryCap;
+                  return <div key={entry.id} className="flex h-12 items-center gap-2 px-1">
+                    {entry.horse?.silks_url ? <img src={entry.horse.silks_url} alt="" className="h-8 w-7 object-contain"/> : <div className="w-7"/>}
+                    <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-900">{entry.horse?.name} <span className="text-slate-500">{entry.race?.grade}</span></p><p className="text-[10px] text-slate-500">{entry.race?.race_name}</p></div>
+                    <span className="text-xs font-semibold text-slate-700">{formatCurrency(entry.price_at_entry)}</span>
+                    <button type="button" disabled={lockoutHasStarted || !affordable || newTeamEntries.length>=maxHorses} onClick={()=>{setNewTeamDirty(true);setNewTeamEntries(items=>[...items,entry]);}} aria-label={`Add ${entry.horse?.name}`} className="flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 font-bold text-sky-800 disabled:opacity-30">+</button>
+                  </div>;
+                })}
+              </div>
+            </aside>
+          </div>
         </div>
       </main>
     );
@@ -1436,7 +1520,7 @@ export default function MyTeamPage() {
                     const outgoingIndex = outgoingSelections.findIndex((out) => out.id === selection.id);
                     if (outgoingIndex !== -1 && !incomingEntries[outgoingIndex]) {
                       return (
-                        <div key={`slot-${selection.id}`} className="flex min-h-24 items-center justify-center rounded-xl border-2 border-dashed border-sky-300 bg-sky-50 p-3 text-center">
+                        <div key={`slot-${selection.id}`} className="flex min-h-[88px] items-center justify-center rounded-xl border-2 border-dashed border-sky-300 bg-sky-50 p-3 text-center">
                           <span aria-label="Vacant horse slot" title="Select a horse from the horse selection panel" className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-sky-300 bg-white text-3xl font-light text-sky-700">+</span>
                         </div>
                       );
@@ -1509,7 +1593,7 @@ export default function MyTeamPage() {
                             setSelectedHorseId(horse.id);
                           }
                         }}
-                        className={`group cursor-pointer overflow-hidden rounded-xl border px-3 py-3 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 sm:py-2.5 ${
+                        className={`group cursor-pointer overflow-hidden rounded-xl border px-2.5 py-2.5 shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 sm:px-3 sm:py-2.5 ${
                           isScratched
                             ? "border-red-300 bg-red-50 hover:border-red-400 focus:ring-red-500"
                             : selection.is_captain
@@ -1518,26 +1602,26 @@ export default function MyTeamPage() {
                         }`}
                         aria-label={horse ? `View statistics for ${horse.name}` : "Horse statistics unavailable"}
                       >
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
-                          <div className="flex min-w-0 items-stretch gap-2 sm:gap-2.5">
+                        <div className="grid grid-cols-[minmax(0,1fr)_76px] items-center gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-3">
+                          <div className="flex min-w-0 items-center gap-2 sm:items-stretch sm:gap-2.5">
                             {showHorseSilks &&
                               horse?.id &&
                               (horseSilks[horse.id] || (stagedEntry && stagedEntry.horse?.silks_url)) && (
-                                <div className="flex w-9 shrink-0 items-center justify-center self-stretch sm:w-10">
+                                <div className="flex h-12 w-9 shrink-0 items-center justify-center sm:h-auto sm:w-10 sm:self-stretch">
                                   <img
                                     src={horseSilks[horse.id] ?? stagedEntry?.horse?.silks_url ?? ""}
                                     alt={`${horse.name} silks`}
-                                    className="h-full max-h-16 w-full object-contain"
+                                    className="h-full max-h-12 w-full object-contain sm:max-h-16"
                                   />
                                 </div>
                               )}
                             <div className="min-w-0">
-                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                              <h3 className="truncate text-sm font-bold leading-tight text-slate-950 sm:text-base md:text-lg">
+                            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 sm:gap-2">
+                              <h3 className="min-w-0 truncate text-[13px] font-bold leading-tight text-slate-950 sm:text-base md:text-lg">
                                 {horse?.name ?? "Unknown horse"}
                               </h3>
                               {selection.is_captain && (
-                                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-amber-950 shadow-sm">
+                                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 sm:h-6 sm:w-6 text-xs font-bold text-amber-950 shadow-sm">
                                   C
                                 </span>
                               )}
@@ -1559,7 +1643,7 @@ export default function MyTeamPage() {
                                           changeCaptainFromTeam(selection);
                                         }
                                       }}
-                                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-400 text-xs font-black text-amber-950 transition hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:opacity-50"
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-amber-400 sm:h-7 sm:w-7 text-xs font-black text-amber-950 transition hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 disabled:opacity-50"
                                     >C</button>
                                   )}
                                   <button
@@ -1576,12 +1660,12 @@ export default function MyTeamPage() {
                                         removeHorseFromTeam(selection);
                                       }
                                     }}
-                                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-100 text-sm font-black text-red-600 transition hover:bg-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:opacity-50"
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-red-100 sm:h-7 sm:w-7 text-sm font-black text-red-600 transition hover:bg-red-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:opacity-50"
                                   >×</button>
                                 </span>
                               )}
                             </div>
-                            <div className="mt-1.5 space-y-1">
+                            <div className="mt-1 space-y-0.5 sm:mt-1.5 sm:space-y-1">
                               {activeNominations.length > 0 ? (
                                 activeNominations.map((nomination) => {
                                   const nominationRace = nomination.race;
@@ -1662,7 +1746,7 @@ export default function MyTeamPage() {
                             </div>
                             </div>
                           </div>
-                          <div className="flex min-w-[76px] flex-col items-end sm:min-w-[92px]">
+                          <div className="flex min-w-0 flex-col items-end sm:min-w-[92px]">
                             <Icon
                               name="chevron"
                               className="mb-1 hidden h-4 w-4 text-slate-300 sm:block"
@@ -1688,7 +1772,7 @@ export default function MyTeamPage() {
                                     <p className="text-lg font-semibold leading-none text-slate-400">
                                       —
                                     </p>
-                                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:mt-1 sm:text-xs">
                                       Projection
                                     </p>
                                   </>
@@ -1697,7 +1781,7 @@ export default function MyTeamPage() {
                                     <p className="text-xl font-bold leading-none text-amber-600 sm:text-2xl">
                                       {displayedProjectedPoints}
                                     </p>
-                                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:mt-1 sm:text-xs">
                                       {selection.is_captain
                                         ? "projected pts · 2×"
                                         : "projected pts"}
@@ -1708,10 +1792,10 @@ export default function MyTeamPage() {
                             ) : (
                               <div className="text-right">
                                 <p className="text-xl font-bold leading-none text-sky-600 sm:text-2xl">{displayedPoints}</p>
-                                <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-500">{selection.is_captain ? "pts · 2×" : "pts"}</p>
+                                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:mt-1 sm:text-xs">{selection.is_captain ? "pts · 2×" : "pts"}</p>
                               </div>
                             )}
-                            <div className="mt-1.5 text-right">
+                            <div className="mt-1 text-right sm:mt-1.5">
                               <p className="text-xs font-bold text-slate-950">
                                 {formatCurrency(
                                   roundIsComplete && horse?.id
