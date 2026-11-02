@@ -1822,22 +1822,6 @@ export default function Dashboard() {
     );
   }
 
-  const primaryTeamHref =
-    !team || team.status === "draft"
-      ? "/team/edit"
-      : lockoutHasPassed
-        ? "/team"
-        : "/team/edit";
-
-  const primaryTeamLabel =
-    !team
-      ? "Create Team"
-      : team.status === "draft"
-        ? "Finish Team"
-        : lockoutHasPassed
-          ? "View Team"
-          : "Edit Team";
-
   const roundStatusLabel =
     roundIsComplete
       ? "Complete"
@@ -1916,15 +1900,6 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:flex">
-              {!lockoutHasPassed && (
-                <Link
-                  href={primaryTeamHref}
-                  className="rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
-                >
-                  {primaryTeamLabel}
-                </Link>
-              )}
-
               <Link
                 href="/team"
                 className="rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
@@ -1934,7 +1909,7 @@ export default function Dashboard() {
 
               <Link
                 href="/leaderboard"
-                className={`${lockoutHasPassed ? "" : "col-span-2 "}rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25 sm:col-span-1`}
+                className="rounded-xl border border-white/35 bg-white/15 px-5 py-2.5 text-center text-sm font-bold text-white shadow-lg shadow-cyan-950/10 backdrop-blur-md transition hover:border-white/50 hover:bg-white/25"
               >
                 Leaderboard
               </Link>
