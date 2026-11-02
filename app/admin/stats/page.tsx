@@ -142,6 +142,7 @@ export default function AdminStatsPage() {
     }
 
     let active = true;
+    setSelectedRoundId("");
 
     async function loadRounds() {
       setErrorMessage("");
@@ -196,6 +197,7 @@ export default function AdminStatsPage() {
     }
 
     let active = true;
+    setStatsLoading(true);
 
     async function loadStats() {
       setStatsLoading(true);
@@ -255,42 +257,39 @@ export default function AdminStatsPage() {
         return;
       }
 
-      const selections: Selection[] = [];
-      const selectionPageSize = 100;
-      let selectionFrom = 0;
-
-      while (true) {
-        const { data: selectionPage, error: selectionsError } =
-          await supabase
-            .from("team_selections")
-            .select("team_id, race_entry_id, is_captain")
-            .in("team_id", teamIds)
-            .range(
-              selectionFrom,
-              selectionFrom + selectionPageSize - 1
-            );
-
-        if (!active) return;
-
-        if (selectionsError) {
-          console.error(
-            "Admin stats selections load error:",
-            selectionsError
-          );
-          setErrorMessage(selectionsError.message);
-          setStatsLoading(false);
-          return;
-        }
-
-        const page = (selectionPage ?? []) as Selection[];
-        selections.push(...page);
-
-        if (page.length < selectionPageSize) {
-          break;
-        }
-
-        selectionFrom += selectionPageSize;
+      // Keep each IN filter small enough for PostgREST URL limits.
+      // Fetch batches concurrently rather than paging one huge IN query.
+      const teamIdChunks: string[][] = [];
+      for (let i = 0; i < teamIds.length; i += 50) {
+        teamIdChunks.push(teamIds.slice(i, i + 50));
       }
+      const selectionBatches = await Promise.all(
+        teamIdChunks.map(async (ids) => {
+          const batch: Selection[] = [];
+          for (let from = 0; ; from += 500) {
+            const { data, error } = await supabase
+              .from("team_selections")
+              .select("team_id, race_entry_id, is_captain")
+              .in("team_id", ids)
+              .range(from, from + 499);
+            if (error) throw error;
+            const page = (data ?? []) as Selection[];
+            batch.push(...page);
+            if (page.length < 500) break;
+          }
+          return batch;
+        })
+      ).catch((error: Error) => {
+        console.error("Admin stats selections load error:", error);
+        if (active) {
+          setErrorMessage(error.message);
+          setStatsLoading(false);
+        }
+        return null;
+      });
+      if (!active || !selectionBatches) return;
+      const selections = selectionBatches.flat();
+
       const selectedTeamIds = new Set(
         selections.map((selection) => selection.team_id)
       );
@@ -308,49 +307,37 @@ export default function AdminStatsPage() {
         return;
       }
 
-      const entries: Entry[] = [];
-      const entryPageSize = 100;
-      let entryFrom = 0;
-
-      while (true) {
-        const { data: entryPage, error: entriesError } =
-          await supabase
-            .from("race_entries")
-            .select(
-              `
-                id,
-                horse_id,
-                entry_status,
-                horse:horses (
-                  id,
-                  name
-                )
-              `
-            )
-            .in("id", entryIds)
-            .range(entryFrom, entryFrom + entryPageSize - 1);
-
-        if (!active) return;
-
-        if (entriesError) {
-          console.error(
-            "Admin stats race entry load error:",
-            entriesError
-          );
-          setErrorMessage(entriesError.message);
-          setStatsLoading(false);
-          return;
-        }
-
-        const page = (entryPage ?? []) as Entry[];
-        entries.push(...page);
-
-        if (page.length < entryPageSize) {
-          break;
-        }
-
-        entryFrom += entryPageSize;
+      const entryIdChunks: string[][] = [];
+      for (let i = 0; i < entryIds.length; i += 50) {
+        entryIdChunks.push(entryIds.slice(i, i + 50));
       }
+      const entryBatches = await Promise.all(
+        entryIdChunks.map(async (ids) => {
+          const batch: Entry[] = [];
+          for (let from = 0; ; from += 500) {
+            const { data, error } = await supabase
+              .from("race_entries")
+              .select("id, horse_id, entry_status, horse:horses(id, name)")
+              .in("id", ids)
+              .range(from, from + 499);
+            if (error) throw error;
+            const page = (data ?? []) as Entry[];
+            batch.push(...page);
+            if (page.length < 500) break;
+          }
+          return batch;
+        })
+      ).catch((error: Error) => {
+        console.error("Admin stats race entry load error:", error);
+        if (active) {
+          setErrorMessage(error.message);
+          setStatsLoading(false);
+        }
+        return null;
+      });
+      if (!active || !entryBatches) return;
+      const entries = entryBatches.flat();
+
       const entryById = new Map(
         entries.map((entry) => [entry.id, entry])
       );
@@ -492,15 +479,15 @@ export default function AdminStatsPage() {
   return (
     <main className="p-6 sm:p-10">
       <div className="mx-auto max-w-7xl">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="font-semibold text-teal-600">
               Administration
             </p>
-            <h1 className="mt-1 text-4xl font-bold tracking-tight">
+            <h1 className="mt-1 text-2xl font-bold tracking-tight">
               Ownership & captaincy
             </h1>
-            <p className="mt-2 max-w-3xl text-slate-600">
+            <p className="mt-1 max-w-3xl text-sm text-slate-600">
               Live admin-only selection statistics. Draft teams are
               included, so these figures can be viewed before lockout.
             </p>
@@ -515,13 +502,13 @@ export default function AdminStatsPage() {
         </div>
 
         {errorMessage && (
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">
             {errorMessage}
           </div>
         )}
 
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="grid gap-5 md:grid-cols-2">
+        <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid gap-3 md:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500">
                 Season
@@ -532,7 +519,7 @@ export default function AdminStatsPage() {
                   setSelectedSeasonId(event.target.value)
                 }
                 disabled={loading}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
               >
                 {seasons.map((season) => (
                   <option key={season.id} value={season.id}>
@@ -553,7 +540,7 @@ export default function AdminStatsPage() {
                   setSelectedRoundId(event.target.value)
                 }
                 disabled={rounds.length === 0}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
               >
                 {rounds.map((round) => (
                   <option key={round.id} value={round.id}>
@@ -565,7 +552,7 @@ export default function AdminStatsPage() {
           </div>
 
           {selectedRound && (
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
                 Status: {selectedRound.status}
               </span>
@@ -586,47 +573,47 @@ export default function AdminStatsPage() {
           )}
         </section>
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Teams created
             </p>
-            <p className="mt-2 text-3xl font-black text-slate-950">
+            <p className="mt-1 text-lg font-bold text-slate-950">
               {statsLoading ? "—" : totalTeams}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Draft teams
             </p>
-            <p className="mt-2 text-3xl font-black text-amber-700">
+            <p className="mt-1 text-2xl font-bold text-amber-700">
               {statsLoading ? "—" : draftTeams}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Submitted / locked
             </p>
-            <p className="mt-2 text-3xl font-black text-teal-700">
+            <p className="mt-1 text-2xl font-bold text-teal-700">
               {statsLoading ? "—" : completeTeams}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Teams with selections
             </p>
-            <p className="mt-2 text-3xl font-black text-slate-950">
+            <p className="mt-1 text-lg font-bold text-slate-950">
               {statsLoading ? "—" : teamsWithSelections}
             </p>
           </div>
         </section>
 
-        <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-6">
-            <h2 className="text-2xl font-bold text-slate-950">
+        <section className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-lg font-bold text-slate-950">
               Horse ownership
             </h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -649,13 +636,13 @@ export default function AdminStatsPage() {
                 <thead className="bg-slate-50">
                   <tr>
                     <th
-                      className="cursor-pointer px-5 py-3 text-left text-xs font-black uppercase tracking-wide text-slate-500"
+                      className="cursor-pointer px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
                       onClick={() => changeSort("horse_name")}
                     >
                       Horse{sortMarker("horse_name")}
                     </th>
                     <th
-                      className="cursor-pointer px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500"
+                      className="cursor-pointer px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500"
                       onClick={() =>
                         changeSort("selection_count")
                       }
@@ -663,7 +650,7 @@ export default function AdminStatsPage() {
                       Selected{sortMarker("selection_count")}
                     </th>
                     <th
-                      className="cursor-pointer px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500"
+                      className="cursor-pointer px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500"
                       onClick={() =>
                         changeSort("ownership_percentage")
                       }
@@ -672,7 +659,7 @@ export default function AdminStatsPage() {
                       {sortMarker("ownership_percentage")}
                     </th>
                     <th
-                      className="cursor-pointer px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500"
+                      className="cursor-pointer px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500"
                       onClick={() =>
                         changeSort("captain_count")
                       }
@@ -680,7 +667,7 @@ export default function AdminStatsPage() {
                       Captained{sortMarker("captain_count")}
                     </th>
                     <th
-                      className="cursor-pointer px-5 py-3 text-right text-xs font-black uppercase tracking-wide text-slate-500"
+                      className="cursor-pointer px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-500"
                       onClick={() =>
                         changeSort("captain_percentage")
                       }
@@ -697,7 +684,7 @@ export default function AdminStatsPage() {
                       key={horse.horse_id}
                       className="hover:bg-slate-50"
                     >
-                      <td className="px-5 py-4">
+                      <td className="px-3 py-2">
                         <Link
                           href={`/horses/${horse.horse_id}`}
                           className="font-bold text-slate-950 hover:text-teal-700 hover:underline"
@@ -705,16 +692,16 @@ export default function AdminStatsPage() {
                           {horse.horse_name}
                         </Link>
                       </td>
-                      <td className="px-5 py-4 text-right font-semibold text-slate-700">
+                      <td className="px-3 py-2 text-right font-semibold text-slate-700">
                         {horse.selection_count}
                       </td>
-                      <td className="px-5 py-4 text-right font-black text-teal-700">
+                      <td className="px-3 py-2 text-right font-semibold text-teal-700">
                         {pct(horse.ownership_percentage)}
                       </td>
-                      <td className="px-5 py-4 text-right font-semibold text-slate-700">
+                      <td className="px-3 py-2 text-right font-semibold text-slate-700">
                         {horse.captain_count}
                       </td>
-                      <td className="px-5 py-4 text-right font-black text-amber-700">
+                      <td className="px-3 py-2 text-right font-semibold text-amber-700">
                         {pct(horse.captain_percentage)}
                       </td>
                     </tr>
@@ -725,7 +712,7 @@ export default function AdminStatsPage() {
           )}
         </section>
 
-        <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <strong>Admin only:</strong> this page intentionally exposes
           live selections before lockout. Do not link it from the public
           Stats Centre.

@@ -1,898 +1,1804 @@
 "use client";
+
 import { useEffect, useState } from "react";
+
 import { supabase } from "@/lib/supabase";
+
 import PageHeader from "@/components/admin/PageHeader";
+
 import AdminModal from "@/components/admin/AdminModal";
+
 import type { Horse } from "@/types/horse";
+
 type SeasonOption = { id: string; name: string };
+
 type RoundOption = { id: string; season_id: string; name: string; round_number: number };
 
+
+
 const emptyHorse = {
+
   name: "",
+
   starting_price: 30000,
+
   current_price: 30000,
+
   eligible_starts: 0,
+
   is_active: true,
+
 };
+
 export default function HorsesPage() {
+
   const [horses, setHorses] = useState<Horse[]>([]);
+
   const [loading, setLoading] = useState(true);
+
   const [saving, setSaving] = useState(false);
+
   const [uploadingSilksHorseId, setUploadingSilksHorseId] =
+
     useState<string | null>(null);
+
   const [draggingSilksHorseId, setDraggingSilksHorseId] =
+
     useState<string | null>(null);
+
   const [errorMessage, setErrorMessage] = useState("");
+
   const [searchTerm, setSearchTerm] = useState("");
+
   const [meetingUrl, setMeetingUrl] = useState("");
+
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+
   const [rounds, setRounds] = useState<RoundOption[]>([]);
+
   const [seasonId, setSeasonId] = useState("");
+
   const [roundId, setRoundId] = useState("");
+
   const [loadingImportOptions, setLoadingImportOptions] = useState(true);
+
   const [importing, setImporting] = useState(false);
+
   type HorseImportResponse = {
+
     checked: number;
+
     alreadyExists: number;
+
     addedCount: number;
+
     needsReview: number;
+
     eligibleRaces: string[];
+
     added: { name: string; prizeMoney: number; price: number; silksImported?: boolean }[];
+
     matchedRaces?: { id: string; name: string; number: number }[];
+
     unmatchedRaces?: string[];
+
     silksUpdated?: string[];
+
     skipped: string[];
+
     review: { name: string; reason: string }[];
+
   };
+
   const [importResult, setImportResult] = useState<HorseImportResponse | null>(null);
+
   const [showModal, setShowModal] = useState(false);
+
   const [editingHorseId, setEditingHorseId] = useState<string | null>(
+
     null
+
   );
+
   const [form, setForm] = useState(emptyHorse);
+
   useEffect(() => {
+
     void loadHorses();
+
     void loadImportOptions();
+
   }, []);
+
   async function loadImportOptions() {
+
     setLoadingImportOptions(true);
+
     const [seasonsResult, roundsResult] = await Promise.all([
+
       supabase.from("seasons").select("id,name").order("name", { ascending: false }),
+
       supabase.from("rounds").select("id,season_id,name,round_number").order("round_number", { ascending: true }),
+
     ]);
+
     if (seasonsResult.error || roundsResult.error) {
+
       setErrorMessage(seasonsResult.error?.message ?? roundsResult.error?.message ?? "Could not load seasons and rounds.");
+
     } else {
+
       setSeasons((seasonsResult.data ?? []) as SeasonOption[]);
+
       setRounds((roundsResult.data ?? []) as RoundOption[]);
+
     }
+
     setLoadingImportOptions(false);
+
   }
 
+
+
   async function loadHorses() {
+
     setLoading(true);
+
     setErrorMessage("");
+
     const { data, error } = await supabase
+
       .from("horses")
+
       .select("*")
+
       .order("name", { ascending: true });
+
     if (error) {
+
       console.error(error);
+
       setErrorMessage("Could not load horses.");
+
       setLoading(false);
+
       return;
+
     }
+
     setHorses((data ?? []) as Horse[]);
+
     setLoading(false);
+
   }
+
   async function saveHorse(
+
     event: React.FormEvent<HTMLFormElement>
+
   ) {
+
     event.preventDefault();
+
     setErrorMessage("");
+
     if (!form.name.trim()) {
+
       setErrorMessage("Please enter a horse name.");
+
       return;
+
     }
+
     if (
+
       form.starting_price < 30000 ||
+
       form.current_price < 30000
+
     ) {
+
       setErrorMessage(
+
         "Horse prices cannot be below $30,000."
+
       );
+
       return;
+
     }
+
     if (form.eligible_starts < 0) {
+
       setErrorMessage(
+
         "Eligible starts cannot be below zero."
+
       );
+
       return;
+
     }
+
     setSaving(true);
+
     const horseData = {
+
       name: form.name.trim(),
+
       starting_price: form.starting_price,
+
       current_price: form.current_price,
+
       eligible_starts: form.eligible_starts,
+
       is_active: form.is_active,
+
     };
+
     let saveError;
+    let savedHorse: Horse | null = null;
+
     if (editingHorseId) {
-      const { error } = await supabase
+
+      const { data, error } = await supabase
+
         .from("horses")
+
         .update(horseData)
-        .eq("id", editingHorseId);
+
+        .eq("id", editingHorseId)
+
+        .select("*")
+
+        .single();
+
       saveError = error;
+      savedHorse = (data ?? null) as Horse | null;
+
     } else {
-      const { error } = await supabase
+
+      const { data, error } = await supabase
+
         .from("horses")
+
         .insert({
+
           ...horseData,
+
           total_fantasy_points: 0,
-        });
-      saveError = error;
-    }
-    if (saveError) {
-      console.error(saveError);
-      setErrorMessage(saveError.message);
-      setSaving(false);
-      return;
-    }
-    setSaving(false);
-    closeModal();
-    await loadHorses();
-  }
-  function openNewHorseModal() {
-    setEditingHorseId(null);
-    setForm(emptyHorse);
-    setErrorMessage("");
-    setShowModal(true);
-  }
-  function editHorse(horse: Horse) {
-    setErrorMessage("");
-    setEditingHorseId(horse.id);
-    setForm({
-      name: horse.name,
-      starting_price: horse.starting_price,
-      current_price: horse.current_price,
-      eligible_starts: horse.eligible_starts,
-      is_active: horse.is_active,
-    });
-    setShowModal(true);
-  }
-  function closeModal() {
-    if (saving) {
-      return;
-    }
-    setErrorMessage("");
-    setEditingHorseId(null);
-    setForm(emptyHorse);
-    setShowModal(false);
-  }
-  async function uploadSilks(
-    horse: Horse,
-    file: File
-  ) {
-    setErrorMessage("");
-    setUploadingSilksHorseId(horse.id);
-    try {
-      if (!file.type.startsWith("image/")) {
-        throw new Error("Please choose an image file.");
-      }
-      const maxSizeBytes = 5 * 1024 * 1024;
-      if (file.size > maxSizeBytes) {
-        throw new Error(
-          "Silks image must be 5 MB or smaller."
-        );
-      }
-      const extension =
-        file.name.split(".").pop()?.toLowerCase() || "png";
-      const safeExtension = extension.replace(
-        /[^a-z0-9]/g,
-        ""
-      );
-      const storagePath = `${horse.id}/silks.${
-        safeExtension || "png"
-      }`;
-      const { error: uploadError } =
-        await supabase.storage
-          .from("horse-silks")
-          .upload(storagePath, file, {
-            cacheControl: "3600",
-            upsert: true,
-            contentType: file.type,
-          });
-      if (uploadError) {
-        throw uploadError;
-      }
-      const { data: publicUrlData } =
-        supabase.storage
-          .from("horse-silks")
-          .getPublicUrl(storagePath);
-      const publicUrl = publicUrlData.publicUrl;
-      const { error: updateError } = await supabase
-        .from("horses")
-        .update({
-          silks_url: publicUrl,
+
         })
-        .eq("id", horse.id);
-      if (updateError) {
-        throw updateError;
-      }
-      await loadHorses();
-    } catch (error) {
-      console.error("Silks upload error:", error);
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not upload the silks image."
-      );
-    } finally {
-      setUploadingSilksHorseId(null);
+
+        .select("*")
+
+        .single();
+
+      saveError = error;
+      savedHorse = (data ?? null) as Horse | null;
+
     }
+
+    if (saveError) {
+
+      console.error(saveError);
+
+      setErrorMessage(saveError.message);
+
+      setSaving(false);
+
+      return;
+
+    }
+
+    setSaving(false);
+
+    closeModal();
+
+    if (savedHorse) {
+      setHorses((current) => [...current.filter((horse) => horse.id !== savedHorse!.id), savedHorse!].sort((a, b) => a.name.localeCompare(b.name)));
+    }
+
   }
-  async function uploadSilksFromUrl(
+
+  function openNewHorseModal() {
+
+    setEditingHorseId(null);
+
+    setForm(emptyHorse);
+
+    setErrorMessage("");
+
+    setShowModal(true);
+
+  }
+
+  function editHorse(horse: Horse) {
+
+    setErrorMessage("");
+
+    setEditingHorseId(horse.id);
+
+    setForm({
+
+      name: horse.name,
+
+      starting_price: horse.starting_price,
+
+      current_price: horse.current_price,
+
+      eligible_starts: horse.eligible_starts,
+
+      is_active: horse.is_active,
+
+    });
+
+    setShowModal(true);
+
+  }
+
+  function closeModal() {
+
+    if (saving) {
+
+      return;
+
+    }
+
+    setErrorMessage("");
+
+    setEditingHorseId(null);
+
+    setForm(emptyHorse);
+
+    setShowModal(false);
+
+  }
+
+  async function uploadSilks(
+
     horse: Horse,
-    imageUrl: string
+
+    file: File
+
   ) {
+
     setErrorMessage("");
+
     setUploadingSilksHorseId(horse.id);
+
     try {
-      const response = await fetch("/api/admin/silks-from-url", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          imageUrl,
-        }),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          result?.error ||
-            "Could not download the dropped image."
-        );
+
+      if (!file.type.startsWith("image/")) {
+
+        throw new Error("Please choose an image file.");
+
       }
-      if (!result?.dataUrl) {
+
+      const maxSizeBytes = 5 * 1024 * 1024;
+
+      if (file.size > maxSizeBytes) {
+
         throw new Error(
-          "The image download did not return image data."
+
+          "Silks image must be 5 MB or smaller."
+
         );
+
       }
-      const fileResponse = await fetch(result.dataUrl);
-      const blob = await fileResponse.blob();
-      const contentType =
-        blob.type || result.contentType || "image/png";
+
       const extension =
-        contentType === "image/jpeg"
-          ? "jpg"
-          : contentType === "image/webp"
-            ? "webp"
-            : contentType === "image/svg+xml"
-              ? "svg"
-              : "png";
-      const file = new File(
-        [blob],
-        `silks.${extension}`,
-        {
-          type: contentType,
-        }
+
+        file.name.split(".").pop()?.toLowerCase() || "png";
+
+      const safeExtension = extension.replace(
+
+        /[^a-z0-9]/g,
+
+        ""
+
       );
-      await uploadSilks(horse, file);
+
+      const storagePath = `${horse.id}/silks.${
+
+        safeExtension || "png"
+
+      }`;
+
+      const { error: uploadError } =
+
+        await supabase.storage
+
+          .from("horse-silks")
+
+          .upload(storagePath, file, {
+
+            cacheControl: "3600",
+
+            upsert: true,
+
+            contentType: file.type,
+
+          });
+
+      if (uploadError) {
+
+        throw uploadError;
+
+      }
+
+      const { data: publicUrlData } =
+
+        supabase.storage
+
+          .from("horse-silks")
+
+          .getPublicUrl(storagePath);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      const { error: updateError } = await supabase
+
+        .from("horses")
+
+        .update({
+
+          silks_url: publicUrl,
+
+        })
+
+        .eq("id", horse.id);
+
+      if (updateError) {
+
+        throw updateError;
+
+      }
+
+      setHorses((current) => current.map((item) => item.id === horse.id ? { ...item, silks_url: publicUrl } as Horse : item));
+
     } catch (error) {
-      console.error(
-        "Silks URL upload error:",
-        error
-      );
+
+      console.error("Silks upload error:", error);
+
       setErrorMessage(
+
         error instanceof Error
+
           ? error.message
-          : "Could not upload the dropped silks image."
+
+          : "Could not upload the silks image."
+
       );
+
     } finally {
+
       setUploadingSilksHorseId(null);
-      setDraggingSilksHorseId(null);
+
     }
+
   }
-  function getDroppedImageUrl(
-    dataTransfer: DataTransfer
+
+  async function uploadSilksFromUrl(
+
+    horse: Horse,
+
+    imageUrl: string
+
   ) {
-    const uriList =
-      dataTransfer.getData("text/uri-list");
-    if (uriList) {
-      const firstUrl = uriList
-        .split("\n")
-        .map((value) => value.trim())
-        .find(
-          (value) =>
-            value &&
-            !value.startsWith("#")
-        );
-      if (firstUrl) {
-        return firstUrl;
-      }
-    }
-    const html =
-      dataTransfer.getData("text/html");
-    if (html) {
-      const match = html.match(
-        /<img[^>]+src=["']([^"']+)["']/i
-      );
-      if (match?.[1]) {
-        return match[1];
-      }
-    }
-    const plainText =
-      dataTransfer.getData("text/plain").trim();
-    if (
-      plainText.startsWith("http\://") ||
-      plainText.startsWith("https\://")
-    ) {
-      return plainText;
-    }
-    return null;
-  }
-  async function handleSilksDrop(
-    event: React.DragEvent<HTMLDivElement>,
-    horse: Horse
-  ) {
-    event.preventDefault();
-    event.stopPropagation();
-    setDraggingSilksHorseId(null);
-    if (uploadingSilksHorseId) {
-      return;
-    }
-    const imageFile = Array.from(
-      event.dataTransfer.files
-    ).find((file) =>
-      file.type.startsWith("image/")
-    );
-    if (imageFile) {
-      await uploadSilks(
-        horse,
-        imageFile
-      );
-      return;
-    }
-    const imageUrl = getDroppedImageUrl(
-      event.dataTransfer
-    );
-    if (imageUrl) {
-      await uploadSilksFromUrl(
-        horse,
-        imageUrl
-      );
-      return;
-    }
-    setErrorMessage(
-      "Drop an image file or drag an image directly from another website."
-    );
-  }
-  async function importHorses(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+
     setErrorMessage("");
-    setImportResult(null);
-    if (!seasonId || !roundId || !rounds.some(r => r.id === roundId && r.season_id === seasonId)) {
-      setErrorMessage("Select a season and a round before importing.");
-      return;
-    }
-    let parsedUrl: URL;
+
+    setUploadingSilksHorseId(horse.id);
+
     try {
-      parsedUrl = new URL(meetingUrl.trim());
-    } catch {
-      setErrorMessage("Enter a valid Racing Australia meeting URL.");
-      return;
-    }
-    if (
-      parsedUrl.protocol !== "https:" ||
-      parsedUrl.hostname.toLowerCase() !== "www.racingaustralia.horse" ||
-      Boolean(parsedUrl.username || parsedUrl.password || parsedUrl.port) ||
-      !/^\/FreeFields\/(Form|Acceptances)\.aspx$/i.test(parsedUrl.pathname) ||
-      !/^\d{4}[A-Za-z]{3}\d{2},[A-Za-z]{2,3},.+$/.test(parsedUrl.searchParams.get("Key") ?? "")
-    ) {
-      setErrorMessage("Use a Racing Australia FreeFields/Form.aspx or Acceptances.aspx URL with a valid Key.");
-      return;
-    }
-    setImporting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("You must be signed in to import horses.");
-      }
-      const response = await fetch("/api/admin/import-horses", {
+
+      const response = await fetch("/api/admin/silks-from-url", {
+
         method: "POST",
+
         headers: {
+
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+
         },
-        body: JSON.stringify({ url: parsedUrl.toString(), seasonId, roundId }),
+
+        body: JSON.stringify({
+
+          imageUrl,
+
+        }),
+
       });
-      const result = await response.json().catch(() => ({}));
+
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error(result.error || "Horse import failed.");
+
+        throw new Error(
+
+          result?.error ||
+
+            "Could not download the dropped image."
+
+        );
+
       }
-      setImportResult(result as HorseImportResponse);
-      await loadHorses();
+
+      if (!result?.dataUrl) {
+
+        throw new Error(
+
+          "The image download did not return image data."
+
+        );
+
+      }
+
+      const fileResponse = await fetch(result.dataUrl);
+
+      const blob = await fileResponse.blob();
+
+      const contentType =
+
+        blob.type || result.contentType || "image/png";
+
+      const extension =
+
+        contentType === "image/jpeg"
+
+          ? "jpg"
+
+          : contentType === "image/webp"
+
+            ? "webp"
+
+            : contentType === "image/svg+xml"
+
+              ? "svg"
+
+              : "png";
+
+      const file = new File(
+
+        [blob],
+
+        `silks.${extension}`,
+
+        {
+
+          type: contentType,
+
+        }
+
+      );
+
+      await uploadSilks(horse, file);
+
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Horse import failed.");
+
+      console.error(
+
+        "Silks URL upload error:",
+
+        error
+
+      );
+
+      setErrorMessage(
+
+        error instanceof Error
+
+          ? error.message
+
+          : "Could not upload the dropped silks image."
+
+      );
+
     } finally {
-      setImporting(false);
+
+      setUploadingSilksHorseId(null);
+
+      setDraggingSilksHorseId(null);
+
     }
+
   }
+
+  function getDroppedImageUrl(
+
+    dataTransfer: DataTransfer
+
+  ) {
+
+    const uriList =
+
+      dataTransfer.getData("text/uri-list");
+
+    if (uriList) {
+
+      const firstUrl = uriList
+
+        .split("\n")
+
+        .map((value) => value.trim())
+
+        .find(
+
+          (value) =>
+
+            value &&
+
+            !value.startsWith("#")
+
+        );
+
+      if (firstUrl) {
+
+        return firstUrl;
+
+      }
+
+    }
+
+    const html =
+
+      dataTransfer.getData("text/html");
+
+    if (html) {
+
+      const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+
+      if (match?.[1]) {
+
+        return match[1];
+
+      }
+
+    }
+
+    const plainText =
+
+      dataTransfer.getData("text/plain").trim();
+
+    if (
+
+      plainText.startsWith("http://") ||
+
+      plainText.startsWith("https://")
+
+    ) {
+
+      return plainText;
+
+    }
+
+    return null;
+
+  }
+
+  async function handleSilksDrop(
+
+    event: React.DragEvent<HTMLDivElement>,
+
+    horse: Horse
+
+  ) {
+
+    event.preventDefault();
+
+    event.stopPropagation();
+
+    setDraggingSilksHorseId(null);
+
+    if (uploadingSilksHorseId) {
+
+      return;
+
+    }
+
+    const imageFile = Array.from(
+
+      event.dataTransfer.files
+
+    ).find((file) =>
+
+      file.type.startsWith("image/")
+
+    );
+
+    if (imageFile) {
+
+      await uploadSilks(
+
+        horse,
+
+        imageFile
+
+      );
+
+      return;
+
+    }
+
+    const imageUrl = getDroppedImageUrl(
+
+      event.dataTransfer
+
+    );
+
+    if (imageUrl) {
+
+      await uploadSilksFromUrl(
+
+        horse,
+
+        imageUrl
+
+      );
+
+      return;
+
+    }
+
+    setErrorMessage(
+
+      "Drop an image file or drag an image directly from another website."
+
+    );
+
+  }
+
+  async function importHorses(event: React.FormEvent<HTMLFormElement>) {
+
+    event.preventDefault();
+
+    setErrorMessage("");
+
+    setImportResult(null);
+
+    if (!seasonId || !roundId || !rounds.some(r => r.id === roundId && r.season_id === seasonId)) {
+
+      setErrorMessage("Select a season and a round before importing.");
+
+      return;
+
+    }
+
+    let parsedUrl: URL;
+
+    try {
+
+      parsedUrl = new URL(meetingUrl.trim());
+
+    } catch {
+
+      setErrorMessage("Enter a valid Racing Australia meeting URL.");
+
+      return;
+
+    }
+
+    if (
+
+      parsedUrl.protocol !== "https:" ||
+
+      parsedUrl.hostname.toLowerCase() !== "www.racingaustralia.horse" ||
+
+      Boolean(parsedUrl.username || parsedUrl.password || parsedUrl.port) ||
+
+      !/\/FreeFields\/(Form|Acceptances)\.aspx$/i.test(parsedUrl.pathname) ||
+
+      !/^\d{4}[A-Za-z]{3}\d{2},[A-Za-z]{2,3},.+$/.test(parsedUrl.searchParams.get("Key") ?? "")
+
+    ) {
+
+      setErrorMessage("Use a Racing Australia FreeFields/Form.aspx or Acceptances.aspx URL with a valid Key.");
+
+      return;
+
+    }
+
+    setImporting(true);
+
+    try {
+
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+
+        throw new Error("You must be signed in to import horses.");
+
+      }
+
+      const response = await fetch("/api/admin/import-horses", {
+
+        method: "POST",
+
+        headers: {
+
+          "Content-Type": "application/json",
+
+          Authorization: `Bearer ${session.access_token}`,
+
+        },
+
+        body: JSON.stringify({ url: parsedUrl.toString(), seasonId, roundId }),
+
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+
+        throw new Error(result.error || "Horse import failed.");
+
+      }
+
+      setImportResult(result as HorseImportResponse);
+
+      await loadHorses();
+
+    } catch (error) {
+
+      setErrorMessage(error instanceof Error ? error.message : "Horse import failed.");
+
+    } finally {
+
+      setImporting(false);
+
+    }
+
+  }
+
   function formatMoney(amount: number) {
+
     return new Intl.NumberFormat("en-AU", {
+
       style: "currency",
+
       currency: "AUD",
+
       maximumFractionDigits: 0,
+
     }).format(amount);
+
   }
+
   const filteredHorses = horses.filter((horse) =>
+
     horse.name
+
       .toLowerCase()
+
       .includes(searchTerm.toLowerCase())
+
   );
+
   return (
-    <main className="p-8">
+
+    <main className="mx-auto max-w-[1600px] p-4 md:p-6">
+
       <PageHeader
+
         eyebrow="Horse management"
+
         title="Horses"
+
         description="Add and manage horses available in the fantasy competition."
+
         buttonLabel="New Horse"
+
         onButtonClick={openNewHorseModal}
+
       />
+
       {errorMessage && !showModal && (
+
         <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+
           {errorMessage}
+
         </div>
+
       )}
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5">
+
+      <section className="mb-4 rounded-md border border-slate-200 bg-white p-4">
+
         <h2 className="text-lg font-bold text-slate-900">Import horses from Racing Australia</h2>
+
         <p className="mt-1 text-sm text-slate-600">
+
           Select a season and round, then paste a Racing Australia Form.aspx or Acceptances.aspx URL.
+
           Only races already entered for the selected round will be used. Existing prices and silks are preserved;
+
           missing silks will be imported when available.
+
         </p>
-        <form onSubmit={importHorses} className="mt-4 space-y-3">
+
+        <form onSubmit={importHorses} className="mt-3 space-y-2">
+
           <div className="grid gap-3 sm:grid-cols-2">
+
             <label className="block text-sm font-medium text-slate-700">
+
               Season
+
               <select
+
                 required
+
                 value={seasonId}
+
                 onChange={(event) => { setSeasonId(event.target.value); setRoundId(""); setImportResult(null); }}
+
                 disabled={importing || loadingImportOptions}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm"
+
+                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+
               >
+
                 <option value="">{loadingImportOptions ? "Loading seasons..." : "Select season"}</option>
+
                 {seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}
+
               </select>
+
             </label>
+
             <label className="block text-sm font-medium text-slate-700">
+
               Round
+
               <select
+
                 required
+
                 value={roundId}
+
                 onChange={(event) => { setRoundId(event.target.value); setImportResult(null); }}
+
                 disabled={!seasonId || importing || loadingImportOptions}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm"
+
+                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+
               >
+
                 <option value="">Select round</option>
+
                 {rounds.filter((round) => round.season_id === seasonId).map((round) => (
+
                   <option key={round.id} value={round.id}>{round.name || `Round ${round.round_number}`}</option>
+
                 ))}
+
               </select>
+
             </label>
+
           </div>
+
           <label className="block text-sm font-medium text-slate-700">
+
             Racing Australia meeting URL
+
             <input
+
               type="url"
+
               required
+
               value={meetingUrl}
+
               onChange={(event) => setMeetingUrl(event.target.value)}
+
               placeholder="https://www.racingaustralia.horse/FreeFields/Form.aspx?Key=2026Oct25%2CVIC%2CSale"
-              className="mt-1 w-full rounded-lg border border-slate-300 p-3 text-sm"
+
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+
             />
+
           </label>
+
           <button
+
             type="submit"
+
             disabled={importing || loadingImportOptions || !seasonId || !roundId || !meetingUrl.trim()}
-            className="rounded-lg bg-green-800 px-5 py-3 font-semibold text-white hover:bg-green-900 disabled:opacity-50"
+
+            className="rounded-md bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-green-900 disabled:opacity-50"
+
           >
+
             {importing ? "Importing..." : "Import Horses"}
+
           </button>
+
         </form>
+
         {importResult && (
+
           <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+
             <p className="font-semibold">Import finished</p>
+
             <p>
+
               {importResult.matchedRaces?.length ?? importResult.eligibleRaces?.length ?? 0} matched races · {importResult.checked ?? 0} horses checked · {importResult.alreadyExists ?? 0} existing · {importResult.addedCount ?? 0} added · {importResult.needsReview ?? 0} need review
+
             </p>
+
                           {(importResult.unmatchedRaces?.length ?? 0) > 0 && (
+
                 <p className="mt-2 text-amber-900">Unmatched races: {importResult.unmatchedRaces?.join(", ")}</p>
+
               )}
+
               {(importResult.silksUpdated?.length ?? 0) > 0 && (
+
                 <p className="mt-2">Silks added to existing horses: {importResult.silksUpdated?.join(", ")}</p>
+
               )}
+
 {(importResult.added?.length ?? 0) > 0 && (
+
               <div className="mt-3">
+
                 <p className="font-semibold">Added horses</p>
+
                 <ul className="mt-1 list-disc pl-5">
+
                   {importResult.added.map((horse, index) => (
+
                     <li key={`${horse.name}-${index}`}>
+
                       {horse.name} — career prize money {formatMoney(horse.prizeMoney)} — price {formatMoney(horse.price)} — silks {horse.silksImported ? "imported" : "not imported"}
+
                     </li>
+
                   ))}
+
                 </ul>
+
               </div>
+
             )}
+
             {(importResult.review?.length ?? 0) > 0 && (
+
               <div className="mt-3 text-amber-900">
+
                 <p className="font-semibold">Horses requiring review</p>
+
                 <ul className="mt-1 list-disc pl-5">
+
                   {importResult.review.map((horse, index) => (
+
                     <li key={`${horse.name}-${index}`}>{horse.name}: {horse.reason}</li>
+
                   ))}
+
                 </ul>
+
               </div>
+
             )}
+
           </div>
+
         )}
+
       </section>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
         <input
+
           type="search"
+
           placeholder="Search horses..."
+
           value={searchTerm}
+
           onChange={(event) =>
+
             setSearchTerm(event.target.value)
+
           }
-          className="w-full rounded-lg border bg-white p-3 sm:max-w-md"
+
+          className="w-full rounded-md border bg-white px-3 py-2 text-sm sm:max-w-sm"
+
         />
+
         <p className="text-sm text-slate-500">
+
           {filteredHorses.length}{" "}
+
           {filteredHorses.length === 1
+
             ? "horse"
+
             : "horses"}
+
         </p>
+
       </div>
+
       <div className="overflow-hidden rounded-lg border bg-white">
+
         {loading ? (
+
           <div className="p-8 text-center text-slate-500">
+
             Loading horses...
+
           </div>
+
         ) : filteredHorses.length === 0 ? (
+
           <div className="p-8 text-center text-slate-500">
+
             {horses.length === 0
+
               ? "No horses have been added yet."
+
               : "No horses match your search."}
+
           </div>
+
         ) : (
+
           <div className="overflow-x-auto">
+
             <table className="min-w-full divide-y divide-slate-200">
+
               <thead className="bg-slate-50">
+
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
                     Horse
+
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
                     Silks
+
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
                     Starting Price
+
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
                     Current Price
+
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
                     Points
+
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
                     Eligible Starts
+
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
                     Status
+
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+
                     Actions
+
                   </th>
+
                 </tr>
+
               </thead>
+
               <tbody className="divide-y divide-slate-200">
+
                 {filteredHorses.map((horse) => (
+
                   <tr
+
                     key={horse.id}
+
                     className="hover:bg-slate-50"
+
                   >
-                    <td className="px-4 py-4 font-semibold text-slate-900">
+
+                    <td className="px-3 py-2 font-semibold text-slate-900">
+
                       {horse.name}
+
                     </td>
-                    <td className="px-4 py-4">
+
+                    <td className="px-3 py-2">
+
                       <div
+
                         onDragEnter={(event) => {
+
                           event.preventDefault();
+
                           setDraggingSilksHorseId(horse.id);
+
                         }}
+
                         onDragOver={(event) => {
+
                           event.preventDefault();
+
                           event.dataTransfer.dropEffect = "copy";
+
                           setDraggingSilksHorseId(horse.id);
+
                         }}
+
                         onDragLeave={(event) => {
+
                           if (
+
                             !event.currentTarget.contains(
+
                               event.relatedTarget as Node | null
+
                             )
+
                           ) {
+
                             setDraggingSilksHorseId(null);
+
                           }
+
                         }}
+
                         onDrop={(event) =>
+
                           void handleSilksDrop(
+
                             event,
+
                             horse
+
                           )
+
                         }
+
                         title="Drop a silk image here from your computer or another website"
-                        className={`flex h-16 w-20 items-center justify-center overflow-hidden rounded-lg border-2 transition ${
+
+                        className={`flex h-11 w-14 items-center justify-center overflow-hidden rounded-lg border-2 transition ${
+
                           draggingSilksHorseId === horse.id
+
                             ? "border-teal-600 bg-teal-50 ring-2 ring-teal-100"
+
                             : "border-dashed border-slate-300 bg-white"
+
                         }`}
+
                       >
+
                         {uploadingSilksHorseId === horse.id ? (
+
                           <span className="px-1 text-center text-[9px] font-bold uppercase text-slate-500">
+
                             Uploading...
+
                           </span>
+
                         ) : (horse as Horse & {
+
                             silks_url?: string | null;
+
                           }).silks_url ? (
+
                           <img
+
                             src={
+
                               (horse as Horse & {
+
                                 silks_url?: string | null;
+
                               }).silks_url ?? ""
+
                             }
+
                             alt={`${horse.name} silks`}
+
                             className="h-full w-full object-contain p-1"
+
                           />
+
                         ) : (
+
                           <span className="px-1 text-center text-[9px] font-bold uppercase leading-tight text-slate-400">
+
                             Drop silks here
+
                           </span>
+
                         )}
+
                       </div>
+
                     </td>
-                    <td className="px-4 py-4 text-sm text-slate-700">
+
+                    <td className="px-3 py-2 text-sm text-slate-700">
+
                       {formatMoney(
+
                         horse.starting_price
+
                       )}
+
                     </td>
-                    <td className="px-4 py-4 text-sm text-slate-700">
+
+                    <td className="px-3 py-2 text-sm text-slate-700">
+
                       {formatMoney(
+
                         horse.current_price
+
                       )}
+
                     </td>
-                    <td className="px-4 py-4 text-sm text-slate-700">
+
+                    <td className="px-3 py-2 text-sm text-slate-700">
+
                       {horse.total_fantasy_points}
+
                     </td>
-                    <td className="px-4 py-4 text-sm text-slate-700">
+
+                    <td className="px-3 py-2 text-sm text-slate-700">
+
                       {horse.eligible_starts}
+
                     </td>
-                    <td className="px-4 py-4">
+
+                    <td className="px-3 py-2">
+
                       <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+
+                        className={`rounded px-2 py-0.5 text-xs font-semibold ${
+
                           horse.is_active
+
                             ? "bg-green-100 text-green-800"
+
                             : "bg-slate-100 text-slate-700"
+
                         }`}
+
                       >
+
                         {horse.is_active
+
                           ? "Active"
+
                           : "Inactive"}
+
                       </span>
+
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-2">
+
+                    <td className="px-3 py-2">
+
+                      <div className="flex flex-wrap gap-1.5">
+
                         <button
+
                           type="button"
+
                           onClick={() =>
+
                             editHorse(horse)
+
                           }
-                          className="rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-slate-50"
+
+                          className="rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50"
+
                         >
+
                           Edit
+
                         </button>
+
                         <label
-                          className={`cursor-pointer rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+
+                          className={`cursor-pointer rounded-md border px-2.5 py-1.5 text-xs font-semibold transition ${
+
                             uploadingSilksHorseId === horse.id
+
                               ? "cursor-not-allowed bg-slate-100 text-slate-400"
+
                               : "bg-slate-950 text-white hover:bg-slate-800"
+
                           }`}
+
                         >
+
                           {uploadingSilksHorseId === horse.id
+
                             ? "Uploading..."
+
                             : (horse as Horse & {
+
                                   silks_url?: string | null;
+
                                 }).silks_url
+
                               ? "Change Silks"
+
                               : "Upload Silks"}
+
                           <input
+
                             type="file"
+
                             accept="image/png,image/jpeg,image/webp,image/svg+xml"
+
                             className="hidden"
+
                             disabled={
+
                               uploadingSilksHorseId === horse.id
+
                             }
+
                             onChange={(event) => {
+
                               const file =
+
                                 event.target.files?.[0];
+
                               event.currentTarget.value = "";
+
                               if (file) {
+
                                 void uploadSilks(
+
                                   horse,
+
                                   file
+
                                 );
+
                               }
+
                             }}
+
                           />
+
                         </label>
+
                       </div>
+
                     </td>
+
                   </tr>
+
                 ))}
+
               </tbody>
+
             </table>
+
           </div>
+
         )}
+
       </div>
+
       <AdminModal
+
         isOpen={showModal}
+
         title={
+
           editingHorseId
+
             ? "Edit Horse"
+
             : "New Horse"
+
         }
+
         description={
+
           editingHorseId
+
             ? "Update the horse details."
+
             : "Add a horse to the fantasy competition."
+
         }
+
         onClose={closeModal}
+
         maxWidth="lg"
+
       >
+
         <form
+
           onSubmit={saveHorse}
-          className="space-y-5"
+
+          className="space-y-3"
+
         >
+
           {errorMessage && (
+
             <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+
               {errorMessage}
+
             </div>
+
           )}
+
           <div>
+
             <label className="mb-1 block font-medium">
+
               Horse Name
+
             </label>
+
             <input
+
               required
+
               type="text"
+
               value={form.name}
+
               onChange={(event) =>
+
                 setForm({
+
                   ...form,
+
                   name: event.target.value,
+
                 })
+
               }
+
               placeholder="Enter horse name"
+
               className="w-full rounded-lg border p-3"
+
             />
+
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
+
             <div>
+
               <label className="mb-1 block font-medium">
+
                 Starting Price
+
               </label>
+
               <input
+
                 required
+
                 min={30000}
+
                 step={1000}
+
                 type="number"
+
                 value={form.starting_price}
+
                 onChange={(event) =>
+
                   setForm({
+
                     ...form,
+
                     starting_price: Number(
+
                       event.target.value
+
                     ),
+
                   })
+
                 }
+
                 className="w-full rounded-lg border p-3"
+
               />
+
             </div>
+
             <div>
+
               <label className="mb-1 block font-medium">
+
                 Current Price
+
               </label>
+
               <input
+
                 required
+
                 min={30000}
+
                 step={1000}
+
                 type="number"
+
                 value={form.current_price}
+
                 onChange={(event) =>
+
                   setForm({
+
                     ...form,
+
                     current_price: Number(
+
                       event.target.value
+
                     ),
+
                   })
+
                 }
+
                 className="w-full rounded-lg border p-3"
+
               />
+
             </div>
+
           </div>
+
           <div>
+
             <label className="mb-1 block font-medium">
+
               Eligible Starts
+
             </label>
+
             <input
+
               required
+
               min={0}
+
               type="number"
+
               value={form.eligible_starts}
+
               onChange={(event) =>
+
                 setForm({
+
                   ...form,
+
                   eligible_starts: Number(
+
                     event.target.value
+
                   ),
+
                 })
+
               }
+
               className="w-full rounded-lg border p-3"
+
             />
+
           </div>
+
           <label className="flex items-center gap-3">
+
             <input
+
               type="checkbox"
+
               checked={form.is_active}
+
               onChange={(event) =>
+
                 setForm({
+
                   ...form,
+
                   is_active:
+
                     event.target.checked,
+
                 })
+
               }
+
               className="h-4 w-4"
+
             />
+
             <span className="font-medium">
+
               Active horse
+
             </span>
+
           </label>
+
           <div className="flex justify-end gap-3 pt-4">
+
             <button
+
               type="button"
+
               onClick={closeModal}
+
               disabled={saving}
+
               className="rounded-lg border px-5 py-3 disabled:opacity-50"
+
             >
+
               Cancel
+
             </button>
+
             <button
+
               type="submit"
+
               disabled={saving}
-              className="rounded-lg bg-green-800 px-5 py-3 font-semibold text-white hover:bg-green-900 disabled:bg-slate-400"
+
+              className="rounded-md bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-green-900 disabled:bg-slate-400"
+
             >
+
               {saving
+
                 ? "Saving..."
+
                 : editingHorseId
+
                   ? "Update Horse"
+
                   : "Save Horse"}
+
             </button>
+
           </div>
+
         </form>
+
       </AdminModal>
+
     </main>
+
   );
+
 }

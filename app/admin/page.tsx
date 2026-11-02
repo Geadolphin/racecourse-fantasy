@@ -91,7 +91,7 @@ function StatusBadge({ status }: { status: CheckStatus }) {
 
   return (
     <span
-      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${classes}`}
+      className={`inline-flex rounded-sm border px-2 py-0.5 text-[11px] font-semibold ${classes}`}
     >
       {label}
     </span>
@@ -981,439 +981,245 @@ export default function AdminDashboardPage() {
     },
   ];
 
+  const navigation = [
+    { label: "Seasons", href: "/admin/seasons" },
+    { label: "Rounds", href: "/admin/rounds" },
+    { label: "Races", href: "/admin/races" },
+    { label: "Race entries", href: "/admin/race-entries" },
+    { label: "Results", href: "/admin/results" },
+    { label: "Horses", href: "/admin/horses" },
+    { label: "Users", href: "/admin/users" },
+  ];
+
+  const controls = [
+    {
+      label: "Horse silks",
+      description: showHorseSilks
+        ? "Displayed across the website"
+        : "Hidden across the website",
+      enabled: showHorseSilks,
+      loading: silksSettingLoading || silksSettingSaving,
+      toggle: toggleHorseSilks,
+    },
+    {
+      label: "Projected scores",
+      description: showProjectedScores
+        ? "Visible to eligible users"
+        : "Hidden from general users",
+      enabled: showProjectedScores,
+      loading: projectionSettingLoading || projectionSettingSaving,
+      toggle: toggleProjectedScores,
+    },
+    {
+      label: "Special team projections",
+      description: showSpecialTeamProjections
+        ? "Special teams can access projections independently"
+        : "Special teams follow the main projection setting",
+      enabled: showSpecialTeamProjections,
+      loading: projectionSettingLoading || specialProjectionSettingSaving,
+      toggle: toggleSpecialTeamProjections,
+    },
+  ];
+
   return (
-    <main className="p-6 sm:p-10">
-      <div className="mx-auto max-w-7xl">
-        <div>
-          <p className="font-semibold text-teal-600">
-            Administration
-          </p>
-
-          <h1 className="mt-1 text-4xl font-bold tracking-tight">
-            Dashboard
-          </h1>
-
-          <p className="mt-2 text-slate-600">
-            Manage the Racecourse Fantasy competition.
-          </p>
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="border-b border-slate-800 bg-slate-950 text-white">
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-300">
+                Racecourse Fantasy / Administration
+              </p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                Competition control
+              </h1>
+              <p className="mt-1 text-sm text-slate-300">
+                {loading ? "Loading season…" : activeSeason}
+              </p>
+            </div>
+            <Link
+              href="/admin/seasons"
+              className="inline-flex items-center justify-center border border-slate-600 px-4 py-2 text-sm font-semibold text-white transition hover:border-teal-300 hover:text-teal-200"
+            >
+              Manage season <span aria-hidden="true" className="ml-2">→</span>
+            </Link>
+          </div>
+          <nav aria-label="Admin sections" className="-mb-5 mt-6 flex gap-1 overflow-x-auto pb-0">
+            <span className="shrink-0 border-b-2 border-teal-400 px-3 py-3 text-sm font-bold text-white">
+              Overview
+            </span>
+            {navigation.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="shrink-0 border-b-2 border-transparent px-3 py-3 text-sm font-medium text-slate-300 transition hover:border-slate-500 hover:text-white"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         </div>
+      </div>
 
+      <div className="mx-auto max-w-7xl space-y-7 px-4 py-7 sm:px-6 lg:px-8">
         {automationMessage && (
-          <div className="mt-6 rounded-xl border border-teal-200 bg-teal-50 p-4 text-teal-700">
+          <div role="status" className="border-l-4 border-teal-600 bg-teal-50 px-4 py-3 text-sm text-teal-900">
             {automationMessage}
           </div>
         )}
-
         {message && (
-          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+          <div role="alert" className="border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-800">
             {message}
           </div>
         )}
 
-        <section className="mt-8 rounded-2xl bg-slate-900 p-6 text-white shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-wider text-teal-300">
-            Active season
-          </p>
-
-          <p className="mt-2 text-2xl font-bold">
-            {loading ? "Loading..." : activeSeason}
-          </p>
-
-          <Link
-            href="/admin/seasons"
-            className="mt-5 inline-block rounded-lg bg-amber-400 px-4 py-2 text-sm font-bold text-emerald-950 transition hover:bg-amber-300"
-          >
-            Manage seasons
-          </Link>
+        <section aria-labelledby="overview-heading">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <h2 id="overview-heading" className="text-lg font-bold">At a glance</h2>
+            <span className="text-xs text-slate-500">All-time totals</span>
+          </div>
+          <div className="grid grid-cols-2 border border-slate-200 bg-white sm:grid-cols-4">
+            {cards.map((card, index) => (
+              <Link
+                key={card.title}
+                href={card.href}
+                className={`group px-5 py-5 transition hover:bg-slate-50 ${index > 0 ? "border-l border-slate-200" : ""} ${index === 2 ? "max-sm:border-l-0" : ""} ${index > 1 ? "max-sm:border-t max-sm:border-slate-200" : ""}`}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{card.title}</p>
+                <div className="mt-2 flex items-end justify-between gap-2">
+                  <span className="text-3xl font-bold tabular-nums tracking-tight">
+                    {loading ? "—" : card.value.toLocaleString("en-AU")}
+                  </span>
+                  <span aria-hidden="true" className="text-sm text-teal-700 transition group-hover:translate-x-1">→</span>
+                </div>
+              </Link>
+            ))}
+          </div>
         </section>
 
-        <section className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {cards.map((card) => (
-            <Link
-              key={card.title}
-              href={card.href}
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-            >
-              <p className="text-sm font-medium text-slate-500">
-                {card.title}
-              </p>
-
-              <p className="mt-3 text-4xl font-bold">
-                {loading ? "—" : card.value}
-              </p>
-
-              <p className="mt-4 text-sm font-semibold text-teal-600">
-                Manage →
-              </p>
-            </Link>
-          ))}
-        </section>
-
-        <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <section aria-labelledby="checklist-heading" className="min-w-0 border border-slate-200 bg-white">
+            <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-teal-600">
-                  Race-day control
-                </p>
-
-                <h2 className="mt-1 text-2xl font-bold text-slate-950">
-                  Round checklist
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Check that each round is ready before racing and
-                  has completed correctly afterwards.
-                </p>
+                <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Race-day operations</p>
+                <h2 id="checklist-heading" className="mt-1 text-xl font-bold">Round readiness</h2>
+                <p className="mt-1 text-sm text-slate-500">Review the operational checks for each round.</p>
               </div>
-
               {seasonRounds.length > 0 && (
-                <div className="w-full sm:w-80">
-                  <label
-                    htmlFor="checklist-round"
-                    className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500"
-                  >
-                    Round
-                  </label>
-
+                <div className="w-full shrink-0 sm:w-60">
+                  <label htmlFor="checklist-round" className="mb-1 block text-xs font-semibold text-slate-600">Select round</label>
                   <select
                     id="checklist-round"
                     value={selectedRoundId}
-                    onChange={(event) =>
-                      setSelectedRoundId(event.target.value)
-                    }
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-semibold text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    onChange={(event) => setSelectedRoundId(event.target.value)}
+                    className="w-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
                   >
                     {seasonRounds.map((round) => (
                       <option key={round.id} value={round.id}>
-                        Round {round.round_number}
-                        {round.name ? ` — ${round.name}` : ""}
+                        Round {round.round_number}{round.name ? ` — ${round.name}` : ""}
                       </option>
                     ))}
                   </select>
                 </div>
               )}
             </div>
-
             {selectedRound && !checklistLoading && (
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                  {checklistReadyCount}/{checklist.length} ready
-                </span>
-
-                {checklistIssueCount > 0 && (
-                  <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">
-                    {checklistIssueCount}{" "}
-                    {checklistIssueCount === 1
-                      ? "issue"
-                      : "issues"}
-                  </span>
-                )}
-
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold capitalize text-slate-700">
-                  {selectedRound.status}
-                </span>
+              <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-semibold">
+                <span className="text-slate-700">{checklistReadyCount} of {checklist.length} checks ready</span>
+                {checklistIssueCount > 0 && <span className="text-red-700">{checklistIssueCount} requiring attention</span>}
+                <span className="ml-auto uppercase tracking-wide text-slate-500">{selectedRound.status}</span>
               </div>
             )}
-          </div>
-
-          {!activeSeasonId ? (
-            <div className="p-8 text-center text-slate-500">
-              Set an active season to use the round checklist.
-            </div>
-          ) : seasonRounds.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">
-              No rounds have been created for the active season.
-            </div>
-          ) : checklistLoading ? (
-            <div className="p-8 text-center text-slate-500">
-              Checking round...
-            </div>
-          ) : (
-            <div className="grid divide-y divide-slate-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-              <div className="divide-y divide-slate-200">
-                {checklist
-                  .slice(0, 4)
-                  .map((item) => (
-                    <div
-                      key={item.label}
-                      className="flex items-start justify-between gap-4 p-5"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-950">
-                          {item.label}
-                        </p>
-
-                        <p className="mt-1 text-sm leading-6 text-slate-500">
-                          {item.detail}
-                        </p>
-
-                        {item.href && (
-                          <Link
-                            href={item.href}
-                            className="mt-2 inline-flex text-sm font-bold text-teal-700 hover:underline"
-                          >
-                            Manage →
-                          </Link>
-                        )}
-                      </div>
-
-                      <StatusBadge status={item.status} />
+            {!activeSeasonId ? (
+              <p className="px-5 py-10 text-center text-sm text-slate-500">Set an active season to view round checks.</p>
+            ) : seasonRounds.length === 0 ? (
+              <p className="px-5 py-10 text-center text-sm text-slate-500">No rounds have been created for the active season.</p>
+            ) : checklistLoading ? (
+              <p className="px-5 py-10 text-center text-sm text-slate-500">Checking round…</p>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {checklist.map((item) => (
+                  <div key={item.label} className="flex flex-wrap items-center gap-3 px-5 py-3.5 sm:flex-nowrap">
+                    <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${item.status === "ready" ? "bg-emerald-600" : item.status === "issue" ? "bg-red-600" : "bg-amber-500"}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900">{item.label}</p>
+                      <p className="mt-0.5 text-xs leading-5 text-slate-500">{item.detail}</p>
                     </div>
-                  ))}
-              </div>
-
-              <div className="divide-y divide-slate-200">
-                {checklist
-                  .slice(4)
-                  .map((item) => (
-                    <div
-                      key={item.label}
-                      className="flex items-start justify-between gap-4 p-5"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-bold text-slate-950">
-                          {item.label}
-                        </p>
-
-                        <p className="mt-1 text-sm leading-6 text-slate-500">
-                          {item.detail}
-                        </p>
-
-                        {item.href && (
-                          <Link
-                            href={item.href}
-                            className="mt-2 inline-flex text-sm font-bold text-teal-700 hover:underline"
-                          >
-                            Manage →
-                          </Link>
-                        )}
-                      </div>
-
+                    <div className="flex w-full shrink-0 items-center justify-between gap-3 pl-5 sm:w-auto sm:pl-0">
                       <StatusBadge status={item.status} />
+                      {item.href && (
+                        <Link href={item.href} className="whitespace-nowrap text-xs font-semibold text-teal-700 hover:underline">
+                          Open →
+                        </Link>
+                      )}
                     </div>
-                  ))}
+                  </div>
+                ))}
               </div>
+            )}
+          </section>
+
+          <aside aria-label="Admin shortcuts" className="space-y-6">
+            <section className="border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-5 py-4">
+                <h2 className="text-base font-bold">Common tasks</h2>
+                <p className="mt-1 text-xs text-slate-500">Go straight to a management page.</p>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {[
+                  { label: "Manage race entries", href: "/admin/race-entries" },
+                  { label: "Enter race results", href: "/admin/results" },
+                  { label: "Manage rounds", href: "/admin/rounds" },
+                  { label: "Manage races", href: "/admin/races" },
+                  { label: "Add or edit horses", href: "/admin/horses" },
+                  { label: "Manage seasons", href: "/admin/seasons" },
+                ].map((item) => (
+                  <Link key={item.href} href={item.href} className="flex items-center justify-between gap-3 px-5 py-3 text-sm font-medium text-slate-800 transition hover:bg-slate-50 hover:text-teal-700">
+                    {item.label}<span aria-hidden="true" className="text-teal-700">→</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+            <div className="border-l-2 border-teal-600 pl-4 text-xs leading-5 text-slate-500">
+              Round checks are informational. Review outstanding issues before completing a round.
             </div>
-          )}
-        </section>
+          </aside>
+        </div>
 
-        <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-6">
-            <p className="text-sm font-semibold text-teal-600">
-              Site display
-            </p>
-
-            <h2 className="mt-1 text-2xl font-bold text-slate-950">
-              Display controls
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Control horse silks and projected scores across Racecourse Fantasy.
-            </p>
+        <section aria-labelledby="display-heading" className="border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-5 py-5">
+            <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Website settings</p>
+            <h2 id="display-heading" className="mt-1 text-xl font-bold">Display controls</h2>
+            <p className="mt-1 text-sm text-slate-500">Manage which racing information appears to users.</p>
           </div>
-
-          <div className="grid divide-y divide-slate-200 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-            <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-bold text-slate-950">
-                  Show horse silks
-                </p>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  {silksSettingLoading
-                    ? "Loading current setting..."
-                    : showHorseSilks
-                      ? "Silks are currently visible across the website."
-                      : "Silks are currently hidden across the website."}
-                </p>
+          <div className="divide-y divide-slate-100">
+            {controls.map((control) => (
+              <div key={control.label} className="flex items-center justify-between gap-5 px-5 py-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{control.label}</p>
+                  <p className="mt-1 text-xs text-slate-500">{control.loading ? "Updating setting…" : control.description}</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-label={control.label}
+                  aria-checked={control.enabled}
+                  disabled={control.loading}
+                  onClick={() => void control.toggle()}
+                  className={`relative h-7 w-12 shrink-0 rounded-full transition focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${control.enabled ? "bg-teal-700" : "bg-slate-300"} ${control.loading ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                >
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${control.enabled ? "left-6" : "left-1"}`} />
+                </button>
               </div>
-
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showHorseSilks}
-                disabled={
-                  silksSettingLoading ||
-                  silksSettingSaving
-                }
-                onClick={() => void toggleHorseSilks()}
-                className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition ${
-                  showHorseSilks
-                    ? "bg-teal-600"
-                    : "bg-slate-300"
-                } ${
-                  silksSettingLoading ||
-                  silksSettingSaving
-                    ? "cursor-not-allowed opacity-60"
-                    : "cursor-pointer"
-                }`}
-              >
-                <span
-                  className={`inline-block h-6 w-6 rounded-full bg-white shadow-sm transition ${
-                    showHorseSilks
-                      ? "translate-x-7"
-                      : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-bold text-slate-950">
-                  Show projected scores
-                </p>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  {projectionSettingLoading
-                    ? "Loading current setting..."
-                    : showProjectedScores
-                      ? "Projected scores are currently visible across the website."
-                      : "Projected scores are currently hidden across the website."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showProjectedScores}
-                disabled={
-                  projectionSettingLoading ||
-                  projectionSettingSaving
-                }
-                onClick={() => void toggleProjectedScores()}
-                className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition ${
-                  showProjectedScores
-                    ? "bg-teal-600"
-                    : "bg-slate-300"
-                } ${
-                  projectionSettingLoading ||
-                  projectionSettingSaving
-                    ? "cursor-not-allowed opacity-60"
-                    : "cursor-pointer"
-                }`}
-              >
-                <span
-                  className={`inline-block h-6 w-6 rounded-full bg-white shadow-sm transition ${
-                    showProjectedScores
-                      ? "translate-x-7"
-                      : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="font-bold text-slate-950">
-                  Special teams projections
-                </p>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  {showSpecialTeamProjections
-                    ? "Special teams can see projections while the main switch is off."
-                    : "Special teams follow the main projected scores switch."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showSpecialTeamProjections}
-                disabled={specialProjectionSettingSaving}
-                onClick={() => void toggleSpecialTeamProjections()}
-                className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition ${
-                  showSpecialTeamProjections
-                    ? "bg-teal-600"
-                    : "bg-slate-300"
-                } ${
-                  specialProjectionSettingSaving
-                    ? "cursor-not-allowed opacity-60"
-                    : "cursor-pointer"
-                }`}
-              >
-                <span
-                  className={`inline-block h-6 w-6 rounded-full bg-white shadow-sm transition ${
-                    showSpecialTeamProjections
-                      ? "translate-x-7"
-                      : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
+            ))}
           </div>
-
-          {(silksSettingMessage ||
-            projectionSettingMessage ||
-            specialProjectionSettingMessage) && (
-            <div className="border-t border-slate-200">
-              {silksSettingMessage && (
-                <div
-                  className={`px-6 py-3 text-sm font-semibold ${
-                    silksSettingMessage.startsWith("Could not")
-                      ? "bg-red-50 text-red-700"
-                      : "bg-teal-50 text-teal-700"
-                  }`}
-                >
-                  {silksSettingMessage}
-                </div>
-              )}
-
-              {projectionSettingMessage && (
-                <div
-                  className={`px-6 py-3 text-sm font-semibold ${
-                    projectionSettingMessage.startsWith("Could not")
-                      ? "bg-red-50 text-red-700"
-                      : "bg-teal-50 text-teal-700"
-                  }`}
-                >
-                  {projectionSettingMessage}
-                </div>
-              )}
-
-              {specialProjectionSettingMessage && (
-                <div
-                  className={`px-6 py-3 text-sm font-semibold ${
-                    specialProjectionSettingMessage.startsWith("Could not")
-                      ? "bg-red-50 text-red-700"
-                      : "bg-teal-50 text-teal-700"
-                  }`}
-                >
-                  {specialProjectionSettingMessage}
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        <section className="mt-8">
-          <h2 className="text-xl font-bold">
-            Quick actions
-          </h2>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Link
-              href="/admin/seasons"
-              className="rounded-xl border border-slate-200 bg-white p-5 font-semibold shadow-sm hover:border-teal-500"
-            >
-              Create a season
-            </Link>
-
-            <Link
-              href="/admin/rounds"
-              className="rounded-xl border border-slate-200 bg-white p-5 font-semibold shadow-sm hover:border-teal-500"
-            >
-              Create a round
-            </Link>
-
-            <Link
-              href="/admin/horses"
-              className="rounded-xl border border-slate-200 bg-white p-5 font-semibold shadow-sm hover:border-teal-500"
-            >
-              Add horses
-            </Link>
-          </div>
+          {[silksSettingMessage, projectionSettingMessage, specialProjectionSettingMessage]
+            .filter(Boolean)
+            .map((notice, index) => (
+              <p key={`${index}-${notice}`} role="status" className={`border-t border-slate-100 px-5 py-3 text-xs ${notice.startsWith("Could not") ? "text-red-700" : "text-teal-800"}`}>
+                {notice}
+              </p>
+            ))}
         </section>
       </div>
     </main>

@@ -1248,7 +1248,7 @@ export default function ResultsPage() {
 
     if (loadingEntries) {
       return (
-        <div className="border-t border-slate-200 p-10 text-center text-slate-500">
+        <div className="border-t border-slate-200 p-6 text-center text-slate-500">
           Loading race entries...
         </div>
       );
@@ -1256,7 +1256,7 @@ export default function ResultsPage() {
 
     if (entries.length === 0) {
       return (
-        <div className="border-t border-slate-200 p-10 text-center">
+        <div className="border-t border-slate-200 p-6 text-center">
           <p className="font-semibold text-slate-700">
             No race entries
           </p>
@@ -1270,8 +1270,8 @@ export default function ResultsPage() {
 
     return (
       <div className="border-t border-slate-200">
-        <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
-          <h3 className="text-lg font-bold text-slate-900">
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <h3 className="text-base font-bold text-slate-900">
             Enter Results
           </h3>
 
@@ -1279,16 +1279,16 @@ export default function ResultsPage() {
             Enter a position for every finished horse. Non-finishers and scratched horses receive zero fantasy points and no price change. Horse price changes only apply when there are at least 8 official starters.
           </p>
 
-          <div className="mt-4 flex flex-wrap gap-3">
-            <span className="rounded-full bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700">
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-md bg-slate-200 px-2 py-1 text-xs font-medium text-slate-700">
               Total entries: {entries.length}
             </span>
 
-            <span className="rounded-full bg-green-100 px-4 py-2 text-sm font-medium text-green-800">
+            <span className="rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
               Runners: {runnerCount}
             </span>
 
-            <span className="rounded-full bg-red-100 px-4 py-2 text-sm font-medium text-red-800">
+            <span className="rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
               Scratched: {scratchedCount}
             </span>
           </div>
@@ -1323,7 +1323,7 @@ export default function ResultsPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[1150px] divide-y divide-slate-200">
+          <table className="min-w-[1050px] w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
                 {[
@@ -1341,7 +1341,7 @@ export default function ResultsPage() {
                 ].map((heading) => (
                   <th
                     key={heading}
-                    className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600"
+                    className="whitespace-nowrap px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600"
                   >
                     {heading}
                   </th>
@@ -1379,11 +1379,11 @@ export default function ResultsPage() {
                         : "hover:bg-slate-50"
                     }
                   >
-                    <td className="px-3 py-2 font-bold text-slate-900">
+                    <td className="px-2 py-1.5 font-bold text-slate-900">
                       {entry.saddlecloth_number ?? "—"}
                     </td>
 
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-1.5">
                       <p className="font-semibold text-slate-900">
                         {getHorseName(entry)}
                       </p>
@@ -1397,7 +1397,7 @@ export default function ResultsPage() {
                       </p>
                     </td>
 
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-1.5">
                       <span
                         className={
                           entry.entry_status === "runner"
@@ -1411,11 +1411,11 @@ export default function ResultsPage() {
                       </span>
                     </td>
 
-                    <td className="px-3 py-2 text-sm font-medium text-slate-700">
+                    <td className="px-2 py-1.5 text-sm font-medium text-slate-700">
                       {formatMoney(entry.price_at_entry)}
                     </td>
 
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-1.5">
                       <select
                         value={resultRow.result_status}
                         disabled={rowDisabled}
@@ -1425,7 +1425,7 @@ export default function ResultsPage() {
                             event.target.value as ResultStatus
                           )
                         }
-                        className="min-w-40 rounded-lg border border-slate-300 bg-white p-2 text-sm outline-none focus:border-green-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                        className="min-w-32 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-green-700 disabled:cursor-not-allowed disabled:bg-slate-100"
                       >
                         <option value="finished">
                           Finished
@@ -1439,7 +1439,7 @@ export default function ResultsPage() {
                       </select>
                     </td>
 
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-1.5">
                       <input
                         type="number"
                         min={1}
@@ -1461,11 +1461,11 @@ export default function ResultsPage() {
                           })
                         }
                         placeholder="—"
-                        className="w-24 rounded-lg border border-slate-300 p-2 text-sm outline-none focus:border-green-700 disabled:cursor-not-allowed disabled:bg-slate-100"
+                        className="w-16 rounded-md border border-slate-300 px-2 py-1.5 text-xs outline-none focus:border-green-700 disabled:cursor-not-allowed disabled:bg-slate-100"
                       />
                     </td>
 
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-1.5">
                       <label className="inline-flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -1479,7 +1479,7 @@ export default function ResultsPage() {
                                 event.target.checked,
                             })
                           }
-                          className="h-5 w-5 rounded border-slate-300"
+                          className="h-4 w-4 rounded border-slate-300"
                         />
 
                         <span className="text-sm text-slate-600">
@@ -1488,7 +1488,7 @@ export default function ResultsPage() {
                       </label>
                     </td>
 
-                    <td className="px-3 py-2">
+                    <td className="px-2 py-1.5">
                       {calculatedResult ? (
                         <span className="inline-flex min-w-12 justify-center rounded-full bg-blue-100 px-3 py-1 text-sm font-bold text-blue-800">
                           {
@@ -1502,7 +1502,7 @@ export default function ResultsPage() {
                       )}
                     </td>
 
-                    <td className="px-3 py-2 text-sm font-medium text-slate-700">
+                    <td className="px-2 py-1.5 text-sm font-medium text-slate-700">
                       {calculatedResult
                         ? runnerCount < 8
                           ? "No change (< 8 starters)"
@@ -1512,7 +1512,7 @@ export default function ResultsPage() {
                         : "—"}
                     </td>
 
-                    <td className="px-3 py-2 font-semibold">
+                    <td className="px-2 py-1.5 font-semibold">
                       {calculatedResult ? (
                         <span
                           className={
@@ -1537,7 +1537,7 @@ export default function ResultsPage() {
                       )}
                     </td>
 
-                    <td className="px-3 py-2 font-bold text-slate-900">
+                    <td className="px-2 py-1.5 font-bold text-slate-900">
                       {calculatedResult
                         ? formatMoney(
                             calculatedResult.price_after
@@ -1551,7 +1551,7 @@ export default function ResultsPage() {
           </table>
         </div>
 
-        <div className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50 p-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-700">
               {isRaceOfficial || resultsSaved
@@ -1582,7 +1582,7 @@ export default function ResultsPage() {
                   setSuccessMessage("");
                 }}
                 disabled={savingResults || isRaceUnavailable}
-                className="rounded-lg border border-amber-700 bg-amber-50 px-6 py-3 font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg border border-amber-700 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Edit Results
               </button>
@@ -1600,7 +1600,7 @@ export default function ResultsPage() {
                   void loadRaceEntries(race.id);
                 }}
                 disabled={savingResults}
-                className="rounded-lg border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel Edit
               </button>
@@ -1616,7 +1616,7 @@ export default function ResultsPage() {
                 (isRaceOfficial && !editingOfficialResults) ||
                 isRaceUnavailable
               }
-              className="rounded-lg border border-green-800 bg-white px-6 py-3 font-semibold text-green-800 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-green-800 bg-white px-3 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loadingRules
                 ? "Loading Rules..."
@@ -1637,7 +1637,7 @@ export default function ResultsPage() {
                 (isRaceOfficial && !editingOfficialResults) ||
                 isRaceUnavailable
               }
-              className="rounded-lg bg-green-800 px-6 py-3 font-semibold text-white transition hover:bg-green-900 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-green-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {savingResults
                 ? "Saving Results..."
@@ -1653,9 +1653,19 @@ export default function ResultsPage() {
     );
   }
 
+  // Prefer the active/current round rather than the highest numbered future round.
+  const melbourneToday = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+  const currentRound =
+    [...sortedRounds].filter((round) => round.round_date && round.round_date <= melbourneToday)
+      .sort((a, b) => (b.round_date ?? "").localeCompare(a.round_date ?? "") || b.round_number - a.round_number)[0] ??
+    [...sortedRounds].filter((round) => round.round_date && round.round_date > melbourneToday)
+      .sort((a, b) => (a.round_date ?? "").localeCompare(b.round_date ?? "") || a.round_number - b.round_number)[0] ??
+    sortedRounds[0];
   const visibleRounds = visibleRoundId === "all"
     ? sortedRounds
-    : [sortedRounds.find((round) => round.id === visibleRoundId) ?? sortedRounds[0]].filter(Boolean);
+    : [sortedRounds.find((round) => round.id === visibleRoundId) ?? currentRound].filter(Boolean);
 
   const visibleRaces = visibleRounds.flatMap((round) => racesByRoundId.get(round.id) ?? []);
   const officialTotal = visibleRaces.filter((race) => race.status === "official").length;
@@ -1693,7 +1703,7 @@ export default function ResultsPage() {
               setSelectedRaceId("");
               setShowMeetingSettings(false);
             }} className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm font-medium text-slate-900">
-              <option value="latest">Latest round</option>
+              <option value="latest">Current round</option>
               {sortedRounds.map((round) => <option key={round.id} value={round.id}>{getRoundLabel(round)}</option>)}
               <option value="all">All rounds</option>
             </select>

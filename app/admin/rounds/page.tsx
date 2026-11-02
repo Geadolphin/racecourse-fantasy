@@ -743,17 +743,17 @@ export default function AdminRoundsPage() {
     }
   }
   return (
-    <main className="min-h-screen p-6 md:p-10">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <main className="mx-auto max-w-7xl space-y-4 px-3 py-5 sm:px-6">
+      <div className="w-full">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="mb-1 text-sm font-semibold uppercase tracking-wider text-amber-600">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
               Competition management
             </p>
-            <h1 className="text-3xl font-bold text-slate-900">
+            <h1 className="text-xl font-bold text-slate-900">
               Rounds
             </h1>
-            <p className="mt-2 text-slate-600">
+            <p className="mt-1 text-xs text-slate-500">
               Create rounds and configure one or more
               team lockout times.
             </p>
@@ -764,40 +764,40 @@ export default function AdminRoundsPage() {
             disabled={
               seasons.length === 0
             }
-            className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="rounded-md bg-green-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-slate-400"
           >
             New Round
           </button>
         </div>
         {errorMessage && !showModal && (
-          <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
+          <div className="mb-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
             {errorMessage}
           </div>
         )}
         {successMessage &&
           !showModal && (
-            <div className="mb-6 rounded-lg border border-green-300 bg-green-50 p-4 text-green-800">
+            <div className="mb-3 rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-800">
               {successMessage}
             </div>
           )}
         {seasons.length === 0 &&
           !loading && (
-            <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900">
+            <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
               Create a season before
               creating a round.
             </div>
           )}
         {seasons.length > 0 && (
-          <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <section className="mb-3 rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <label
                   htmlFor="season-filter"
-                  className="block text-sm font-semibold text-slate-700"
+                  className="block text-xs font-semibold text-slate-600"
                 >
                   Season
                 </label>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-xs text-slate-500">
                   Choose which season&apos;s
                   rounds you want to manage.
                   New rounds automatically use
@@ -814,7 +814,7 @@ export default function AdminRoundsPage() {
                     event.target.value
                   )
                 }
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 sm:w-80"
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100 sm:w-72"
               >
                 {seasons.map((season) => (
                   <option
@@ -832,7 +832,7 @@ export default function AdminRoundsPage() {
             </div>
           </section>
         )}
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
           {loading ? (
             <div className="p-8 text-center text-slate-600">
               Loading rounds...
@@ -844,7 +844,7 @@ export default function AdminRoundsPage() {
                 No rounds in this
                 season
               </h2>
-              <p className="mt-2 text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 Create the first round
                 for the selected season
                 to begin adding races.
@@ -855,22 +855,22 @@ export default function AdminRoundsPage() {
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Round
                     </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Season
                     </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Round date
                     </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Lockouts
                     </th>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Status
                     </th>
-                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
                       Actions
                     </th>
                   </tr>
@@ -887,7 +887,7 @@ export default function AdminRoundsPage() {
                           key={round.id}
                           className="hover:bg-slate-50"
                         >
-                          <td className="whitespace-nowrap px-5 py-4">
+                          <td className="whitespace-nowrap px-3 py-2">
                             <p className="font-semibold text-slate-900">
                               {round.name ||
                                 `Round ${round.round_number}`}
@@ -899,28 +899,28 @@ export default function AdminRoundsPage() {
                               }
                             </p>
                           </td>
-                          <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                          <td className="whitespace-nowrap px-3 py-2 text-slate-700">
                             {seasonNames.get(
                               round.season_id
                             ) ??
                               "Unknown season"}
                           </td>
-                          <td className="whitespace-nowrap px-5 py-4 text-slate-700">
+                          <td className="whitespace-nowrap px-3 py-2 text-slate-700">
                             {formatDate(
                               round.round_date
                             )}
                           </td>
-                          <td className="min-w-[260px] px-5 py-4">
+                          <td className="min-w-[235px] px-3 py-2">
                             {lockouts.length >
                             0 ? (
-                              <div className="space-y-2">
+                              <div className="space-y-1">
                                 {lockouts.map(
                                   (lockout) => (
                                     <div
                                       key={
                                         lockout.id
                                       }
-                                      className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2"
+                                      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 rounded bg-slate-50 px-2 py-1"
                                     >
                                       <span className="text-sm font-semibold text-slate-800">
                                         {
@@ -946,16 +946,16 @@ export default function AdminRoundsPage() {
                               </span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-5 py-4">
+                          <td className="whitespace-nowrap px-3 py-2">
                             <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${statusClass(
+                              className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold capitalize ${statusClass(
                                 round.status
                               )}`}
                             >
                               {round.status}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap px-5 py-4 text-right">
+                          <td className="whitespace-nowrap px-3 py-2 text-right">
                             <button
                               type="button"
                               onClick={() =>
@@ -963,7 +963,7 @@ export default function AdminRoundsPage() {
                                   round
                                 )
                               }
-                              className="mr-4 font-semibold text-teal-800 hover:text-teal-950"
+                              className="mr-3 text-sm font-semibold text-green-800 hover:text-green-950"
                             >
                               Edit
                             </button>
@@ -974,7 +974,7 @@ export default function AdminRoundsPage() {
                                   round
                                 )
                               }
-                              className="font-semibold text-red-600 hover:text-red-800"
+                              className="text-sm font-semibold text-red-600 hover:text-red-800"
                             >
                               Delete
                             </button>
@@ -991,10 +991,10 @@ export default function AdminRoundsPage() {
       </div>
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
-            <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-4 shadow-2xl sm:p-5">
+            <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900">
+                <h2 className="text-xl font-bold text-slate-900">
                   {editingRound
                     ? "Edit Round"
                     : "Create Round"}
@@ -1025,12 +1025,12 @@ export default function AdminRoundsPage() {
             ) : (
               <form
                 onSubmit={saveRound}
-                className="space-y-5"
+                className="space-y-4"
               >
                 <div>
                   <label
                     htmlFor="season"
-                    className="mb-2 block text-sm font-semibold text-slate-700"
+                    className="mb-2 block text-xs font-semibold text-slate-600"
                   >
                     Season
                   </label>
@@ -1044,7 +1044,7 @@ export default function AdminRoundsPage() {
                       )
                     }
                     required
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
                   >
                     <option value="">
                       Select a season
@@ -1069,7 +1069,7 @@ export default function AdminRoundsPage() {
                   <div>
                     <label
                       htmlFor="round-salary-cap"
-                      className="mb-2 block text-sm font-semibold text-slate-700"
+                      className="mb-2 block text-xs font-semibold text-slate-600"
                     >
                       Round salary cap
                     </label>
@@ -1083,18 +1083,18 @@ export default function AdminRoundsPage() {
                         updateForm("salary_cap", event.target.value)
                       }
                       required
-                      className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
                     />
                     <p className="mt-2 text-xs text-slate-500">
                       This salary cap applies only to this round.
                     </p>
                   </div>
                 )}
-                <div className="grid gap-5 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label
                       htmlFor="round-number"
-                      className="mb-2 block text-sm font-semibold text-slate-700"
+                      className="mb-2 block text-xs font-semibold text-slate-600"
                     >
                       Round number
                     </label>
@@ -1113,13 +1113,13 @@ export default function AdminRoundsPage() {
                         )
                       }
                       required
-                      className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
                     />
                   </div>
                   <div>
                     <label
                       htmlFor="round-name"
-                      className="mb-2 block text-sm font-semibold text-slate-700"
+                      className="mb-2 block text-xs font-semibold text-slate-600"
                     >
                       Round name
                     </label>
@@ -1134,14 +1134,14 @@ export default function AdminRoundsPage() {
                         )
                       }
                       placeholder="Round 1"
-                      className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
                     />
                   </div>
                 </div>
                 <div>
                   <label
                     htmlFor="round-date"
-                    className="mb-2 block text-sm font-semibold text-slate-700"
+                    className="mb-2 block text-xs font-semibold text-slate-600"
                   >
                     Round date
                   </label>
@@ -1156,13 +1156,13 @@ export default function AdminRoundsPage() {
                       )
                     }
                     required
-                    className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
                   />
                 </div>
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <section className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900">
+                      <h3 className="text-sm font-bold text-slate-900">
                         Lockout Groups
                       </h3>
                       <p className="mt-1 text-sm text-slate-600">
@@ -1183,13 +1183,13 @@ export default function AdminRoundsPage() {
                           .length >=
                         LOCKOUT_KEYS.length
                       }
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-teal-700 bg-white px-4 py-2.5 text-sm font-semibold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-green-700 bg-white px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Plus className="h-4 w-4" />
                       Add Lockout Group
                     </button>
                   </div>
-                  <div className="mt-5 space-y-4">
+                  <div className="mt-3 space-y-2">
                     {form.lockouts.map(
                       (
                         lockout,
@@ -1199,9 +1199,9 @@ export default function AdminRoundsPage() {
                           key={
                             lockout.group_key
                           }
-                          className="rounded-xl border border-slate-200 bg-white p-4"
+                          className="rounded-md border border-slate-200 bg-white p-3"
                         >
-                          <div className="mb-4 flex items-center justify-between gap-3">
+                          <div className="mb-2 flex items-center justify-between gap-3">
                             <div>
                               <p className="text-sm font-bold text-slate-900">
                                 Lockout{" "}
@@ -1227,17 +1227,17 @@ export default function AdminRoundsPage() {
                                 form.lockouts
                                   .length === 1
                               }
-                              className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              className="inline-flex items-center gap-2 rounded-md border border-red-300 px-2 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <Trash2 className="h-4 w-4" />
                               Remove
                             </button>
                           </div>
-                          <div className="grid gap-4 md:grid-cols-2">
+                          <div className="grid gap-3 md:grid-cols-2">
                             <div>
                               <label
                                 htmlFor={`lockout-name-${lockout.group_key}`}
-                                className="mb-2 block text-sm font-semibold text-slate-700"
+                                className="mb-2 block text-xs font-semibold text-slate-600"
                               >
                                 Display name
                               </label>
@@ -1260,13 +1260,13 @@ export default function AdminRoundsPage() {
                                 }
                                 placeholder="Saturday"
                                 required
-                                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
                               />
                             </div>
                             <div>
                               <label
                                 htmlFor={`lockout-time-${lockout.group_key}`}
-                                className="mb-2 block text-sm font-semibold text-slate-700"
+                                className="mb-2 block text-xs font-semibold text-slate-600"
                               >
                                 Lockout date
                                 and time
@@ -1289,7 +1289,7 @@ export default function AdminRoundsPage() {
                                   )
                                 }
                                 required
-                                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
                               />
                             </div>
                           </div>
@@ -1297,7 +1297,7 @@ export default function AdminRoundsPage() {
                       )
                     )}
                   </div>
-                  <p className="mt-4 text-xs text-slate-500">
+                  <p className="mt-2 text-xs text-slate-500">
                     The final lockout time is
                     also saved to the round
                     for compatibility with
@@ -1309,7 +1309,7 @@ export default function AdminRoundsPage() {
                 <div>
                   <label
                     htmlFor="round-status"
-                    className="mb-2 block text-sm font-semibold text-slate-700"
+                    className="mb-2 block text-xs font-semibold text-slate-600"
                   >
                     Status
                   </label>
@@ -1323,7 +1323,7 @@ export default function AdminRoundsPage() {
                           .value as RoundStatus
                       )
                     }
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
                   >
                     <option value="draft">
                       Draft
@@ -1344,7 +1344,7 @@ export default function AdminRoundsPage() {
                     edit their team.
                   </p>
                 </div>
-                <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
                   <label className="flex items-center gap-3">
                     <input
                       type="checkbox"
@@ -1402,19 +1402,19 @@ export default function AdminRoundsPage() {
                     </span>
                   </label>
                 </div>
-                <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
+                <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
                   <button
                     type="button"
                     onClick={closeModal}
                     disabled={saving}
-                    className="rounded-lg border border-slate-300 px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                    className="rounded-md bg-green-800 px-3 py-2 text-sm font-semibold text-white hover:bg-green-900 disabled:cursor-not-allowed disabled:bg-slate-400"
                   >
                     {saving
                       ? "Saving..."

@@ -2,21 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-
 import { supabase } from "@/lib/supabase";
-
-type LeagueRow = {
-  id: string;
-  name: string;
-  join_code: string;
-  created_at: string;
-  owner_user_id: string;
-  season_id: string;
-  member_count: number;
-  owner_name: string;
-  season_name: string;
-  season_year: number;
-};
 
 type LeagueRecord = {
   id: string;
@@ -26,420 +12,168 @@ type LeagueRecord = {
   owner_user_id: string;
   season_id: string;
 };
-
-type SeasonRecord = {
-  id: string;
-  name: string;
-  year: number;
-};
-
-type ProfileRecord = {
-  id: string;
-  display_name: string | null;
-};
-
-type MemberRecord = {
-  league_id: string;
-  user_id: string;
+type SeasonRecord = { id: string; name: string; year: number };
+type ProfileRecord = { id: string; display_name: string | null };
+type MemberRecord = { league_id: string };
+type LeagueRow = LeagueRecord & {
+  member_count: number;
+  owner_name: string;
+  season_name: string;
+  season_year: number;
 };
 
 export default function AdminLeaguesPage() {
   const [loading, setLoading] = useState(true);
   const [leagues, setLeagues] = useState<LeagueRow[]>([]);
+  const [seasons, setSeasons] = useState<SeasonRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSeasonId, setSelectedSeasonId] =
-    useState("all");
-  const [seasons, setSeasons] =
-    useState<SeasonRecord[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState("all");
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
-
     async function loadLeagues() {
       setLoading(true);
       setError("");
+      try {
+        const [leaguesResult, seasonsResult] = await Promise.all([
+          supabase.from("leagues")
+            .select("id,name,join_code,created_at,owner_user_id,season_id")
+            .order("created_at", { ascending: false }),
+          supabase.from("seasons").select("id,name,year"),
+        ]);
+        if (leaguesResult.error) throw leaguesResult.error;
+        if (seasonsResult.error) throw seasonsResult.error;
+        if (!active) return;
 
-      const [
-        { data: leaguesData, error: leaguesError },
-        { data: seasonsData, error: seasonsError },
-        { data: profilesData, error: profilesError },
-        { data: membersData, error: membersError },
-      ] = await Promise.all([
-        supabase
-          .from("leagues")
-          .select(`
-            id,
-            name,
-            join_code,
-            created_at,
-            owner_user_id,
-            season_id
-          `)
-          .order("created_at", { ascending: false }),
+        const leagueRecords = (leaguesResult.data ?? []) as LeagueRecord[];
+        const seasonRecords = (seasonsResult.data ?? []) as SeasonRecord[];
+        const ownerIds = [...new Set(leagueRecords.map((league) => league.owner_user_id).filter(Boolean))];
+        const leagueIds = leagueRecords.map((league) => league.id);
 
-        supabase
-          .from("seasons")
-          .select("id, name, year"),
+        // Fetch only the profiles and memberships needed for the leagues on this page.
+        const [profilesResult, membersResult] = await Promise.all([
+          ownerIds.length
+            ? supabase.from("profiles").select("id,display_name").in("id", ownerIds)
+            : Promise.resolve({ data: [] as ProfileRecord[], error: null }),
+          leagueIds.length
+            ? supabase.from("league_members").select("league_id").in("league_id", leagueIds)
+            : Promise.resolve({ data: [] as MemberRecord[], error: null }),
+        ]);
+        if (profilesResult.error) throw profilesResult.error;
+        if (membersResult.error) throw membersResult.error;
+        if (!active) return;
 
-        supabase
-          .from("profiles")
-          .select("id, display_name"),
-
-        supabase
-          .from("league_members")
-          .select("league_id, user_id"),
-      ]);
-
-      if (!active) {
-        return;
-      }
-
-      const loadError =
-        leaguesError ||
-        seasonsError ||
-        profilesError ||
-        membersError;
-
-      if (loadError) {
-        console.error("Admin leagues load error:", {
-          leaguesError,
-          seasonsError,
-          profilesError,
-          membersError,
+        const seasonById = new Map(seasonRecords.map((season) => [season.id, season]));
+        const ownerById = new Map(((profilesResult.data ?? []) as ProfileRecord[]).map((profile) => [profile.id, profile]));
+        const memberCounts = new Map<string, number>();
+        ((membersResult.data ?? []) as MemberRecord[]).forEach((member) => {
+          memberCounts.set(member.league_id, (memberCounts.get(member.league_id) ?? 0) + 1);
         });
 
-        setError(
-          loadError.message ||
-            "Unable to load private leagues."
-        );
-
-        setLeagues([]);
-        setLoading(false);
-        return;
-      }
-
-      const leagueRecords =
-        (leaguesData ?? []) as LeagueRecord[];
-
-      const seasonRecords =
-        (seasonsData ?? []) as SeasonRecord[];
-
-      const profileRecords =
-        (profilesData ?? []) as ProfileRecord[];
-
-      const memberRecords =
-        (membersData ?? []) as MemberRecord[];
-
-      const seasonsById = new Map(
-        seasonRecords.map((season) => [
-          season.id,
-          season,
-        ])
-      );
-
-      const profilesById = new Map(
-        profileRecords.map((profile) => [
-          profile.id,
-          profile,
-        ])
-      );
-
-      const memberCounts = new Map<string, number>();
-
-      memberRecords.forEach((member) => {
-        memberCounts.set(
-          member.league_id,
-          (memberCounts.get(member.league_id) ?? 0) + 1
-        );
-      });
-
-      const loadedLeagues: LeagueRow[] =
-        leagueRecords.map((league) => {
-          const season =
-            seasonsById.get(league.season_id);
-
-          const owner =
-            profilesById.get(
-              league.owner_user_id
-            );
-
+        setSeasons([...seasonRecords].sort((a, b) => b.year - a.year));
+        setLeagues(leagueRecords.map((league) => {
+          const season = seasonById.get(league.season_id);
           return {
-            id: league.id,
-            name: league.name,
-            join_code: league.join_code,
-            created_at: league.created_at,
-            owner_user_id: league.owner_user_id,
-            season_id: league.season_id,
-
-            member_count:
-              memberCounts.get(league.id) ?? 0,
-
-            owner_name:
-              owner?.display_name?.trim() ||
-              "Unknown owner",
-
-            season_name:
-              season?.name ?? "Unknown season",
-
-            season_year:
-              season?.year ?? 0,
+            ...league,
+            member_count: memberCounts.get(league.id) ?? 0,
+            owner_name: ownerById.get(league.owner_user_id)?.display_name?.trim() || "Unknown owner",
+            season_name: season?.name ?? "Unknown season",
+            season_year: season?.year ?? 0,
           };
-        });
-
-      setSeasons(
-        [...seasonRecords].sort(
-          (a, b) => b.year - a.year
-        )
-      );
-
-      setLeagues(loadedLeagues);
-      setLoading(false);
+        }));
+      } catch (cause) {
+        if (!active) return;
+        console.error("Admin leagues load error:", cause);
+        setError(cause instanceof Error ? cause.message : "Unable to load private leagues.");
+        setLeagues([]);
+      } finally {
+        if (active) setLoading(false);
+      }
     }
-
     void loadLeagues();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   const filteredLeagues = useMemo(() => {
-    const term =
-      searchTerm.trim().toLowerCase();
-
+    const term = searchTerm.trim().toLowerCase();
     return leagues.filter((league) => {
-      const matchesSeason =
-        selectedSeasonId === "all" ||
-        league.season_id === selectedSeasonId;
-
-      const matchesSearch =
-        !term ||
-        league.name
-          .toLowerCase()
-          .includes(term) ||
-        league.owner_name
-          .toLowerCase()
-          .includes(term) ||
-        league.join_code
-          .toLowerCase()
-          .includes(term) ||
-        league.season_name
-          .toLowerCase()
-          .includes(term) ||
-        league.season_year
-          .toString()
-          .includes(term);
-
-      return matchesSeason && matchesSearch;
+      if (selectedSeasonId !== "all" && league.season_id !== selectedSeasonId) return false;
+      if (!term) return true;
+      return [league.name, league.owner_name, league.join_code, league.season_name, String(league.season_year)]
+        .some((value) => value.toLowerCase().includes(term));
     });
-  }, [
-    leagues,
-    searchTerm,
-    selectedSeasonId,
-  ]);
+  }, [leagues, searchTerm, selectedSeasonId]);
 
-  if (loading) {
-    return (
-      <main className="p-6 md:p-8">
-        <div className="rounded-xl border bg-white p-10 text-center shadow-sm">
-          Loading leagues...
-        </div>
-      </main>
-    );
-  }
+  const inputClass = "h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none focus:border-teal-700 focus:ring-1 focus:ring-teal-700";
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-teal-700">
-            Administration
-          </p>
-
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">
-            Private Leagues
-          </h1>
-
-          <p className="mt-2 text-slate-600">
-            View and manage private leagues across
-            Racecourse Fantasy.
-          </p>
-        </div>
-
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-red-700">
-            {error}
+    <main className="min-w-0 px-4 py-5 md:px-6 md:py-6">
+      <div className="mx-auto max-w-[1500px]">
+        <header className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-teal-700">Administration</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Private Leagues</h1>
+            <p className="mt-1 text-xs text-slate-500">League membership, owners and season information.</p>
           </div>
-        )}
-
-        <section className="mb-6 rounded-xl border bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-slate-500">
-                Total leagues
-              </p>
-
-              <p className="mt-1 text-2xl font-bold text-slate-950">
-                {leagues.length}
-              </p>
-            </div>
-
-            <div className="flex w-full flex-col gap-3 sm:max-w-2xl sm:flex-row">
-              <div className="w-full sm:w-56">
-                <label
-                  htmlFor="season-filter"
-                  className="sr-only"
-                >
-                  Filter by season
-                </label>
-
-                <select
-                  id="season-filter"
-                  value={selectedSeasonId}
-                  onChange={(event) =>
-                    setSelectedSeasonId(
-                      event.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-                >
-                  <option value="all">
-                    All Seasons
-                  </option>
-
-                  {seasons.map((season) => (
-                    <option
-                      key={season.id}
-                      value={season.id}
-                    >
-                      {season.name} {season.year}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="w-full sm:flex-1">
-                <label
-                  htmlFor="league-search"
-                  className="sr-only"
-                >
-                  Search leagues
-                </label>
-
-                <input
-                  id="league-search"
-                  type="search"
-                  value={searchTerm}
-                  onChange={(event) =>
-                    setSearchTerm(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Search leagues..."
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
-                />
-              </div>
-            </div>
+          <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total leagues</p>
+            <p className="text-xl font-bold leading-tight tabular-nums text-slate-900">{leagues.length}</p>
           </div>
+        </header>
+
+        {error && <div role="alert" className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>}
+
+        <section className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3">
+          <label className="min-w-[160px] flex-1 sm:max-w-[225px]">
+            <span className="sr-only">Filter by season</span>
+            <select value={selectedSeasonId} onChange={(event) => setSelectedSeasonId(event.target.value)} className={inputClass}>
+              <option value="all">All seasons</option>
+              {seasons.map((season) => <option key={season.id} value={season.id}>{season.name} {season.year}</option>)}
+            </select>
+          </label>
+          <label className="min-w-[190px] flex-[2] sm:max-w-[370px]">
+            <span className="sr-only">Search leagues</span>
+            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search league, owner or code" className={inputClass} />
+          </label>
+          <span className="ml-auto whitespace-nowrap text-xs tabular-nums text-slate-500">
+            {loading ? "Loading…" : `${filteredLeagues.length} of ${leagues.length} leagues`}
+          </span>
         </section>
 
-        <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
-          <table className="w-full min-w-[900px]">
-            <thead className="bg-slate-50">
-              <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                <th className="px-4 py-3">
-                  League
-                </th>
-
-                <th className="px-4 py-3">
-                  Season
-                </th>
-
-                <th className="px-4 py-3">
-                  Owner
-                </th>
-
-                <th className="px-4 py-3 text-right">
-                  Members
-                </th>
-
-                <th className="px-4 py-3">
-                  Join Code
-                </th>
-
-                <th className="px-4 py-3">
-                  Created
-                </th>
-
-                <th className="px-4 py-3 text-right">
-                  Action
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredLeagues.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-12 text-center text-slate-500"
-                  >
-                    No leagues found.
-                  </td>
+        <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                <tr className="border-b border-slate-200">
+                  <th scope="col" className="px-3 py-2.5">League</th>
+                  <th scope="col" className="px-3 py-2.5">Season</th>
+                  <th scope="col" className="px-3 py-2.5">Owner</th>
+                  <th scope="col" className="px-3 py-2.5 text-right">Members</th>
+                  <th scope="col" className="px-3 py-2.5">Join code</th>
+                  <th scope="col" className="px-3 py-2.5">Created</th>
+                  <th scope="col" className="px-3 py-2.5 text-right">Action</th>
                 </tr>
-              ) : (
-                filteredLeagues.map(
-                  (league) => (
-                    <tr
-                      key={league.id}
-                      className="border-t hover:bg-slate-50"
-                    >
-                      <td className="px-4 py-4 font-semibold text-slate-950">
-                        {league.name}
-                      </td>
-
-                      <td className="px-4 py-4 text-slate-700">
-                        {league.season_name}{" "}
-                        {league.season_year}
-                      </td>
-
-                      <td className="px-4 py-4 text-slate-700">
-                        {league.owner_name}
-                      </td>
-
-                      <td className="px-4 py-4 text-right font-semibold text-slate-900">
-                        {league.member_count} / 24
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <span className="font-mono font-semibold tracking-wider text-slate-700">
-                          {league.join_code}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-4 text-slate-600">
-                        {new Date(
-                          league.created_at
-                        ).toLocaleDateString(
-                          "en-AU"
-                        )}
-                      </td>
-
-                      <td className="px-4 py-4 text-right">
-                        <Link
-                          href={`/admin/leagues/${league.id}`}
-                          className="font-semibold text-teal-700 hover:text-teal-900 hover:underline"
-                        >
-                          View
-                        </Link>
-                      </td>
-                    </tr>
-                  )
-                )
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                  <tr><td colSpan={7} className="px-3 py-12 text-center text-sm text-slate-500">Loading leagues…</td></tr>
+                ) : filteredLeagues.length === 0 ? (
+                  <tr><td colSpan={7} className="px-3 py-12 text-center text-sm text-slate-500">No leagues found.</td></tr>
+                ) : filteredLeagues.map((league) => (
+                  <tr key={league.id} className="transition-colors hover:bg-slate-50">
+                    <td className="px-3 py-2.5 font-semibold text-slate-900">{league.name}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-slate-600">{league.season_name} {league.season_year}</td>
+                    <td className="px-3 py-2.5 text-slate-700">{league.owner_name}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{league.member_count} / 24</td>
+                    <td className="px-3 py-2.5"><span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-1 font-mono text-xs font-semibold tracking-wide text-slate-700">{league.join_code}</span></td>
+                    <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-slate-500">{new Date(league.created_at).toLocaleDateString("en-AU")}</td>
+                    <td className="px-3 py-2.5 text-right"><Link href={`/admin/leagues/${league.id}`} className="inline-flex h-7 items-center rounded border border-slate-300 bg-white px-2.5 text-xs font-semibold text-teal-800 hover:border-teal-600 hover:bg-teal-50">View</Link></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </main>

@@ -80,6 +80,7 @@ export default function AdminLeagueDetailPage() {
 
   const [addMemberOpen, setAddMemberOpen] =
     useState(false);
+  const [loadingAvailableUsers, setLoadingAvailableUsers] = useState(false);
 
   const [memberSearch, setMemberSearch] =
     useState("");
@@ -255,27 +256,6 @@ export default function AdminLeagueDetailPage() {
 
     setMembers(memberRows);
 
-    const {
-      data: allProfilesData,
-      error: allProfilesError,
-    } = await supabase
-      .from("profiles")
-      .select("id, display_name")
-      .order("display_name", { ascending: true });
-
-    if (allProfilesError) {
-      console.error(
-        "Admin available users load error:",
-        allProfilesError
-      );
-
-      setAvailableUsers([]);
-    } else {
-      setAvailableUsers(
-        (allProfilesData ?? []) as AvailableUser[]
-      );
-    }
-
     setLoading(false);
   }
 
@@ -315,6 +295,23 @@ export default function AdminLeagueDetailPage() {
     memberUserIds,
   ]);
 
+  async function openAddMember() {
+    setMemberSearch("");
+    setAddMemberOpen(true);
+    setLoadingAvailableUsers(true);
+    const { data, error: usersError } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .order("display_name", { ascending: true });
+    if (usersError) {
+      setError(usersError.message || "Unable to load users.");
+      setAvailableUsers([]);
+    } else {
+      setAvailableUsers((data ?? []) as AvailableUser[]);
+    }
+    setLoadingAvailableUsers(false);
+  }
+
   async function handleAddMember(user: AvailableUser) {
     if (!league) {
       return;
@@ -347,11 +344,24 @@ export default function AdminLeagueDetailPage() {
       return;
     }
 
+    const { data: newMembership } = await supabase
+      .from("league_members")
+      .select("joined_at")
+      .eq("league_id", league.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    setMembers((current) => current.some((member) => member.user_id === user.id)
+      ? current
+      : [...current, {
+          user_id: user.id,
+          display_name: user.display_name?.trim() || "Unknown user",
+          joined_at: newMembership?.joined_at ?? new Date().toISOString(),
+          is_owner: user.id === league.owner_user_id,
+        }]);
     setMemberSearch("");
     setAddMemberOpen(false);
     setAddingUserId(null);
-
-    await loadLeague();
   }
 
   async function handleRemoveMember(
@@ -456,8 +466,8 @@ export default function AdminLeagueDetailPage() {
 
   if (loading) {
     return (
-      <main className="p-6 md:p-8">
-        <div className="rounded-xl border bg-white p-10 text-center shadow-sm">
+      <main className="p-4 md:p-6">
+        <div className="rounded-md border bg-white p-10 text-center ">
           Loading league...
         </div>
       </main>
@@ -466,9 +476,9 @@ export default function AdminLeagueDetailPage() {
 
   if (error && !league) {
     return (
-      <main className="p-6 md:p-8">
+      <main className="p-4 md:p-6">
         <div className="mx-auto max-w-5xl">
-          <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
+          <div className="rounded-md border border-red-200 bg-red-50 p-6 text-red-700">
             {error}
           </div>
 
@@ -488,8 +498,8 @@ export default function AdminLeagueDetailPage() {
   }
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="mx-auto max-w-6xl">
+    <main className="p-4 md:p-6">
+      <div className="mx-auto max-w-7xl">
         <Link
           href="/admin/leagues"
           className="text-sm font-semibold text-teal-700 hover:underline"
@@ -497,13 +507,13 @@ export default function AdminLeagueDetailPage() {
           ← Back to leagues
         </Link>
 
-        <div className="mb-6 mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mb-4 mt-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-teal-700">
               Administration
             </p>
 
-            <h1 className="mt-1 text-3xl font-bold text-slate-950">
+            <h1 className="mt-1 text-2xl font-bold text-slate-950">
               {league.name}
             </h1>
 
@@ -517,7 +527,7 @@ export default function AdminLeagueDetailPage() {
             type="button"
             onClick={handleDeleteLeague}
             disabled={deletingLeague}
-            className="rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-red-300 bg-white px-2.5 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {deletingLeague
               ? "Deleting..."
@@ -526,56 +536,56 @@ export default function AdminLeagueDetailPage() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
             {error}
           </div>
         )}
 
-        <section className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
+        <section className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-md border bg-white p-3 ">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Season
             </p>
 
-            <p className="mt-2 font-bold text-slate-950">
+            <p className="mt-1 font-semibold text-slate-950">
               {season
                 ? `${season.name} ${season.year}`
                 : "Unknown"}
             </p>
           </div>
 
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="rounded-md border bg-white p-3 ">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Owner
             </p>
 
-            <p className="mt-2 font-bold text-slate-950">
+            <p className="mt-1 font-semibold text-slate-950">
               {ownerName}
             </p>
           </div>
 
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="rounded-md border bg-white p-3 ">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Members
             </p>
 
-            <p className="mt-2 font-bold text-slate-950">
+            <p className="mt-1 font-semibold text-slate-950">
               {members.length} / 24
             </p>
           </div>
 
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="rounded-md border bg-white p-3 ">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
               Join Code
             </p>
 
-            <p className="mt-2 font-mono font-bold tracking-wider text-slate-950">
+            <p className="mt-1 font-mono font-bold tracking-wider text-slate-950">
               {league.join_code}
             </p>
           </div>
         </section>
 
-        <section className="mb-6 rounded-xl border bg-white p-5 shadow-sm">
+        <section className="mb-4 rounded-md border bg-white p-3 ">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
             Created
           </p>
@@ -587,8 +597,8 @@ export default function AdminLeagueDetailPage() {
           </p>
         </section>
 
-        <section className="rounded-xl border bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <section className="rounded-md border bg-white ">
+          <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-slate-950">
                 League Members
@@ -601,12 +611,9 @@ export default function AdminLeagueDetailPage() {
 
             <button
               type="button"
-              onClick={() => {
-                setMemberSearch("");
-                setAddMemberOpen(true);
-              }}
+              onClick={() => void openAddMember()}
               disabled={members.length >= 24}
-              className="rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-teal-700 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Add Member
             </button>
@@ -616,23 +623,23 @@ export default function AdminLeagueDetailPage() {
             <table className="w-full min-w-[760px]">
               <thead className="bg-slate-50">
                 <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                  <th className="px-4 py-3">
+                  <th className="px-3 py-2">
                     Member
                   </th>
 
-                  <th className="px-4 py-3">
+                  <th className="px-3 py-2">
                     Role
                   </th>
 
-                  <th className="px-4 py-3">
+                  <th className="px-3 py-2">
                     Joined
                   </th>
 
-                  <th className="px-4 py-3 text-right">
+                  <th className="px-3 py-2 text-right">
                     User
                   </th>
 
-                  <th className="px-4 py-3 text-right">
+                  <th className="px-3 py-2 text-right">
                     Action
                   </th>
                 </tr>
@@ -645,11 +652,11 @@ export default function AdminLeagueDetailPage() {
                       key={member.user_id}
                       className="border-t hover:bg-slate-50"
                     >
-                      <td className="px-4 py-4 font-semibold text-slate-950">
+                      <td className="px-3 py-2.5 font-semibold text-slate-950">
                         {member.display_name}
                       </td>
 
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-2.5">
                         {member.is_owner ? (
                           <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">
                             Owner
@@ -661,7 +668,7 @@ export default function AdminLeagueDetailPage() {
                         )}
                       </td>
 
-                      <td className="px-4 py-4 text-slate-600">
+                      <td className="px-3 py-2.5 text-slate-600">
                         {new Date(
                           member.joined_at
                         ).toLocaleDateString(
@@ -669,7 +676,7 @@ export default function AdminLeagueDetailPage() {
                         )}
                       </td>
 
-                      <td className="px-4 py-4 text-right">
+                      <td className="px-3 py-2.5 text-right">
                         <Link
                           href={`/admin/users/${member.user_id}`}
                           className="font-semibold text-teal-700 hover:underline"
@@ -678,7 +685,7 @@ export default function AdminLeagueDetailPage() {
                         </Link>
                       </td>
 
-                      <td className="px-4 py-4 text-right">
+                      <td className="px-3 py-2.5 text-right">
                         {member.is_owner ? (
                           <span className="text-sm text-slate-400">
                             —
@@ -695,7 +702,7 @@ export default function AdminLeagueDetailPage() {
                               removingUserId ===
                               member.user_id
                             }
-                            className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {removingUserId ===
                             member.user_id
@@ -725,8 +732,8 @@ export default function AdminLeagueDetailPage() {
             }
           }}
         >
-          <section className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-2xl">
-            <div className="border-b border-slate-800 bg-slate-950 px-6 py-4 text-white">
+          <section className="w-full max-w-xl overflow-hidden rounded-lg border border-slate-300 bg-white shadow-2xl">
+            <div className="border-b border-slate-800 bg-slate-950 px-4 py-3 text-white">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-300">
                 Administration
               </p>
@@ -740,7 +747,7 @@ export default function AdminLeagueDetailPage() {
               </p>
             </div>
 
-            <div className="p-6">
+            <div className="p-4">
               <label
                 htmlFor="member-search"
                 className="block text-sm font-bold text-slate-800"
@@ -757,11 +764,13 @@ export default function AdminLeagueDetailPage() {
                 }
                 placeholder="Search by display name..."
                 autoFocus
-                className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
               />
 
-              <div className="mt-4 max-h-80 overflow-y-auto rounded-xl border border-slate-200">
-                {filteredAvailableUsers.length === 0 ? (
+              <div className="mt-4 max-h-80 overflow-y-auto rounded-md border border-slate-200">
+                {loadingAvailableUsers ? (
+                  <div className="p-5 text-center text-sm text-slate-500">Loading users...</div>
+                ) : filteredAvailableUsers.length === 0 ? (
                   <div className="p-6 text-center text-sm text-slate-500">
                     No available users found.
                   </div>
@@ -770,7 +779,7 @@ export default function AdminLeagueDetailPage() {
                     {filteredAvailableUsers.map((user) => (
                       <div
                         key={user.id}
-                        className="flex items-center justify-between gap-4 px-4 py-3"
+                        className="flex items-center justify-between gap-3 px-3 py-2"
                       >
                         <div className="min-w-0">
                           <p className="truncate font-semibold text-slate-950">
@@ -782,7 +791,7 @@ export default function AdminLeagueDetailPage() {
                           type="button"
                           onClick={() => void handleAddMember(user)}
                           disabled={addingUserId !== null}
-                          className="shrink-0 rounded-lg bg-teal-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="shrink-0 rounded-lg bg-teal-700 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {addingUserId === user.id
                             ? "Adding..."
@@ -799,7 +808,7 @@ export default function AdminLeagueDetailPage() {
                   type="button"
                   onClick={() => setAddMemberOpen(false)}
                   disabled={addingUserId !== null}
-                  className="rounded-lg border bg-white px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="rounded-lg border bg-white px-3 py-2 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Close
                 </button>

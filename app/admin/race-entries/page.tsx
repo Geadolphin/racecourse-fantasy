@@ -117,6 +117,11 @@ const emptyProjectionFormRows: ProjectionFormRow[] = [
 
 export default function RaceEntriesPage() {
   const [entries, setEntries] = useState<RaceEntry[]>([]);
+  // Inline odds are saved on blur or Enter, without refreshing the full page.
+  const [oddsDrafts, setOddsDrafts] = useState<Record<string, string>>({});
+  const [savingOddsIds, setSavingOddsIds] = useState<Set<string>>(new Set());
+  const [oddsErrors, setOddsErrors] = useState<Record<string, string>>({});
+
   const [horses, setHorses] = useState<HorseOption[]>([]);
   const [races, setRaces] = useState<RaceOption[]>([]);
   const [rounds, setRounds] = useState<RoundOption[]>([]);
@@ -238,6 +243,95 @@ export default function RaceEntriesPage() {
     return { data: allEntries, error: null };
   }
 
+  // Refresh only the affected race after a mutation, without reloading all
+  // horses, rounds, seasons, entries and historical form ratings.
+  async function saveInlineOdds(entry: RaceEntry) {
+    if (savingOddsIds.has(entry.id)) return;
+    const draft = oddsDrafts[entry.id];
+    if (draft === undefined) return;
+    const trimmed = draft.trim();
+    const odds = trimmed === "" ? null : Number(trimmed);
+    if (odds !== null && (!Number.isFinite(odds) || odds <= 1)) {
+      setOddsErrors((current) => ({ ...current, [entry.id]: "Enter odds greater than 1.00, or leave blank." }));
+      return;
+    }
+    if (odds === (entry.starting_odds == null ? null : Number(entry.starting_odds))) {
+      setOddsDrafts((current) => { const next = { ...current }; delete next[entry.id]; return next; });
+      return;
+    }
+    setSavingOddsIds((current) => new Set(current).add(entry.id));
+    setOddsErrors((current) => { const next = { ...current }; delete next[entry.id]; return next; });
+    const { error } = await supabase.from("race_entries")
+      .update({ starting_odds: odds, projected_points: null, projection_calculated_at: null })
+      .eq("id", entry.id);
+    if (error) {
+      setOddsErrors((current) => ({ ...current, [entry.id]: error.message }));
+    } else {
+      setEntries((current) => current.map((item) => item.id === entry.id
+        ? { ...item, starting_odds: odds, projected_points: null, projection_calculated_at: null }
+        : item));
+      setOddsDrafts((current) => { const next = { ...current }; delete next[entry.id]; return next; });
+    }
+    setSavingOddsIds((current) => { const next = new Set(current); next.delete(entry.id); return next; });
+  }
+
+  async function refreshRaceEntries(raceId: string) {
+    const { data, error } = await supabase
+      .from("race_entries")
+      .select(`
+        id, race_id, horse_id, barrier, saddlecloth_number,
+        price_at_entry, entry_status, is_emergency, scratched_at,
+        starting_odds, form_rating_override, projected_points,
+        projection_calculated_at, created_at, updated_at,
+        horse:horses (id, name, current_price),
+        race:races (
+          id, round_id, race_number, race_name, grade,
+          scheduled_start, status, distance_metres,
+          racecourse:racecourses (id, name)
+        )
+      `)
+      .eq("race_id", raceId);
+
+    if (error) {
+      console.error("Could not refresh race entries:", error);
+      setErrorMessage(`Could not refresh race entries: ${error.message}`);
+      return;
+    }
+
+    const updated = (data ?? []) as unknown as RaceEntry[];
+    setEntries((current) => [
+      ...current.filter((entry) => entry.race_id !== raceId),
+      ...updated,
+    ]);
+
+    const ids = updated.map((entry) => entry.id);
+    if (!ids.length) return;
+    const { data: ratingData, error: ratingError } = await supabase.rpc(
+      "get_historical_entry_form_ratings",
+      { p_entry_ids: ids }
+    );
+    if (ratingError) {
+      console.error("Could not refresh form ratings:", ratingError);
+      return;
+    }
+    setHistoricalRatingsByEntryId((current) => {
+      const next = { ...current };
+      for (const row of (ratingData ?? []) as Array<{
+        race_entry_id: string;
+        form_rating: number | string | null;
+        recorded_starts: number;
+        undated_manual_runs: number;
+      }>) {
+        next[row.race_entry_id] = {
+          rating: row.form_rating == null ? null : Number(row.form_rating),
+          starts: row.recorded_starts,
+          undated: row.undated_manual_runs,
+        };
+      }
+      return next;
+    });
+  }
+
   async function loadPageData() {
     setLoading(true);
     setErrorMessage("");
@@ -347,29 +441,39 @@ export default function RaceEntriesPage() {
     // Historical ratings are keyed by race ENTRY, not horse.
     // The RPC excludes results after the entry's scheduled start.
     const nextHistoricalRatings: Record<string, { rating: number | null; starts: number; undated: number }> = {};
-    const batchSize = 250;
-    for (let i = 0; i < loadedEntries.length; i += batchSize) {
-      const ids = loadedEntries.slice(i, i + batchSize).map((entry) => entry.id);
-      const { data, error } = await supabase.rpc("get_historical_entry_form_ratings", {
-        p_entry_ids: ids,
-      });
-      if (error) {
-        console.error("Could not load historical form ratings:", error);
-        setErrorMessage(`Historical form ratings unavailable: ${error.message}. Run historical_form_ratings.sql in Supabase.`);
-        break;
+    const ratingBatches: string[][] = [];
+    for (let i = 0; i < loadedEntries.length; i += 250) {
+      ratingBatches.push(loadedEntries.slice(i, i + 250).map((entry) => entry.id));
+    }
+    // Run small groups concurrently to avoid a long serial request waterfall.
+    for (let i = 0; i < ratingBatches.length; i += 4) {
+      const responses = await Promise.all(
+        ratingBatches.slice(i, i + 4).map((ids) =>
+          supabase.rpc("get_historical_entry_form_ratings", { p_entry_ids: ids })
+        )
+      );
+      let failed = false;
+      for (const response of responses) {
+        if (response.error) {
+          console.error("Could not load historical form ratings:", response.error);
+          setErrorMessage(`Historical form ratings unavailable: ${response.error.message}`);
+          failed = true;
+          break;
+        }
+        for (const row of (response.data ?? []) as Array<{
+          race_entry_id: string;
+          form_rating: number | string | null;
+          recorded_starts: number;
+          undated_manual_runs: number;
+        }>) {
+          nextHistoricalRatings[row.race_entry_id] = {
+            rating: row.form_rating == null ? null : Number(row.form_rating),
+            starts: row.recorded_starts,
+            undated: row.undated_manual_runs,
+          };
+        }
       }
-      for (const row of (data ?? []) as Array<{
-        race_entry_id: string;
-        form_rating: number | string | null;
-        recorded_starts: number;
-        undated_manual_runs: number;
-      }>) {
-        nextHistoricalRatings[row.race_entry_id] = {
-          rating: row.form_rating == null ? null : Number(row.form_rating),
-          starts: row.recorded_starts,
-          undated: row.undated_manual_runs,
-        };
-      }
+      if (failed) break;
     }
 
     setEntries(loadedEntries);
@@ -398,14 +502,46 @@ export default function RaceEntriesPage() {
         return current;
       }
 
-      const preferredRound =
-        loadedRounds.find((round) =>
-          ["open", "locked", "draft"].includes(round.status)
-        ) ?? loadedRounds[0];
+      // Open the current round in the active season, not simply the
+      // highest-numbered (or most recently created) round.
+      const preferredSeason =
+        loadedSeasons.find((season) => season.is_active) ?? loadedSeasons[0];
+      const seasonRounds = loadedRounds.filter(
+        (round) => round.season_id === preferredSeason?.id
+      );
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Australia/Melbourne",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
 
-      return preferredRound
-        ? new Set([preferredRound.id])
-        : new Set<string>();
+      const byMostRecentDate = (a: RoundOption, b: RoundOption) =>
+        (b.round_date ?? "").localeCompare(a.round_date ?? "") ||
+        b.round_number - a.round_number;
+
+      const preferredRound =
+        [...seasonRounds]
+          .filter((round) => round.status === "open")
+          .sort(byMostRecentDate)[0] ??
+        [...seasonRounds]
+          .filter((round) =>
+            round.status === "locked" &&
+            round.round_date !== null &&
+            round.round_date <= today
+          )
+          .sort(byMostRecentDate)[0] ??
+        [...seasonRounds]
+          .filter((round) => round.round_date && round.round_date <= today)
+          .sort(byMostRecentDate)[0] ??
+        [...seasonRounds].sort(
+          (a, b) =>
+            (a.round_date ?? "9999-12-31").localeCompare(
+              b.round_date ?? "9999-12-31"
+            ) || a.round_number - b.round_number
+        )[0];
+
+      return preferredRound ? new Set([preferredRound.id]) : new Set<string>();
     });
 
     setLoading(false);
@@ -762,7 +898,7 @@ export default function RaceEntriesPage() {
 
     setSaving(false);
     closeProjectionModal();
-    await loadPageData();
+    await refreshRaceEntries(projectionEntry.race_id);
   }
 
   async function generateRaceProjections(race: RaceOption) {
@@ -795,7 +931,7 @@ export default function RaceEntriesPage() {
     );
 
     setGeneratingProjectionRaceId(null);
-    await loadPageData();
+    await refreshRaceEntries(race.id);
   }
 
   function openBulkEntryModal(raceId?: string) {
@@ -1147,7 +1283,7 @@ export default function RaceEntriesPage() {
       return next;
     });
 
-    await loadPageData();
+    await refreshRaceEntries(form.race_id);
   }
 
   function toggleBulkHorse(horseId: string) {
@@ -1250,7 +1386,7 @@ export default function RaceEntriesPage() {
     });
 
     setSaving(false);
-    await loadPageData();
+    await refreshRaceEntries(bulkRaceId);
   }
 
   async function toggleScratch(entry: RaceEntry) {
@@ -1303,7 +1439,7 @@ export default function RaceEntriesPage() {
       }
     }
 
-    await loadPageData();
+    await refreshRaceEntries(entry.race_id);
   }
 
   function getHorseName(entry: RaceEntry) {
@@ -1625,7 +1761,7 @@ export default function RaceEntriesPage() {
   ]);
 
   return (
-    <main className="p-8">
+    <main className="mx-auto max-w-[1600px] px-3 py-4 text-slate-900 sm:px-5 sm:py-5">
       <PageHeader
         eyebrow="Race management"
         title="Race Entries"
@@ -1635,8 +1771,8 @@ export default function RaceEntriesPage() {
       />
 
       {seasons.length > 0 && (
-        <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <section className="mb-3 border border-slate-200 bg-white px-4 py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <label
                 htmlFor="season-filter"
@@ -1645,7 +1781,7 @@ export default function RaceEntriesPage() {
                 Season
               </label>
 
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-0.5 text-xs text-slate-500">
                 Choose which season&apos;s race entries you want to manage.
               </p>
             </div>
@@ -1659,7 +1795,7 @@ export default function RaceEntriesPage() {
                 setExpandedRoundIds(new Set());
                 setExpandedRaceIds(new Set());
               }}
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 sm:w-80"
+              className="w-full border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100 sm:w-72"
             >
               {seasons.map((season) => (
                 <option key={season.id} value={season.id}>
@@ -1672,12 +1808,12 @@ export default function RaceEntriesPage() {
         </section>
       )}
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => openBulkEntryModal()}
-            className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white transition hover:bg-teal-800"
+            className="bg-teal-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-800"
           >
             Bulk Add Horses
           </button>
@@ -1685,7 +1821,7 @@ export default function RaceEntriesPage() {
           <button
             type="button"
             onClick={expandAll}
-            className="rounded-lg border bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Expand All
           </button>
@@ -1693,7 +1829,7 @@ export default function RaceEntriesPage() {
           <button
             type="button"
             onClick={collapseAll}
-            className="rounded-lg border bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Collapse All
           </button>
@@ -1727,7 +1863,7 @@ export default function RaceEntriesPage() {
         </div>
       )}
 
-      <div className="mb-6">
+      <div className="mb-3">
         <input
           type="search"
           placeholder="Search horse or race..."
@@ -1735,7 +1871,7 @@ export default function RaceEntriesPage() {
           onChange={(event) =>
             setSearchTerm(event.target.value)
           }
-          className="w-full rounded-lg border bg-white p-3"
+          className="w-full border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-700 sm:max-w-lg"
         />
       </div>
 
@@ -1750,7 +1886,7 @@ export default function RaceEntriesPage() {
             : "No rounds are available for this season."}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {visibleRounds.map((round) => {
             const roundRaces =
               racesByRoundId.get(round.id) ?? [];
@@ -1775,29 +1911,30 @@ export default function RaceEntriesPage() {
             return (
               <section
                 key={round.id}
-                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                className="overflow-hidden border border-slate-200 bg-white"
               >
                 <button
                   type="button"
                   onClick={() => toggleRound(round.id)}
-                  className="flex w-full items-center justify-between gap-4 px-5 py-5 text-left transition hover:bg-slate-50"
+                  className="flex w-full items-center justify-between gap-3 border-l-4 border-teal-700 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100"
                   aria-expanded={expanded}
                 >
                   <div className="min-w-0">
-                    <h2 className="text-lg font-bold text-slate-900">
+                    <h2 className="text-sm font-bold text-slate-900 sm:text-base">
                       {expanded ? "▼" : "▶"}{" "}
                       {getRoundLabel(round)}
+                      <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{round.status}</span>
                     </h2>
 
                     {round.round_date && (
-                      <p className="mt-1 text-sm text-slate-500">
+                      <p className="mt-0.5 text-xs text-slate-500">
                         {formatRoundDate(round)}
                       </p>
                     )}
                   </div>
 
-                  <div className="shrink-0 text-right">
-                    <p className="font-bold text-slate-900">
+                  <div className="shrink-0 text-right text-xs">
+                    <p className="font-semibold text-slate-900">
                       {visibleRoundRaces.length}{" "}
                       {visibleRoundRaces.length === 1
                         ? "race"
@@ -1814,7 +1951,7 @@ export default function RaceEntriesPage() {
                 </button>
 
                 {expanded && (
-                  <div className="space-y-3 border-t border-slate-200 bg-slate-50 p-4 md:p-5">
+                  <div className="space-y-1 border-t border-slate-200 bg-slate-100/60 p-2 sm:p-3">
                     {visibleRoundRaces.length === 0 ? (
                       <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
                         No races have been added to this round.
@@ -1839,9 +1976,9 @@ export default function RaceEntriesPage() {
                         return (
                           <article
                             key={race.id}
-                            className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                            className="overflow-hidden border border-slate-200 bg-white"
                           >
-                            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                               <button
                                 type="button"
                                 onClick={() => toggleRace(race.id)}
@@ -1849,17 +1986,17 @@ export default function RaceEntriesPage() {
                                 aria-expanded={raceExpanded}
                               >
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className="font-bold text-slate-900">
+                                  <h3 className="font-semibold text-slate-900">
                                     {raceExpanded ? "▼" : "▶"}{" "}
                                     {getRaceLabel(race)}
                                   </h3>
 
-                                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                  <span className="border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600">
                                     {getGradeLabel(race.grade)}
                                   </span>
                                 </div>
 
-                                <p className="mt-1 text-sm text-slate-500">
+                                <p className="mt-0.5 text-xs text-slate-500">
                                   {formatDateTime(
                                     race.scheduled_start
                                   )}
@@ -1868,7 +2005,7 @@ export default function RaceEntriesPage() {
                                     : ""}
                                 </p>
 
-                                <p className="mt-2 text-sm font-semibold text-slate-700">
+                                <p className="mt-0.5 text-xs font-medium text-slate-600">
                                   {runnerCount}{" "}
                                   {runnerCount === 1
                                     ? "runner"
@@ -1888,7 +2025,7 @@ export default function RaceEntriesPage() {
                                   disabled={
                                     generatingProjectionRaceId !== null
                                   }
-                                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                                  className="bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
                                 >
                                   {generatingProjectionRaceId === race.id
                                     ? "Generating..."
@@ -1900,7 +2037,7 @@ export default function RaceEntriesPage() {
                                   onClick={() =>
                                     openBulkEntryModal(race.id)
                                   }
-                                  className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-800"
+                                  className="bg-teal-700 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-teal-800"
                                 >
                                   Add Horses
                                 </button>
@@ -1910,7 +2047,7 @@ export default function RaceEntriesPage() {
                                   onClick={() =>
                                     openNewEntryModal(race.id)
                                   }
-                                  className="rounded-lg border px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                  className="border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                                 >
                                   Add One
                                 </button>
@@ -1925,42 +2062,42 @@ export default function RaceEntriesPage() {
                                   </div>
                                 ) : (
                                   <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-slate-200">
+                                    <table className="min-w-full divide-y divide-slate-200 text-xs">
                                       <thead className="bg-slate-50">
                                         <tr>
-                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                          <th className="whitespace-nowrap px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                             No.
                                           </th>
 
-                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                          <th className="whitespace-nowrap px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                             Horse
                                           </th>
 
-                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                          <th className="whitespace-nowrap px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                             Recent Form
                                           </th>
 
-                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                          <th className="whitespace-nowrap px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                             Entry Price
                                           </th>
 
-                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                          <th className="whitespace-nowrap px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                             Odds
                                           </th>
 
-                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                          <th className="whitespace-nowrap px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                             Form Rating
                                           </th>
 
-                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                          <th className="whitespace-nowrap px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                             Projected
                                           </th>
 
-                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                          <th className="whitespace-nowrap px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                             Status
                                           </th>
 
-                                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                          <th className="whitespace-nowrap px-2.5 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-slate-600">
                                             Actions
                                           </th>
                                         </tr>
@@ -1972,36 +2109,64 @@ export default function RaceEntriesPage() {
                                             key={entry.id}
                                             className="hover:bg-slate-50"
                                           >
-                                            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                                            <td className="whitespace-nowrap px-2.5 py-2 text-sm font-semibold text-slate-700">
                                               {entry.saddlecloth_number ??
                                                 "—"}
                                             </td>
 
-                                            <td className="px-4 py-4 font-semibold text-slate-900">
+                                            <td className="whitespace-nowrap px-2.5 py-2 font-semibold text-slate-900">
                                               {getHorseName(entry)}
                                             </td>
 
-                                            <td className="px-4 py-4">
-                                              <span className="font-mono text-sm font-black tracking-[0.18em] text-slate-800">
+                                            <td className="whitespace-nowrap px-2.5 py-2">
+                                              <span className="font-mono text-xs font-bold tracking-wide text-slate-800">
                                                 {recentFormsByHorseId[
                                                   entry.horse_id
                                                 ] || "—"}
                                               </span>
                                             </td>
 
-                                            <td className="px-4 py-4 text-sm text-slate-700">
+                                            <td className="whitespace-nowrap px-2.5 py-2 text-sm text-slate-700">
                                               {formatMoney(
                                                 entry.price_at_entry
                                               )}
                                             </td>
 
-                                            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
-                                              {entry.starting_odds === null
-                                                ? "—"
-                                                : `$${Number(entry.starting_odds).toFixed(2)}`}
+                                            <td className="whitespace-nowrap px-2.5 py-2 text-sm font-semibold text-slate-700">
+                                              <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-1">
+                                                  <span className="text-slate-500">$</span>
+                                                  <input
+                                                    aria-label={`Starting odds for ${getHorseName(entry)}`}
+                                                    type="number"
+                                                    min="1.01"
+                                                    step="0.01"
+                                                    inputMode="decimal"
+                                                    value={oddsDrafts[entry.id] ?? (entry.starting_odds == null ? "" : String(entry.starting_odds))}
+                                                    placeholder="—"
+                                                    disabled={savingOddsIds.has(entry.id)}
+                                                    onChange={(event) => {
+                                                      const value = event.target.value;
+                                                      setOddsDrafts((current) => ({ ...current, [entry.id]: value }));
+                                                      setOddsErrors((current) => { const next = { ...current }; delete next[entry.id]; return next; });
+                                                    }}
+                                                    onBlur={() => { void saveInlineOdds(entry); }}
+                                                    onKeyDown={(event) => {
+                                                      if (event.key === "Enter") event.currentTarget.blur();
+                                                      if (event.key === "Escape") {
+                                                        setOddsDrafts((current) => { const next = { ...current }; delete next[entry.id]; return next; });
+                                                        event.currentTarget.blur();
+                                                      }
+                                                    }}
+                                                    className="w-20 rounded border border-slate-300 bg-white px-2 py-1 text-right text-sm font-semibold text-slate-800 focus:border-teal-700 focus:outline-none focus:ring-1 focus:ring-teal-700 disabled:opacity-50"
+                                                  />
+                                                  {savingOddsIds.has(entry.id) && <span className="text-xs text-slate-500">Saving…</span>}
+                                                </div>
+                                                {oddsErrors[entry.id] && <span role="alert" className="max-w-40 whitespace-normal text-xs text-red-700">{oddsErrors[entry.id]}</span>}
+                                              </div>
                                             </td>
 
-                                            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                                            <td className="whitespace-nowrap px-2.5 py-2 text-sm font-semibold text-slate-700">
                                               {(entry as EntryWithOverride).form_rating_override != null
                                                 ? <span title="Manual override on this race entry (not a reconstructed historical rating)" className="text-teal-700">{Number((entry as EntryWithOverride).form_rating_override).toFixed(1)} *</span>
                                                 : historicalRatingsByEntryId[entry.id] == null
@@ -2013,13 +2178,13 @@ export default function RaceEntriesPage() {
                                                       </span>}
                                             </td>
 
-                                            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                                            <td className="whitespace-nowrap px-2.5 py-2 text-sm font-semibold text-slate-700">
                                               {entry.projected_points === null
                                                 ? "—"
                                                 : `${entry.projected_points} pts`}
                                             </td>
 
-                                            <td className="px-4 py-4">
+                                            <td className="whitespace-nowrap px-2.5 py-2">
                                               <span
                                                 className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
                                                   entry.entry_status
@@ -2031,14 +2196,14 @@ export default function RaceEntriesPage() {
                                               </span>
                                             </td>
 
-                                            <td className="px-4 py-4">
-                                              <div className="flex flex-wrap gap-2">
+                                            <td className="whitespace-nowrap px-2.5 py-2">
+                                              <div className="flex flex-wrap gap-1.5">
                                                 <button
                                                   type="button"
                                                   onClick={() =>
                                                     openRecentFormModal(entry)
                                                   }
-                                                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100"
+                                                  className="border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
                                                 >
                                                   Recent Form
                                                 </button>
@@ -2048,7 +2213,7 @@ export default function RaceEntriesPage() {
                                                   onClick={() =>
                                                     openProjectionModal(entry)
                                                   }
-                                                  className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800 hover:bg-teal-100"
+                                                  className="border border-teal-200 bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-800 hover:bg-teal-100"
                                                 >
                                                   Projection Data
                                                 </button>
@@ -2058,7 +2223,7 @@ export default function RaceEntriesPage() {
                                                   onClick={() =>
                                                     editEntry(entry)
                                                   }
-                                                  className="rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-slate-50"
+                                                  className="border border-slate-300 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50"
                                                 >
                                                   Edit
                                                 </button>
@@ -2070,7 +2235,7 @@ export default function RaceEntriesPage() {
                                                       entry
                                                     )
                                                   }
-                                                  className="rounded-lg border px-3 py-2 text-sm font-semibold hover:bg-slate-50"
+                                                  className="border border-slate-300 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50"
                                                 >
                                                   {entry.entry_status ===
                                                   "runner"
@@ -2561,207 +2726,133 @@ export default function RaceEntriesPage() {
 
       <AdminModal
         isOpen={showModal}
-        title={
-          editingEntryId
-            ? "Edit Race Entry"
-            : "New Race Entry"
-        }
-        description={
-          editingEntryId
-            ? "Update the race entry details."
-            : "Add a horse to a race."
-        }
+        title={editingEntryId ? "Edit race entry" : "Add race entry"}
+        description={editingEntryId ? "Update the selected runner." : "Select a race and horse, then confirm the entry."}
         onClose={closeModal}
         maxWidth="lg"
       >
-        <form
-          onSubmit={saveEntry}
-          className="space-y-5"
-        >
+        <form onSubmit={saveEntry} className="space-y-4">
           {errorMessage && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+            <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
               {errorMessage}
             </div>
           )}
 
-          <div>
-            <label className="mb-1 block font-medium">
-              Race
-            </label>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="entry-race" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Race <span className="text-red-600">*</span>
+              </label>
+              <select
+                id="entry-race"
+                required
+                value={form.race_id}
+                onChange={(event) => handleRaceChange(event.target.value)}
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+              >
+                <option value="">Select a race</option>
+                {sortedRaces.map((race) => (
+                  <option key={race.id} value={race.id}>
+                    {getRaceLabel(race)} — {formatDateTime(race.scheduled_start)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            <select
-              required
-              value={form.race_id}
-              onChange={(event) =>
-                handleRaceChange(event.target.value)
-              }
-              className="w-full rounded-lg border bg-white p-3"
-            >
-              <option value="">
-                Select a race
-              </option>
-
-              {sortedRaces.map((race) => (
-                <option
-                  key={race.id}
-                  value={race.id}
-                >
-                  {getRaceLabel(race)} —{" "}
-                  {formatDateTime(
-                    race.scheduled_start
-                  )}
-                </option>
-              ))}
-            </select>
+            <div>
+              <label htmlFor="entry-horse" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Horse <span className="text-red-600">*</span>
+              </label>
+              <select
+                id="entry-horse"
+                required
+                value={form.horse_id}
+                onChange={(event) => handleHorseChange(event.target.value)}
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+              >
+                <option value="">Select a horse</option>
+                {availableHorses.map((horse) => (
+                  <option key={horse.id} value={horse.id}>
+                    {horse.name} — {formatMoney(horse.current_price)}{!horse.is_active ? " — Inactive" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label className="mb-1 block font-medium">
-              Horse
-            </label>
-
-            <select
-              required
-              value={form.horse_id}
-              onChange={(event) =>
-                handleHorseChange(
-                  event.target.value
-                )
-              }
-              className="w-full rounded-lg border bg-white p-3"
-            >
-              <option value="">
-                Select a horse
-              </option>
-
-              {availableHorses.map((horse) => (
-                <option
-                  key={horse.id}
-                  value={horse.id}
-                >
-                  {horse.name} —{" "}
-                  {formatMoney(
-                    horse.current_price
-                  )}
-                  {!horse.is_active
-                    ? " — Inactive"
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block font-medium">
-              Saddlecloth Number
-            </label>
-
-            <input
-              type="number"
-              min={1}
-              value={form.saddlecloth_number}
-              onChange={(event) =>
-                setForm({
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="entry-saddlecloth" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Saddlecloth no.
+              </label>
+              <input
+                id="entry-saddlecloth"
+                type="number"
+                min={1}
+                value={form.saddlecloth_number}
+                onChange={(event) => setForm({
                   ...form,
-                  saddlecloth_number:
-                    event.target.value === ""
-                      ? ""
-                      : Number(
-                          event.target.value
-                        ),
-                })
-              }
-              placeholder="Automatically assigned"
-              className="w-full rounded-lg border p-3"
-            />
-
-            <p className="mt-1 text-sm text-slate-500">
-              Automatically assigned when you select a race, but it can still be changed.
-            </p>
+                  saddlecloth_number: event.target.value === "" ? "" : Number(event.target.value),
+                })}
+                placeholder="Auto"
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+              />
+              <p className="mt-1 text-xs text-slate-500">Suggested automatically; editable.</p>
+            </div>
+            <div>
+              <label htmlFor="entry-price" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Entry price
+              </label>
+              <div id="entry-price" className="flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-semibold tabular-nums text-slate-800">
+                {formatMoney(form.price_at_entry)}
+              </div>
+              <p className="mt-1 text-xs text-slate-500">From the horse&apos;s current price.</p>
+            </div>
           </div>
 
-          <div>
-            <label className="mb-1 block font-medium">
-              Entry Price
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-end">
+            <div>
+              <label htmlFor="entry-status" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Entry status
+              </label>
+              <select
+                id="entry-status"
+                required
+                value={form.entry_status}
+                onChange={(event) => setForm({ ...form, entry_status: event.target.value as EntryStatus })}
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100"
+              >
+                <option value="runner">Runner</option>
+                <option value="scratched_before_lockout">Scratched before lockout</option>
+                <option value="scratched_after_lockout">Scratched after lockout</option>
+              </select>
+            </div>
+            <label className="flex h-10 cursor-pointer items-center gap-2.5 rounded-md border border-slate-200 bg-slate-50 px-3">
+              <input
+                type="checkbox"
+                checked={form.is_emergency}
+                onChange={(event) => setForm({ ...form, is_emergency: event.target.checked })}
+                className="h-4 w-4 accent-teal-700"
+              />
+              <span className="text-sm font-medium text-slate-700">Emergency runner (E)</span>
             </label>
-
-            <input
-              readOnly
-              type="number"
-              value={form.price_at_entry}
-              className="w-full cursor-not-allowed rounded-lg border bg-slate-100 p-3 text-slate-700"
-            />
-
-            <p className="mt-1 text-sm text-slate-500">
-              Automatically copied from the horse&apos;s current price.
-            </p>
           </div>
 
-          <label className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
-            <input
-              type="checkbox"
-              checked={form.is_emergency}
-              onChange={(event) =>
-                setForm({ ...form, is_emergency: event.target.checked })
-              }
-              className="h-4 w-4 accent-teal-700"
-            />
-            <span className="text-sm font-medium text-slate-800">
-              Emergency runner (E)
-            </span>
-          </label>
-
-          <div>
-            <label className="mb-1 block font-medium">
-              Entry Status
-            </label>
-
-            <select
-              required
-              value={form.entry_status}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  entry_status:
-                    event.target.value as EntryStatus,
-                })
-              }
-              className="w-full rounded-lg border bg-white p-3"
-            >
-              <option value="runner">
-                Runner
-              </option>
-
-              <option value="scratched_before_lockout">
-                Scratched Before Lockout
-              </option>
-
-              <option value="scratched_after_lockout">
-                Scratched After Lockout
-              </option>
-            </select>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               onClick={closeModal}
               disabled={saving}
-              className="rounded-lg border px-5 py-3 disabled:opacity-50"
+              className="h-9 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               Cancel
             </button>
-
             <button
               type="submit"
               disabled={saving}
-              className="rounded-lg bg-green-800 px-5 py-3 font-semibold text-white hover:bg-green-900 disabled:bg-slate-400"
+              className="h-9 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
-              {saving
-                ? "Saving..."
-                : editingEntryId
-                  ? "Update Entry"
-                  : "Save Entry"}
+              {saving ? "Saving…" : editingEntryId ? "Update entry" : "Add entry"}
             </button>
           </div>
         </form>
