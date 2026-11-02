@@ -429,13 +429,13 @@ export default function MyTeamPage() {
   const [replacementMode, setReplacementMode] = useState(false);
   const [outgoingSelections, setOutgoingSelections] = useState<TeamSelection[]>([]);
   const [incomingEntries, setIncomingEntries] = useState<Array<{
-    id: string; horse_id: string; price_at_entry: number; projected_points: number | null;
+    id: string; horse_id: string; saddlecloth_number: number | null; price_at_entry: number; projected_points: number | null;
     entry_status: string; horse: { name: string; silks_url: string | null } | null;
     race: { race_name: string; race_number: number; grade: Race["grade"]; scheduled_start: string; racecourse: Racecourse | null } | null;
   }>>([]);
   const [stagedCaptainEntryId, setStagedCaptainEntryId] = useState<string | null>(null);
   const [replacementEntries, setReplacementEntries] = useState<Array<{
-    id: string; horse_id: string; price_at_entry: number; projected_points: number | null;
+    id: string; horse_id: string; saddlecloth_number: number | null; price_at_entry: number; projected_points: number | null;
     entry_status: string; horse: { name: string; silks_url: string | null } | null;
     race: { race_name: string; race_number: number; grade: Race["grade"]; scheduled_start: string; racecourse: Racecourse | null } | null;
   }>>([]);
@@ -452,7 +452,7 @@ export default function MyTeamPage() {
     if (raceIds.length === 0) return [] as typeof replacementEntries;
 
     const { data, error } = await supabase.from("race_entries")
-      .select(`id, horse_id, price_at_entry, projected_points, entry_status,
+      .select(`id, horse_id, saddlecloth_number, price_at_entry, projected_points, entry_status,
         horse:horses(name, silks_url),
         race:races(race_name, race_number, grade, scheduled_start,
           racecourse:racecourses(name))`)
@@ -465,6 +465,7 @@ export default function MyTeamPage() {
         ? race.racecourse[0] ?? null : race.racecourse);
       return {
         ...raw,
+        saddlecloth_number: raw.saddlecloth_number == null ? null : Number(raw.saddlecloth_number),
         price_at_entry: Number(raw.price_at_entry ?? 0),
         projected_points: raw.projected_points == null ? null : Number(raw.projected_points),
         horse,
@@ -1274,6 +1275,17 @@ export default function MyTeamPage() {
           ? (a.horse?.name ?? "").localeCompare(b.horse?.name ?? "")
           : new Date(a.race?.scheduled_start ?? 0).getTime() - new Date(b.race?.scheduled_start ?? 0).getTime());
 
+  // Default to saddlecloth order within each race; retain explicit alternative sorts.
+  const sortEntriesWithinRace = (entries: typeof replacementEntries) =>
+    entries.sort((a, b) => {
+      if (replacementSort === "price-low") return a.price_at_entry - b.price_at_entry;
+      if (replacementSort === "price-high") return b.price_at_entry - a.price_at_entry;
+      if (replacementSort === "name") return (a.horse?.name ?? "").localeCompare(b.horse?.name ?? "");
+      return (a.saddlecloth_number ?? Number.MAX_SAFE_INTEGER) -
+        (b.saddlecloth_number ?? Number.MAX_SAFE_INTEGER) ||
+        (a.horse?.name ?? "").localeCompare(b.horse?.name ?? "");
+    });
+
   // Group replacements by race rather than presenting one continuous horse list.
   // Keep races chronological, while applying the selected sort within each race.
   const replacementRaceGroups = Array.from(
@@ -1292,7 +1304,7 @@ export default function MyTeamPage() {
       race: (typeof replacementEntries)[number]["race"];
       entries: typeof replacementEntries;
     }>()).values()
-  ).sort((a, b) =>
+  ).map((group) => ({ ...group, entries: sortEntriesWithinRace(group.entries) })).sort((a, b) =>
     new Date(a.race?.scheduled_start ?? 0).getTime() -
     new Date(b.race?.scheduled_start ?? 0).getTime() ||
     (a.race?.race_number ?? 0) - (b.race?.race_number ?? 0)
@@ -2074,7 +2086,7 @@ export default function MyTeamPage() {
               </select>
               <select aria-label="Sort horses" value={replacementSort} onChange={(e) => setReplacementSort(e.target.value)}
                 className="h-8 min-w-0 rounded-md border border-slate-300 px-2 text-xs text-slate-950">
-                <option value="race">Race time</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Horse name</option>
+                <option value="race">Saddlecloth number</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Horse name</option>
               </select>
             </div>
             <p className="px-2.5 pb-1.5 text-[11px] font-semibold text-slate-600">
