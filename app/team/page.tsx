@@ -1088,8 +1088,12 @@ export default function MyTeamPage() {
     }, 0);
   }, [selections, projectedPointsByEntryId]);
   const liveProjectedScore = rawLiveProjectedScore - autofillPenalty;
-  const salaryRemaining =
-    salaryCap - salaryUsed;
+  // Include staged horse removals and additions immediately, before saving.
+  const salaryRemaining = salaryCap - (
+    salaryUsed
+    - outgoingSelections.reduce((total, selection) => total + selection.selected_price, 0)
+    + incomingEntries.reduce((total, entry) => total + entry.price_at_entry, 0)
+  );
   const roundIsComplete = round?.status === "completed";
   const projectionsVisible =
     showProjectedScores ||
