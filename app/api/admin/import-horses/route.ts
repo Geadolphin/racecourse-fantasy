@@ -1,524 +1,259 @@
 import { NextRequest, NextResponse } from "next/server";
 
-
-
 import { createClient } from "@supabase/supabase-js";
-
-
 
 import * as cheerio from "cheerio";
 
-
-
-
-
-
-
 export const runtime = "nodejs";
-
-
 
 export const maxDuration = 60;
 
-
-
-
-
-
-
 const PRICE_LEVELS: [number, number][] = [
 
+  [30000000,800000],[25000000,750000],[20000000,700000],[18000000,680000],
 
+  [16000000,660000],[14000000,640000],[12000000,620000],[10000000,600000],
 
-  [30000000, 800000], [25000000, 750000], [20000000, 700000], [18000000, 680000],
+  [9000000,590000],[8000000,580000],[7000000,570000],[6000000,560000],
 
+  [5000000,550000],[4500000,540000],[4000000,530000],[3500000,520000],
 
+  [3000000,510000],[2500000,500000],[2000000,480000],[1500000,450000],
 
-  [16000000, 660000], [14000000, 640000], [12000000, 620000], [10000000, 600000],
+  [1000000,420000],[950000,400000],[900000,380000],[850000,360000],
 
+  [800000,340000],[750000,320000],[700000,300000],[650000,270000],
 
+  [600000,240000],[550000,220000],[500000,210000],[450000,200000],
 
-  [9000000, 590000], [8000000, 580000], [7000000, 570000], [6000000, 560000],
+  [400000,190000],[375000,180000],[350000,170000],[325000,160000],
 
+  [300000,150000],[275000,140000],[250000,130000],[225000,120000],
 
+  [200000,110000],[175000,100000],[150000,90000],[125000,80000],
 
-  [5000000, 550000], [4500000, 540000], [4000000, 530000], [3500000, 520000],
-
-
-
-  [3000000, 510000], [2500000, 500000], [2000000, 480000], [1500000, 450000],
-
-
-
-  [1000000, 420000], [950000, 400000], [900000, 380000], [850000, 360000],
-
-
-
-  [800000, 340000], [750000, 320000], [700000, 300000], [650000, 270000],
-
-
-
-  [600000, 240000], [550000, 220000], [500000, 210000], [450000, 200000],
-
-
-
-  [400000, 190000], [375000, 180000], [350000, 170000], [325000, 160000],
-
-
-
-  [300000, 150000], [275000, 140000], [250000, 130000], [225000, 120000],
-
-
-
-  [200000, 110000], [175000, 100000], [150000, 90000], [125000, 80000],
-
-
-
-  [100000, 70000], [75000, 60000], [50000, 50000], [25000, 40000], [0, 30000],
-
-
+  [100000,70000],[75000,60000],[50000,50000],[25000,40000],[0,30000],
 
 ];
 
-
-
-
-
-
-
 type Runner = { name: string; profileUrl: string | null; silkUrl: string | null; raceNumber: number; prizeMoney: number | null; saddleclothNumber: number | null; barrier: number | null; scratched: boolean };
-
-
 
 type SiteRace = { number: number; runners: Runner[] };
 
-
-
 type DbRace = { id: string; race_number: number; race_name: string | null; racecourse_id: string | null };
-
-
 
 type Review = { name: string; reason: string };
 
-
-
-
-
-
-
 function normal(name: string): string {
-
-
 
   return name.normalize("NFKC").replace(/\s*\([A-Za-z]{2,3}\)\s*$/g, "").replace(/[^\p{L}\p{N}]/gu, "").toUpperCase();
 
-
-
 }
-
-
 
 // Display names in title case while preserving the original matching key.
 
-
-
 function formatHorseName(name: string): string {
-
-
 
   return name.replace(/\s*\([A-Za-z]{2,3}\)\s*$/g, "").trim().toLocaleLowerCase("en-AU").replace(/(^|[^\p{L}])([\p{L}])/gu, (_match, prefix: string, letter: string) =>
 
-
-
     prefix + letter.toLocaleUpperCase("en-AU")
-
-
 
   );
 
-
-
 }
-
-
 
 function priceFor(money: number): number {
 
-
-
   return PRICE_LEVELS.find(([threshold]) => money >= threshold)?.[1] ?? 30000;
 
-
-
 }
-
-
 
 function sourceUrl(raw: string, kind: "meeting" | "profile" | "image"): URL {
 
-
-
   const url = new URL(raw);
-
-
 
   if (url.protocol !== "https:" || !(kind === "image" ? ["www.racingaustralia.horse", "racingaustralia.horse"].includes(url.hostname.toLowerCase()) : url.hostname.toLowerCase() === "www.racingaustralia.horse") || url.username || url.password || url.port) {
 
-
-
     throw new Error("Only HTTPS Racing Australia URLs are permitted.");
 
-
-
   }
-
-
 
   if (kind === "meeting") {
 
-
-
     if (!/^\/FreeFields\/(Form|Acceptances)\.aspx$/i.test(url.pathname) ||
 
-
-
-      !/^\d{4}[A-Za-z]{3}\d{2},[A-Za-z]{2,3},.+$/.test(url.searchParams.get("Key") ?? "")) {
-
-
+        !/^\d{4}[A-Za-z]{3}\d{2},[A-Za-z]{2,3},.+$/.test(url.searchParams.get("Key") ?? "")) {
 
       throw new Error("Provide a Racing Australia Form.aspx or Acceptances.aspx meeting URL with a valid Key.");
 
-
-
     }
-
-
 
   } else if (kind === "profile" && !/^\/InteractiveForm\/HorseFullForm\.aspx$/i.test(url.pathname)) {
 
-
-
     throw new Error("Unsupported horse profile URL.");
-
-
 
   } else if (kind === "image" && !/\.(png|jpe?g|webp)(?:$)/i.test(url.pathname)) {
 
-
-
     throw new Error("Unsupported silks image URL.");
 
-
-
   }
-
-
 
   return url;
 
-
-
 }
-
-
 
 async function getHtml(url: URL): Promise<string> {
 
-
-
   const response = await fetch(url.toString(), {
-
-
 
     headers: { Accept: "text/html", "User-Agent": "RacecourseFantasyImporter/1.0" },
 
-
-
     redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(12000),
-
-
 
   });
 
-
-
   if (!response.ok) throw new Error(`Racing Australia returned HTTP ${response.status}.`);
-
-
 
   if (!(response.headers.get("content-type") ?? "").toLowerCase().includes("text/html")) throw new Error("Source did not return HTML.");
 
-
-
   if (Number(response.headers.get("content-length") ?? 0) > 3_000_000) throw new Error("HTML is too large.");
-
-
 
   const html = await response.text();
 
-
-
   if (html.length > 3_000_000) throw new Error("HTML is too large.");
-
-
 
   return html;
 
-
-
 }
-
-
 
 function absoluteSource(href: string | undefined, base: URL, kind: "profile" | "image"): string | null {
 
-
-
   if (!href) return null;
-
-
 
   try { return sourceUrl(new URL(href, base).toString(), kind).toString(); } catch { return null; }
 
-
-
 }
-
-
 
 function raceNumber(text: string): number | null {
 
-
-
   const match = text.match(/\b(?:race|r)\s*(?:no\.?\s*)?(\d{1,2})\b/i);
-
-
 
   return match ? Number(match[1]) : null;
 
-
-
 }
-
-
-
-
-
-
 
 // Racing Australia Form.aspx places each race in a race-title table followed by
 
-
-
 // race-strip-fields and individual horse-form-table siblings. These are NOT nested.
-
-
 
 // Extract each runner only from its own form table, never from historical form links.
 
-
-
 function parseMeeting(html: string, base: URL): SiteRace[] {
 
-
-
   const $ = cheerio.load(html);
-
-
 
   const found = new Map<number, SiteRace>();
 
-
-
   for (const titleNode of $("table.race-title").toArray()) {
-
-
 
     const title = $(titleNode);
 
-
-
     const number = raceNumber(title.find(".raceNum").first().text() || title.find("th").first().text());
-
-
 
     if (!number || found.has(number)) continue;
 
-
-
     const runners: Runner[] = [];
-
-
 
     let sibling = title.next();
 
-
-
     while (sibling.length && !sibling.is("table.race-title")) {
-
-
 
       if (sibling.is("table.horse-form-table")) {
 
-
-
         const nameLink = sibling.find(".horse-info .horse-name a[href]").first();
-
-
 
         const name = nameLink.text().replace(/\s+/g, " ").trim();
 
-
-
         const profileUrl = absoluteSource(nameLink.attr("href"), base, "profile");
-
-
 
         if (name && name.length <= 80) {
 
-
-
           const silkUrl = absoluteSource(sibling.find(".Silks img[src]").first().attr("src"), base, "image");
-
-
 
           const prizeMoney = prizeMoneyFromText(sibling.text());
 
-
-
           const saddleclothText = sibling.find(".horse-number").first().text().trim();
-
-
 
           const saddleclothNumber = Number(saddleclothText.match(/^\d+/)?.[0] ?? NaN);
 
-
-
           const barrierMatch = sibling.text().match(/\bBarrier\s*:\s*(\d+)/i);
-
-
 
           const barrier = barrierMatch ? Number(barrierMatch[1]) : null;
 
-
-
           const stripRow = title.nextAll("table.race-strip-fields").first().find("tr").filter((_i, el) =>
-
-
 
             normal($(el).find("td.horse a").first().text()) === normal(name)
 
-
-
           ).first();
-
-
 
           const scratched = stripRow.hasClass("Scratched");
 
-
-
-          runners.push({
-            name, profileUrl, silkUrl, raceNumber: number, prizeMoney,
-
-
+          runners.push({ name, profileUrl, silkUrl, raceNumber: number, prizeMoney,
 
             saddleclothNumber: Number.isInteger(saddleclothNumber) ? saddleclothNumber : null,
 
-
-
-            barrier, scratched
-          });
-
-
+            barrier, scratched });
 
         }
 
-
-
       }
-
-
 
       sibling = sibling.next();
 
-
-
     }
-
-
 
     if (runners.length) {
 
-
-
       found.set(number, { number, runners: [...new Map(runners.map(r => [normal(r.name), r])).values()] });
-
-
 
     }
 
-
-
   }
-
-
 
   return [...found.values()];
 
-
-
 }
-
-
 
 function prizeMoneyFromText(text: string): number | null {
-
-
-
-  const match = text.replace(/\s+/g, " ").match(/\bPrize\s?money\s*:?\s*(?:AUD\s*)?\$\s*([\d,]+(?:.\d{1,2})?)/i);
-
-
-
-  if (!match) return null;
-
-
-
-  const money = Number(match[1].replace(/,/g, ""));
-
-
-
-  return Number.isFinite(money) && money >= 0 ? money : null;
-
-
-
+  // Racing Australia uses different career-prizemoney labels across pages.
+  // Only match an explicitly labelled amount; never confuse race prize pools
+  // or an unlabelled dollar amount with a horse's career earnings.
+  const clean = text.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+  const patterns = [
+    /\b(?:career\s+)?prize\s*money\s*[:\-]?\s*(?:AUD\s*)?(?:A\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /\b(?:career\s+)?prizemoney\s*[:\-]?\s*(?:AUD\s*)?(?:A\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /\bcareer\s+(?:stakes|earnings)\s*[:\-]?\s*(?:AUD\s*)?(?:A\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /\b(?:career\s+)?prize\s*money\s*[:\-]?\s*(?:AUD\s*)?([\d,]+(?:\.\d{1,2})?)/i,
+    /\b(?:career\s+)?prizemoney\s*[:\-]?\s*(?:AUD\s*)?([\d,]+(?:\.\d{1,2})?)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = clean.match(pattern);
+    if (!match) continue;
+    const money = Number(match[1].replace(/,/g, ""));
+    if (Number.isFinite(money) && money >= 0) return money;
+  }
+  return null;
 }
-
-
 
 function profileDetails(html: string, base: URL): { prizeMoney: number | null; silkUrl: string | null } {
 
-
-
   const $ = cheerio.load(html);
-
-
 
   const img = $(".Silks img[src]").first();
 
-
-
   return { prizeMoney: prizeMoneyFromText($("body").text()), silkUrl: absoluteSource(img.attr("src"), base, "image") };
 
-
-
 }
-
-
-
-
-
-
 
 export async function POST(request: NextRequest) {
 
@@ -531,8 +266,6 @@ export async function POST(request: NextRequest) {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !anonKey || !serviceKey) throw new Error("Missing server Supabase environment variables.");
-
-
 
     const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
 
@@ -549,8 +282,6 @@ export async function POST(request: NextRequest) {
     const { data: profile, error: profileError } = await admin.from("profiles").select("is_admin").eq("id", identity.user.id).single();
 
     if (profileError || profile?.is_admin !== true) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
-
-
 
     const body = await request.json();
 
@@ -579,8 +310,6 @@ export async function POST(request: NextRequest) {
     const races = (dbRaces ?? []) as DbRace[];
 
     if (!races.length) return NextResponse.json({ error: "No races have been entered for this round." }, { status: 422 });
-
-
 
     const courseIds = [...new Set(races.map(r => r.racecourse_id).filter((id): id is string => Boolean(id)))];
 
@@ -625,8 +354,6 @@ export async function POST(request: NextRequest) {
 
     if (!uniqueRaceNumbers.length) return NextResponse.json({ error: "The selected round has no unambiguous race numbers." }, { status: 422 });
 
-
-
     const siteRaces = parseMeeting(await getHtml(meetingUrl), meetingUrl);
 
     const byNumber = new Map(siteRaces.map(r => [r.number, r]));
@@ -637,11 +364,9 @@ export async function POST(request: NextRequest) {
 
     if (!matchedRaces.length) return NextResponse.json({ error: "No numbered races could be matched. No horses were imported.", unmatchedRaces }, { status: 422 });
 
-
-
     const raceEntriesToImport = matchedRaces.flatMap(dbRace => (byNumber.get(Number(dbRace.race_number))?.runners ?? []).map(runner => ({ raceId: dbRace.id, runner })));
 
-    const runners = [...new Map(raceEntriesToImport.map(({ runner }) => [normal(runner.name), runner])).values()];
+    const runners = [...new Map(raceEntriesToImport.map(({runner}) => [normal(runner.name), runner])).values()];
 
     const { data: existing, error: existingError } = await admin.from("horses").select("id,name,silks_url,current_price");
 
@@ -679,8 +404,6 @@ export async function POST(request: NextRequest) {
 
     const unprocessedCount = Math.max(0, runners.filter(r => !known.has(normal(r.name))).length - selected.length);
 
-
-
     async function uploadSilks(horseId: string, urlString: string): Promise<string> {
 
       const url = sourceUrl(urlString, "image");
@@ -712,8 +435,6 @@ export async function POST(request: NextRequest) {
       return admin.storage.from("horse-silks").getPublicUrl(storagePath).data.publicUrl;
 
     }
-
-
 
     // Bounded concurrency avoids dozens of sequential 12-second network waits.
 
@@ -769,7 +490,7 @@ export async function POST(request: NextRequest) {
 
         }
 
-        if (prizeMoney === null) { review.push({ name: runner.name, reason: "Career prizemoney unavailable; horse not inserted." }); continue; }
+        if (prizeMoney === null) { review.push({ name: runner.name, reason: runner.profileUrl ? "Career prizemoney not found in meeting or horse profile; horse not inserted." : "Career prizemoney unavailable and no supported horse profile link found; horse not inserted." }); continue; }
 
         const price = priceFor(prizeMoney);
 
@@ -814,8 +535,6 @@ export async function POST(request: NextRequest) {
     });
 
     await Promise.all(workers);
-
-
 
     const { data: existingEntries, error: entriesError } = await admin.from("race_entries").select("id,race_id,horse_id").in("race_id", matchedRaces.map(r => r.id));
 
