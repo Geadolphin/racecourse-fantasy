@@ -1088,12 +1088,13 @@ export default function MyTeamPage() {
     }, 0);
   }, [selections, projectedPointsByEntryId]);
   const liveProjectedScore = rawLiveProjectedScore - autofillPenalty;
-  // Include staged horse removals and additions immediately, before saving.
-  const salaryRemaining = salaryCap - (
-    salaryUsed
-    - outgoingSelections.reduce((total, selection) => total + selection.selected_price, 0)
-    + incomingEntries.reduce((total, entry) => total + entry.price_at_entry, 0)
-  );
+  // Both salary figures reflect the current on-screen team, including staged edits.
+  const liveTeamSalary = team
+    ? salaryUsed
+      - outgoingSelections.reduce((total, selection) => total + Number(selection.selected_price ?? 0), 0)
+      + incomingEntries.reduce((total, entry) => total + Number(entry.price_at_entry ?? 0), 0)
+    : newTeamEntries.reduce((total, entry) => total + Number(entry.price_at_entry ?? 0), 0);
+  const salaryRemaining = salaryCap - liveTeamSalary;
   const roundIsComplete = round?.status === "completed";
   const projectionsVisible =
     showProjectedScores ||
@@ -1535,7 +1536,7 @@ export default function MyTeamPage() {
               <div className="hidden lg:contents">
                 <OfficialTeamStat
                   label="Team Salary"
-                  value={formatCurrency(salaryUsed)}
+                  value={formatCurrency(liveTeamSalary)}
                 />
               </div>
               <OfficialTeamStat
