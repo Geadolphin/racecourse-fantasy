@@ -329,6 +329,9 @@ export async function POST(request: NextRequest) {
 
       ROYALRANDWICK: "RANDWICK",
       ROSEHILLGARDENS: "ROSEHILL",
+      SPORTSBETSANDOWNHILLSIDE: "SANDOWN",
+      SANDOWNHILLSIDE: "SANDOWN",
+      SANDOWNLAKESIDE: "SANDOWN",
 
     };
 
