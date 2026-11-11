@@ -180,6 +180,7 @@ export default function RaceEntriesPage() {
 
   const [recentFormsByHorseId, setRecentFormsByHorseId] =
     useState<Record<string, string>>({});
+  const [recentFormsLoadError, setRecentFormsLoadError] = useState("");
   const [showRecentFormModal, setShowRecentFormModal] = useState(false);
   const [recentFormEntry, setRecentFormEntry] = useState<RaceEntry | null>(null);
   const [recentFormValue, setRecentFormValue] = useState("");
@@ -548,6 +549,7 @@ export default function RaceEntriesPage() {
   }
 
   async function loadRecentForms() {
+    setRecentFormsLoadError("");
     if (!selectedSeasonId || entries.length === 0) {
       setRecentFormsByHorseId({});
       return;
@@ -557,32 +559,39 @@ export default function RaceEntriesPage() {
       new Set(entries.map((entry) => entry.horse_id))
     );
 
-    if (horseIds.length === 0) {
-      setRecentFormsByHorseId({});
-      return;
+    // Keep RPC payloads small and avoid a single oversized request.
+    const batchSize = 100;
+    const batches: string[][] = [];
+    for (let i = 0; i < horseIds.length; i += batchSize) {
+      batches.push(horseIds.slice(i, i + batchSize));
     }
 
-    const { data, error } = await supabase.rpc(
-      "get_horse_recent_forms",
-      {
-        p_horse_ids: horseIds,
-        p_season_id: selectedSeasonId,
+    const nextForms: Record<string, string> = {};
+    for (let i = 0; i < batches.length; i += 4) {
+      const responses = await Promise.all(
+        batches.slice(i, i + 4).map((ids) =>
+          supabase.rpc("get_horse_recent_forms", {
+            p_horse_ids: ids,
+            p_season_id: selectedSeasonId,
+          })
+        )
+      );
+
+      for (const response of responses) {
+        if (response.error) {
+          console.error("Could not load recent forms:", response.error);
+          setRecentFormsLoadError(
+            `Could not load recent forms: ${response.error.message}`
+          );
+          return;
+        }
+        for (const row of (response.data ?? []) as RecentFormRow[]) {
+          nextForms[row.horse_id] = row.recent_form ?? "";
+        }
       }
-    );
-
-    if (error) {
-      console.error("Could not load recent forms:", error);
-      return;
     }
 
-    setRecentFormsByHorseId(
-      Object.fromEntries(
-        ((data ?? []) as RecentFormRow[]).map((row) => [
-          row.horse_id,
-          row.recent_form ?? "",
-        ])
-      )
-    );
+    setRecentFormsByHorseId(nextForms);
   }
 
   async function openRecentFormModal(entry: RaceEntry) {
@@ -1848,6 +1857,12 @@ export default function RaceEntriesPage() {
       {errorMessage && !showModal && !showBulkModal && (
         <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">
           {errorMessage}
+        </div>
+      )}
+
+      {recentFormsLoadError && (
+        <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+          {recentFormsLoadError}
         </div>
       )}
 
