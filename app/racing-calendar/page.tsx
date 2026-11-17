@@ -399,16 +399,64 @@ export default function RacingCalendarPage() {
         y += dateGap;
       }
     }
-    canvas.toBlob(blob => {
-      if (!blob) { setNotice("Could not generate the PNG image."); return; }
+    const fileName = "spring-2026-racecourse-fantasy-calendar.png";
+    const downloadImage = (blob: Blob) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "spring-2026-racecourse-fantasy-calendar.png";
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+    };
+
+    // iPadOS may identify itself as a Mac, so also check for touch-capable Macs.
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    if (isMobile && typeof navigator.share === "function") {
+      try {
+        // IMPORTANT: canvas.toBlob() is asynchronous and may lose the browser's
+        // user activation before navigator.share() is called. Encode the PNG
+        // synchronously so the share request starts within this button click.
+        const dataUrl = canvas.toDataURL("image/png");
+        const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const file = new File([bytes], fileName, { type: "image/png" });
+        const canShareFiles = typeof navigator.canShare !== "function"
+          || navigator.canShare({ files: [file] });
+
+        if (canShareFiles) {
+          // Call synchronously during the original tap; do not await image
+          // conversion or other operations before invoking the share sheet.
+          void navigator.share({
+            title: "Racecourse Fantasy — Racing Calendar",
+            text: "My Racecourse Fantasy racing calendar",
+            files: [file],
+          }).catch((error: unknown) => {
+            if (error instanceof DOMException && error.name === "AbortError") return;
+            console.warn("Calendar native image sharing failed", error);
+            setNotice("Your browser could not open the image share menu. The PNG has been downloaded instead.");
+            downloadImage(file);
+          });
+          return;
+        }
+        setNotice("This browser does not support sharing PNG files. The image has been downloaded instead.");
+        downloadImage(file);
+        return;
+      } catch (error) {
+        console.warn("Could not prepare calendar for native sharing", error);
+        setNotice("Could not open the mobile share menu. Trying a PNG download instead.");
+      }
+    }
+
+    // Keep the original download method on desktop and as a mobile fallback.
+    canvas.toBlob(blob => {
+      if (!blob) { setNotice("Could not generate the PNG image."); return; }
+      downloadImage(blob);
     }, "image/png");
   }
 
