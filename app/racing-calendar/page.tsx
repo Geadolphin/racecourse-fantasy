@@ -297,18 +297,42 @@ export default function RacingCalendarPage() {
       const height = dateHeaderHeight + 4 + meetings.reduce((sum, g) => sum + g.races.length * rowHeight + meetingGap, 0) + dateGap;
       return { dateValue, meetings, headerLines, dateHeaderHeight, height };
     });
-    const target = blocks.reduce((sum, block) => sum + block.height, 0) / columns;
+    // Find the best contiguous division of dates into five columns. Unlike a
+    // greedy average-height cutoff, this considers the remaining dates too,
+    // preventing the final column from becoming much longer than the others.
+    // Each date stays intact and the reading order remains chronological.
     const columnsData: typeof blocks[] = Array.from({ length: columns }, () => []);
-    let column = 0;
-    let used = 0;
-    for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i];
-      if (column < columns - 1 && used > 0 && (used + block.height > target * 1.13 || blocks.length - i <= columns - column - 1)) {
-        column++;
-        used = 0;
+    const usedColumns = Math.min(columns, blocks.length);
+    const prefixHeights = [0];
+    for (const block of blocks) prefixHeights.push(prefixHeights[prefixHeights.length - 1] + block.height);
+    const segmentHeight = (start: number, end: number) => prefixHeights[end] - prefixHeights[start];
+    type Partition = { maxHeight: number; imbalance: number; previous: number };
+    const dp: Array<Array<Partition | null>> = Array.from(
+      { length: usedColumns + 1 }, () => Array<Partition | null>(blocks.length + 1).fill(null),
+    );
+    dp[0][0] = { maxHeight: 0, imbalance: 0, previous: -1 };
+    const averageHeight = prefixHeights[blocks.length] / usedColumns;
+    for (let count = 1; count <= usedColumns; count++) {
+      for (let end = count; end <= blocks.length - (usedColumns - count); end++) {
+        for (let start = count - 1; start < end; start++) {
+          const previous = dp[count - 1][start];
+          if (!previous) continue;
+          const height = segmentHeight(start, end);
+          const candidateMax = Math.max(previous.maxHeight, height);
+          const candidateImbalance = previous.imbalance + (height - averageHeight) ** 2;
+          const current = dp[count][end];
+          if (!current || candidateMax < current.maxHeight ||
+            (candidateMax === current.maxHeight && candidateImbalance < current.imbalance)) {
+            dp[count][end] = { maxHeight: candidateMax, imbalance: candidateImbalance, previous: start };
+          }
+        }
       }
-      columnsData[column].push(block);
-      used += block.height;
+    }
+    let end = blocks.length;
+    for (let count = usedColumns; count > 0; count--) {
+      const start = dp[count][end]?.previous ?? count - 1;
+      columnsData[count - 1] = blocks.slice(start, end);
+      end = start;
     }
     const contentHeight = Math.max(...columnsData.map(col => col.reduce((sum, block) => sum + block.height, 0)));
     const width = margin * 2 + columns * colWidth + (columns - 1) * gap;
