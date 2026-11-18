@@ -21,7 +21,7 @@ const emptyForm: RacecourseForm = {
   city: "",
   is_active: true,
 };
-const australianStates = ["VIC", "NSW"];
+const australianStates = ["VIC", "NSW", "QLD", "SA", "WA", "TAS", "ACT", "NT"];
 export default function AdminRacecoursesPage() {
   const [racecourses, setRacecourses] = useState<RacecourseWithCountry[]>([]);
   const [form, setForm] = useState<RacecourseForm>(emptyForm);
