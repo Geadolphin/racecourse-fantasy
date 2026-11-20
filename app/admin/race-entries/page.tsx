@@ -186,6 +186,8 @@ export default function RaceEntriesPage() {
   const [recentFormValue, setRecentFormValue] = useState("");
   const [recentFormErrorMessage, setRecentFormErrorMessage] = useState("");
   const [recentFormSaving, setRecentFormSaving] = useState(false);
+  const [refreshingRoundId, setRefreshingRoundId] = useState<string | null>(null);
+  const [roundFormResults, setRoundFormResults] = useState<Record<string, { message: string; review: string[]; error: boolean }>>({});
 
   useEffect(() => {
     void loadPageData();
@@ -592,6 +594,32 @@ export default function RaceEntriesPage() {
     }
 
     setRecentFormsByHorseId(nextForms);
+  }
+
+  async function refreshRoundForm(roundId: string) {
+    if (refreshingRoundId) return;
+    setRefreshingRoundId(roundId);
+    setRoundFormResults(current => ({ ...current, [roundId]: { message: "Refreshing form...", review: [], error: false } }));
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session) throw new Error("Please sign in again.");
+      const response = await fetch("/api/admin/refresh-round-form", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+        body: JSON.stringify({ roundId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not refresh round form.");
+      setRoundFormResults(current => ({ ...current, [roundId]: {
+        message: `${result.checked} horses checked · ${result.updated} updated · ${result.unchanged} unchanged`,
+        review: Array.isArray(result.review) ? result.review : [], error: false,
+      } }));
+      await loadRecentForms();
+    } catch (error) {
+      setRoundFormResults(current => ({ ...current, [roundId]: { message: error instanceof Error ? error.message : "Could not refresh round form.", review: [], error: true } }));
+    } finally {
+      setRefreshingRoundId(null);
+    }
   }
 
   async function openRecentFormModal(entry: RaceEntry) {
@@ -1967,6 +1995,26 @@ export default function RaceEntriesPage() {
 
                 {expanded && (
                   <div className="space-y-1 border-t border-slate-200 bg-slate-100/60 p-2 sm:p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <button type="button" disabled={refreshingRoundId !== null}
+                        onClick={() => void refreshRoundForm(round.id)}
+                        className="bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
+                        {refreshingRoundId === round.id ? "Refreshing Round Form..." : "Refresh Round Form"}
+                      </button>
+                      {roundFormResults[round.id] && (
+                        <div role="status" className={`text-xs ${roundFormResults[round.id].error ? "text-red-700" : "text-slate-700"}`}>
+                          {roundFormResults[round.id].message}
+                          {roundFormResults[round.id].review.length > 0 && (
+                            <details className="mt-1">
+                              <summary className="cursor-pointer">Review skipped or unmatched items ({roundFormResults[round.id].review.length})</summary>
+                              <ul className="mt-1 list-disc pl-5">
+                                {roundFormResults[round.id].review.map((item, index) => <li key={index}>{item}</li>)}
+                              </ul>
+                            </details>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     {visibleRoundRaces.length === 0 ? (
                       <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
                         No races have been added to this round.

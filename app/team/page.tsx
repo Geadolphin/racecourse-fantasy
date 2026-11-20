@@ -2098,22 +2098,6 @@ export default function MyTeamPage() {
                   </div>
                 ))}
               </div>
-              {incomingEntries.length > 0 && (
-                <>
-                  <p className="mb-1.5 mt-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Incoming horses ({incomingEntries.length})</p>
-                  {incomingEntries.map((entry) => (
-                    <div key={entry.id} className="mb-1 flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
-                      {showHorseSilks && entry.horse?.silks_url && (
-                        <img src={entry.horse.silks_url} alt={`${entry.horse.name} silks`} className="h-8 w-7 shrink-0 object-contain" />
-                      )}
-                      <span className="min-w-0 flex-1 truncate text-sm font-bold">{entry.horse?.name}</span>
-                      <span className="text-xs font-semibold">{formatCurrency(entry.price_at_entry)}</span>
-                      <button type="button" onClick={() => { setIncomingEntries((previous) => previous.filter((item) => item.id !== entry.id)); if (stagedCaptainEntryId === entry.id) setStagedCaptainEntryId(null); }}
-                        className="rounded px-2 py-1 text-xs font-bold text-red-700">Undo</button>
-                    </div>
-                  ))}
-                </>
-              )}
               <p className="mt-2 text-xs font-bold text-slate-700">{pendingSlots} {pendingSlots === 1 ? "position" : "positions"} remaining</p>
               <div className="mt-2 flex gap-2">
                 <button type="button" onClick={() => void saveReplacements()} disabled={teamActionBusy || incomingEntries.length === 0 || (team?.status === "submitted" && pendingSlots !== 0)}
