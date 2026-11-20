@@ -186,6 +186,8 @@ export default function RaceEntriesPage() {
   const [recentFormValue, setRecentFormValue] = useState("");
   const [recentFormErrorMessage, setRecentFormErrorMessage] = useState("");
   const [recentFormSaving, setRecentFormSaving] = useState(false);
+  const [formMeetings, setFormMeetings] = useState<Record<string, { racecourseId: string; meetingDate: string; name: string; state: string; formUrl: string; started: boolean; draftUrl: string }[]>>({});
+  const [meetingMessages, setMeetingMessages] = useState<Record<string, string>>({});
   const [refreshingRoundId, setRefreshingRoundId] = useState<string | null>(null);
   const [roundFormResults, setRoundFormResults] = useState<Record<string, { message: string; review: string[]; error: boolean }>>({});
 
@@ -596,28 +598,62 @@ export default function RaceEntriesPage() {
     setRecentFormsByHorseId(nextForms);
   }
 
-  async function refreshRoundForm(roundId: string) {
-    if (refreshingRoundId) return;
+  async function formRequest(body: Record<string, unknown>) {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session) throw new Error("Please sign in again.");
+    const response = await fetch("/api/admin/refresh-round-form", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+      body: JSON.stringify(body),
+    });
+    const raw = await response.text();
+    let result;
+    try { result = JSON.parse(raw); } catch { throw new Error(`Server returned HTTP ${response.status}: ${response.status === 504 ? "Meeting refresh timed out" : "Unexpected response"}`); }
+    if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+    return result;
+  }
+
+  async function loadFormMeetings(roundId: string) {
     setRefreshingRoundId(roundId);
-    setRoundFormResults(current => ({ ...current, [roundId]: { message: "Refreshing form...", review: [], error: false } }));
     try {
-      const { data, error } = await supabase.auth.getSession();
-      if (error || !data.session) throw new Error("Please sign in again.");
-      const response = await fetch("/api/admin/refresh-round-form", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
-        body: JSON.stringify({ roundId }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Could not refresh round form.");
-      setRoundFormResults(current => ({ ...current, [roundId]: {
-        message: `${result.checked} horses checked · ${result.updated} updated · ${result.unchanged} unchanged`,
-        review: Array.isArray(result.review) ? result.review : [], error: false,
-      } }));
+      const result = await formRequest({ action: "list", roundId });
+      setFormMeetings(prev => ({ ...prev, [roundId]: result.meetings.map((m: {formUrl: string}) => ({ ...m, draftUrl: m.formUrl })) }));
+      setRoundFormResults(prev => ({ ...prev, [roundId]: { message: "Meeting URLs loaded.", review: [], error: false } }));
+    } catch (e) { setRoundFormResults(prev => ({ ...prev, [roundId]: { message: e instanceof Error ? e.message : String(e), review: [], error: true } })); }
+    finally { setRefreshingRoundId(null); }
+  }
+
+  async function saveFormMeeting(roundId: string, meeting: NonNullable<typeof formMeetings[string]>[number]) {
+    const key = `${roundId}:${meeting.racecourseId}:${meeting.meetingDate}`;
+    setRefreshingRoundId(roundId);
+    try {
+      await formRequest({ action: "save", roundId, racecourseId: meeting.racecourseId, meetingDate: meeting.meetingDate, formUrl: meeting.draftUrl.trim() });
+      setFormMeetings(prev => ({ ...prev, [roundId]: prev[roundId].map(m => m.racecourseId === meeting.racecourseId && m.meetingDate === meeting.meetingDate ? { ...m, formUrl: meeting.draftUrl.trim(), draftUrl: meeting.draftUrl.trim() } : m) }));
+      setMeetingMessages(prev => ({ ...prev, [key]: "URL saved." }));
+    } catch (e) { setMeetingMessages(prev => ({ ...prev, [key]: e instanceof Error ? e.message : String(e) })); }
+    finally { setRefreshingRoundId(null); }
+  }
+
+  async function refreshRoundForm(roundId: string, onlyKey?: string) {
+    if (refreshingRoundId) return;
+    const meetings = (formMeetings[roundId] ?? []).filter(m => !m.started && m.formUrl && m.draftUrl.trim() === m.formUrl && (!onlyKey || onlyKey === `${roundId}:${m.racecourseId}:${m.meetingDate}`));
+    setRefreshingRoundId(roundId);
+    let checked = 0, updated = 0, unchanged = 0, failed = 0;
+    const review: string[] = [];
+    try {
+      for (const m of meetings) {
+        const key = `${roundId}:${m.racecourseId}:${m.meetingDate}`;
+        setMeetingMessages(prev => ({ ...prev, [key]: "Refreshing..." }));
+        try {
+          const result = await formRequest({ action: "refresh", roundId, racecourseId: m.racecourseId, meetingDate: m.meetingDate });
+          checked += result.checked; updated += result.updated; unchanged += result.unchanged;
+          review.push(...(result.review ?? []).map((item: string) => `${m.name}: ${item}`));
+          setMeetingMessages(prev => ({ ...prev, [key]: `${result.checked} checked · ${result.updated} updated · ${result.unchanged} unchanged` }));
+        } catch (e) { failed++; const message = e instanceof Error ? e.message : String(e); review.push(`${m.name}: ${message}`); setMeetingMessages(prev => ({ ...prev, [key]: message })); }
+      }
       await loadRecentForms();
-    } catch (error) {
-      setRoundFormResults(current => ({ ...current, [roundId]: { message: error instanceof Error ? error.message : "Could not refresh round form.", review: [], error: true } }));
-    } finally {
+    } catch (e) { failed++; review.push(String(e)); }
+    finally {
+      setRoundFormResults(prev => ({ ...prev, [roundId]: { message: `${meetings.length} meetings attempted · ${checked} horses checked · ${updated} updated · ${unchanged} unchanged · ${failed} errors`, review, error: failed > 0 } }));
       setRefreshingRoundId(null);
     }
   }
@@ -1996,11 +2032,23 @@ export default function RaceEntriesPage() {
                 {expanded && (
                   <div className="space-y-1 border-t border-slate-200 bg-slate-100/60 p-2 sm:p-3">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <button type="button" disabled={refreshingRoundId !== null}
-                        onClick={() => void refreshRoundForm(round.id)}
-                        className="bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50">
-                        {refreshingRoundId === round.id ? "Refreshing Round Form..." : "Refresh Round Form"}
-                      </button>
+                      <div className="w-full space-y-2 rounded border bg-white p-3">
+                        <h3 className="text-sm font-semibold">Refresh Horse Form</h3>
+                        <button type="button" disabled={refreshingRoundId !== null} onClick={() => void loadFormMeetings(round.id)} className="border px-3 py-2 text-xs disabled:opacity-50">Load meeting URLs</button>
+                        {formMeetings[round.id]?.map(m => {
+                          const key = `${round.id}:${m.racecourseId}:${m.meetingDate}`;
+                          return <div key={key} className="space-y-1 border-t pt-2">
+                            <p className="text-xs font-semibold">{m.name} — {m.meetingDate}{m.started ? " (started)" : ""}</p>
+                            <input aria-label={`${m.name} form URL`} value={m.draftUrl} disabled={refreshingRoundId !== null} placeholder="Racing Australia Form URL" className="w-full rounded border p-2 text-xs" onChange={e => { const value = e.target.value; setFormMeetings(prev => ({ ...prev, [round.id]: prev[round.id].map(row => row.racecourseId === m.racecourseId && row.meetingDate === m.meetingDate ? { ...row, draftUrl: value } : row) })); }} />
+                            <div className="flex gap-2">
+                              <button type="button" disabled={refreshingRoundId !== null} onClick={() => void saveFormMeeting(round.id, m)} className="border px-3 py-2 text-xs disabled:opacity-50">Save URL</button>
+                              <button type="button" disabled={refreshingRoundId !== null || m.started || !m.formUrl || m.draftUrl.trim() !== m.formUrl} onClick={() => void refreshRoundForm(round.id, key)} className="bg-teal-700 px-3 py-2 text-xs text-white disabled:opacity-50">Refresh meeting</button>
+                            </div>
+                            <p role="status" className="text-xs">{meetingMessages[key]}</p>
+                          </div>;
+                        })}
+                        <button type="button" disabled={refreshingRoundId !== null || !(formMeetings[round.id] ?? []).some(m => !m.started && m.formUrl && m.draftUrl.trim() === m.formUrl)} onClick={() => void refreshRoundForm(round.id)} className="bg-teal-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{refreshingRoundId === round.id ? "Working..." : "Refresh Round Form"}</button>
+                      </div>
                       {roundFormResults[round.id] && (
                         <div role="status" className={`text-xs ${roundFormResults[round.id].error ? "text-red-700" : "text-slate-700"}`}>
                           {roundFormResults[round.id].message}
