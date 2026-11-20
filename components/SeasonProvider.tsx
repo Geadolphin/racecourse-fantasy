@@ -35,17 +35,9 @@ type SeasonContextValue = {
 
 const SeasonContext = createContext<SeasonContextValue | null>(null);
 
-const STORAGE_KEY = "racecourse-fantasy-selected-season";
-
-export function SeasonProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function SeasonProvider({ children }: { children: React.ReactNode }) {
   const [seasons, setSeasons] = useState<SiteSeason[]>([]);
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(
-    null
-  );
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [loadingSeasons, setLoadingSeasons] = useState(true);
   const [seasonError, setSeasonError] = useState("");
 
@@ -55,19 +47,17 @@ export function SeasonProvider({
 
     const { data, error } = await supabase
       .from("seasons")
-      .select(
-        `
-          id,
-          name,
-          year,
-          starts_on,
-          ends_on,
-          salary_cap,
-          team_size,
-          is_active,
-          salary_cap_mode
-        `
-      )
+      .select(`
+        id,
+        name,
+        year,
+        starts_on,
+        ends_on,
+        salary_cap,
+        team_size,
+        is_active,
+        salary_cap_mode
+      `)
       .order("is_active", { ascending: false })
       .order("starts_on", { ascending: true });
 
@@ -80,41 +70,20 @@ export function SeasonProvider({
     }
 
     const loadedSeasons = (data ?? []) as SiteSeason[];
-
     setSeasons(loadedSeasons);
 
-    let storedSeasonId: string | null = null;
+    const defaultSeason =
+      loadedSeasons.find((season) => season.is_active) ??
+      loadedSeasons[0] ??
+      null;
 
-    try {
-      storedSeasonId = window.localStorage.getItem(STORAGE_KEY);
-    } catch (error) {
-      console.error("Could not read selected season:", error);
-    }
-
-    const storedSeasonStillAvailable =
-      storedSeasonId !== null &&
-      loadedSeasons.some((season) => season.id === storedSeasonId);
-
-    if (storedSeasonStillAvailable) {
-      setSelectedSeasonId(storedSeasonId);
-    } else {
-      const defaultSeason =
-        loadedSeasons.find((season) => season.is_active) ??
-        loadedSeasons[0] ??
-        null;
-
-      const defaultSeasonId = defaultSeason?.id ?? null;
-
-      setSelectedSeasonId(defaultSeasonId);
-
-      if (defaultSeasonId) {
-        try {
-          window.localStorage.setItem(STORAGE_KEY, defaultSeasonId);
-        } catch (error) {
-          console.error("Could not store selected season:", error);
-        }
-      }
-    }
+    // On initial mount, select the active season. During an in-app
+    // refresh, retain a valid selection made during this visit.
+    setSelectedSeasonId((currentId) =>
+      currentId && loadedSeasons.some((season) => season.id === currentId)
+        ? currentId
+        : defaultSeason?.id ?? null
+    );
 
     setLoadingSeasons(false);
   }, []);
@@ -124,32 +93,14 @@ export function SeasonProvider({
   }, [loadSeasons]);
 
   const selectedSeason = useMemo(() => {
-    if (!selectedSeasonId) {
-      return null;
-    }
-
-    return (
-      seasons.find((season) => season.id === selectedSeasonId) ?? null
-    );
+    if (!selectedSeasonId) return null;
+    return seasons.find((season) => season.id === selectedSeasonId) ?? null;
   }, [seasons, selectedSeasonId]);
 
   const selectSeason = useCallback(
     (seasonId: string) => {
-      const seasonExists = seasons.some(
-        (season) => season.id === seasonId
-      );
-
-      if (!seasonExists) {
-        return;
-      }
-
+      if (!seasons.some((season) => season.id === seasonId)) return;
       setSelectedSeasonId(seasonId);
-
-      try {
-        window.localStorage.setItem(STORAGE_KEY, seasonId);
-      } catch (error) {
-        console.error("Could not store selected season:", error);
-      }
     },
     [seasons]
   );
@@ -164,15 +115,7 @@ export function SeasonProvider({
       selectSeason,
       refreshSeasons: loadSeasons,
     }),
-    [
-      seasons,
-      selectedSeason,
-      selectedSeasonId,
-      loadingSeasons,
-      seasonError,
-      selectSeason,
-      loadSeasons,
-    ]
+    [seasons, selectedSeason, selectedSeasonId, loadingSeasons, seasonError, loadSeasons]
   );
 
   return (
@@ -184,12 +127,8 @@ export function SeasonProvider({
 
 export function useSeason() {
   const context = useContext(SeasonContext);
-
   if (!context) {
-    throw new Error(
-      "useSeason must be used inside a SeasonProvider."
-    );
+    throw new Error("useSeason must be used inside a SeasonProvider.");
   }
-
   return context;
 }
