@@ -7,10 +7,9 @@ import { supabase } from "@/lib/supabase";
 
 import type { ResultStatus } from "@/types/race-result";
 
-type MeetingRegion = "melbourne" | "sydney";
 type MeetingConfig = {
   round_id: string;
-  region: MeetingRegion;
+  racecourse_id: string;
   results_url: string;
   enabled: boolean;
 };
@@ -63,6 +62,8 @@ type RaceOption = {
   racecourse?: {
     id: string;
     name: string;
+    state: string | null;
+    country: string;
   } | null;
 };
 
@@ -191,7 +192,7 @@ export default function ResultsPage() {
 
   async function loadImporterData() {
     const [configs, logs] = await Promise.all([
-      supabase.from("round_results_sources").select("round_id, region, results_url, enabled"),
+      supabase.from("round_results_sources").select("round_id, racecourse_id, results_url, enabled"),
       supabase.from("race_result_import_logs").select("race_id, status, message, checked_at")
         .order("checked_at", { ascending: false }).limit(500),
     ]);
@@ -203,23 +204,34 @@ export default function ResultsPage() {
     setImportLogs((logs.data ?? []) as ImportLog[]);
   }
 
-  function editMeetingUrl(roundId: string, region: MeetingRegion, url: string) {
+  function editMeetingUrl(roundId: string, courseId: string, url: string) {
     setMeetingConfigs(current => [
-      ...current.filter(x => !(x.round_id === roundId && x.region === region)),
-      { round_id: roundId, region, results_url: url, enabled: true },
+      ...current.filter(x => !(x.round_id === roundId && x.racecourse_id === courseId)),
+      { round_id: roundId, racecourse_id: courseId, results_url: url, enabled: true },
     ]);
   }
 
-  async function saveMeetingUrl(roundId: string, region: MeetingRegion) {
-    const config = meetingConfigs.find(x => x.round_id === roundId && x.region === region);
-    if (!config?.results_url) { setErrorMessage("Enter a results URL first."); return; }
-    setSavingMeeting(`${roundId}:${region}`);
-    const { error } = await supabase.from("round_results_sources").upsert({
-      round_id: roundId, region, results_url: config.results_url.trim(), enabled: true,
-    }, { onConflict: "round_id,region" });
-    setSavingMeeting("");
-    if (error) setErrorMessage(error.message);
-    else setSuccessMessage(`${region} URL saved.`);
+  async function saveMeetingUrl(roundId: string, courseId: string, courseName: string) {
+    const config = meetingConfigs.find(x => x.round_id === roundId && x.racecourse_id === courseId);
+    const url = config?.results_url.trim();
+    setErrorMessage("");
+    setSuccessMessage("");
+    if (!url) { setErrorMessage("Enter a results URL first."); return; }
+    if (!url.startsWith("https://www.racingaustralia.horse/FreeFields/Results.aspx?Key=")) {
+      setErrorMessage("Enter a valid Racing Australia results URL.");
+      return;
+    }
+    setSavingMeeting(`${roundId}:${courseId}`);
+    try {
+      const { error } = await supabase.from("round_results_sources").upsert({
+        round_id: roundId, racecourse_id: courseId, results_url: url, enabled: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "round_id,racecourse_id" });
+      if (error) setErrorMessage(error.message);
+      else setSuccessMessage(`${courseName} URL saved.`);
+    } finally {
+      setSavingMeeting("");
+    }
   }
 
   async function checkRaceNow(raceId: string) {
@@ -300,7 +312,9 @@ export default function ResultsPage() {
           status,
           racecourse:racecourses (
             id,
-            name
+            name,
+            state,
+            country
           )
         `)
         .order("scheduled_start", { ascending: false }),
@@ -1727,6 +1741,11 @@ export default function ResultsPage() {
         : <div className="space-y-4">
           {visibleRounds.map((round) => {
             const roundRaces = racesByRoundId.get(round.id) ?? [];
+            const meetingCourses = Array.from(new Map(roundRaces.flatMap(race => {
+              const course = race.racecourse;
+              return course?.country === "Australia" && course.state?.trim()
+                ? [[course.id, course] as const] : [];
+            })).values());
             const shownRaces = roundRaces.filter((race) => raceFilter === "all" || (raceFilter === "official" ? race.status === "official" : race.status !== "official" && race.status !== "cancelled" && race.status !== "abandoned"));
             const expanded = expandedRoundIds.has(round.id);
             const isLatestView = visibleRoundId !== "all";
@@ -1744,15 +1763,16 @@ export default function ResultsPage() {
               </div>
 
               {showMeetingSettings && <div className="grid gap-3 border-b bg-slate-50 p-4 md:grid-cols-2">
-                {(["melbourne", "sydney"] as const).map((region) => {
-                  const config = meetingConfigs.find((c) => c.round_id === round.id && c.region === region);
-                  const key = `${round.id}:${region}`;
-                  return <label key={region} className="block text-xs font-semibold capitalize text-slate-700">
-                    {region} results URL
-                    <input type="url" value={config?.results_url ?? ""} onChange={(event) => editMeetingUrl(round.id, region, event.target.value)}
+                {meetingCourses.length === 0 && <p className="text-xs text-slate-500 md:col-span-2">No Australian racecourses with a state configured. Use manual results entry.</p>}
+                {meetingCourses.map((course) => {
+                  const config = meetingConfigs.find((c) => c.round_id === round.id && c.racecourse_id === course.id);
+                  const key = `${round.id}:${course.id}`;
+                  return <label key={course.id} className="block text-xs font-semibold capitalize text-slate-700">
+                    {course.name} ({course.state}) results URL
+                    <input type="url" value={config?.results_url ?? ""} onChange={(event) => editMeetingUrl(round.id, course.id, event.target.value)}
                       placeholder="https://www.racingaustralia.horse/FreeFields/Results.aspx?Key=..."
                       className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm font-normal" />
-                    <button type="button" onClick={() => void saveMeetingUrl(round.id, region)} disabled={savingMeeting === key}
+                    <button type="button" onClick={() => void saveMeetingUrl(round.id, course.id, course.name)} disabled={Boolean(savingMeeting)}
                       className="mt-2 rounded-lg bg-green-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
                       {savingMeeting === key ? "Saving..." : "Save URL"}
                     </button>
