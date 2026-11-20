@@ -19,6 +19,7 @@ type Round = {
   name: string | null;
   status: string;
   lockout_at: string;
+  max_horses_per_race: number | null;
 };
 type Horse = {
   id: string;
@@ -429,13 +430,13 @@ export default function MyTeamPage() {
   const [replacementMode, setReplacementMode] = useState(false);
   const [outgoingSelections, setOutgoingSelections] = useState<TeamSelection[]>([]);
   const [incomingEntries, setIncomingEntries] = useState<Array<{
-    id: string; horse_id: string; saddlecloth_number: number | null; price_at_entry: number; projected_points: number | null;
+    id: string; race_id: string; horse_id: string; saddlecloth_number: number | null; price_at_entry: number; projected_points: number | null;
     entry_status: string; horse: { name: string; silks_url: string | null } | null;
     race: { race_name: string; race_number: number; grade: Race["grade"]; scheduled_start: string; racecourse: Racecourse | null } | null;
   }>>([]);
   const [stagedCaptainEntryId, setStagedCaptainEntryId] = useState<string | null>(null);
   const [replacementEntries, setReplacementEntries] = useState<Array<{
-    id: string; horse_id: string; saddlecloth_number: number | null; price_at_entry: number; projected_points: number | null;
+    id: string; race_id: string; horse_id: string; saddlecloth_number: number | null; price_at_entry: number; projected_points: number | null;
     entry_status: string; horse: { name: string; silks_url: string | null } | null;
     race: { race_name: string; race_number: number; grade: Race["grade"]; scheduled_start: string; racecourse: Racecourse | null } | null;
   }>>([]);
@@ -452,7 +453,7 @@ export default function MyTeamPage() {
     if (raceIds.length === 0) return [] as typeof replacementEntries;
 
     const { data, error } = await supabase.from("race_entries")
-      .select(`id, horse_id, saddlecloth_number, price_at_entry, projected_points, entry_status,
+      .select(`id, race_id, horse_id, saddlecloth_number, price_at_entry, projected_points, entry_status,
         horse:horses(name, silks_url),
         race:races(race_name, race_number, grade, scheduled_start,
           racecourse:racecourses(name))`)
@@ -510,6 +511,7 @@ export default function MyTeamPage() {
   }, []);
   useEffect(() => {
     if (!newTeamDirty || team || !round || lockoutHasStarted || newTeamEntries.length === 0) return;
+    if (raceLimitError(newTeamEntries.map((entry) => entry.race_id))) return;
     setNewTeamAutoSaveStatus("pending");
     const timer = window.setTimeout(() => {
       newTeamAutoSaveQueued.current = {
@@ -546,6 +548,8 @@ export default function MyTeamPage() {
   }, [team?.id, round?.id, fetchRoundHorseEntries]);
   async function saveNewTeamDraft() {
     if (!round || newTeamSaving || lockoutHasStarted || newTeamEntries.length === 0) return;
+    const limitError = raceLimitError(newTeamEntries.map((entry) => entry.race_id));
+    if (limitError) { setNewTeamError(limitError); return; }
     setNewTeamSaving(true);
     setNewTeamError("");
     try {
@@ -827,7 +831,19 @@ export default function MyTeamPage() {
       setLoading(false);
       return;
     }
-    setRound(teamData.round);
+    // Read the configuration directly; the existing RPC may not expose the new column.
+    const { data: roundConfig, error: roundConfigError } = await supabase
+      .from("rounds")
+      .select("max_horses_per_race")
+      .eq("id", teamData.round.id)
+      .single();
+    if (roundConfigError || !roundConfig) {
+      setRound(null);
+      setErrorMessage(roundConfigError?.message ?? "Unable to load round selection rules.");
+      setLoading(false);
+      return;
+    }
+    setRound({ ...teamData.round, max_horses_per_race: roundConfig.max_horses_per_race });
     setSeason(teamData.season);
     setTeam(teamData.team);
     // Load the user's round and overall ranks for the share card.
@@ -1112,6 +1128,8 @@ export default function MyTeamPage() {
     action: "captain" | "remove"
   ) {
     if (!round || !team || !editButtonVisible || teamActionBusy) return;
+    const limitError = raceLimitError(nextSelections.map((selection) => selection.race_entry?.race_id));
+    if (limitError) { setTeamActionError(limitError); return; }
     setTeamActionBusy(true);
     setTeamActionError("");
     setTeamActionSuccess("");
@@ -1168,6 +1186,7 @@ export default function MyTeamPage() {
   useEffect(() => {
     if (!round || !team || team.status !== "draft" || lockoutHasStarted ||
         selections.length !== (season?.team_size ?? 10)) return;
+    if (raceLimitError(selections.map((selection) => selection.race_entry?.race_id))) return;
     const captainId = selections.find((selection) => selection.is_captain)?.race_entry_id;
     if (!captainId || autoSubmitInFlight.current === round.id) return;
     autoSubmitInFlight.current = round.id;
@@ -1198,9 +1217,29 @@ export default function MyTeamPage() {
     ...incomingEntries.map((entry) => entry.horse_id),
   ]);
 
+  const raceLimit = round?.max_horses_per_race ?? null;
+  const draftRaceIds = [
+    ...selections.filter((selection) => !outgoingSelections.some((out) => out.id === selection.id))
+      .map((selection) => selection.race_entry?.race_id),
+    ...incomingEntries.map((entry) => entry.race_id),
+  ];
+  function raceLimitError(raceIds: (string | undefined)[]) {
+    if (raceLimit === null) return "";
+    const counts = new Map<string, number>();
+    for (const raceId of raceIds) {
+      if (!raceId) return "Unable to verify race selection limits. Refresh the page.";
+      const count = (counts.get(raceId) ?? 0) + 1;
+      if (count > raceLimit) return `Maximum ${raceLimit} horses per race for this round.`;
+      counts.set(raceId, count);
+    }
+    return "";
+  }
+
   function stageReplacement(entry: (typeof replacementEntries)[number]) {
     if (pendingSlots <= 0 || draftHorseIds.has(entry.horse_id) || entry.entry_status !== "runner") return;
     if (draftSalary + entry.price_at_entry > salaryCap) return;
+    const limitError = raceLimitError([...draftRaceIds, entry.race_id]);
+    if (limitError) { setReplacementError(limitError); return; }
     setIncomingEntries((previous) => [...previous, entry]);
     setReplacementError("");
   }
@@ -1215,6 +1254,8 @@ export default function MyTeamPage() {
   async function saveReplacements() {
     if (!round || teamActionBusy || (outgoingSelections.length === 0 && vacantDraftSlots === 0) || (team?.status === "submitted" && pendingSlots !== 0) || incomingEntries.length === 0) return;
     const retained = selections.filter((selection) => !outgoingSelections.some((out) => out.id === selection.id));
+    const limitError = raceLimitError([...retained.map((selection) => selection.race_entry?.race_id), ...incomingEntries.map((entry) => entry.race_id)]);
+    if (limitError) { setReplacementError(limitError); return; }
     const entryIds = [...retained.map((selection) => selection.race_entry_id), ...incomingEntries.map((entry) => entry.id)];
     const previousCaptain = selections.find((selection) => selection.is_captain);
     const captainOutgoingIndex = outgoingSelections.findIndex((selection) => selection.is_captain);
