@@ -3,55 +3,386 @@ import { createClient } from "@supabase/supabase-js";
 import * as cheerio from "cheerio";
 export const runtime = "nodejs";
 export const maxDuration = 60;
-const zones: Record<string,string> = { VIC:'Australia/Melbourne', NSW:'Australia/Sydney', WA:'Australia/Perth', SA:'Australia/Adelaide', QLD:'Australia/Brisbane', TAS:'Australia/Hobart', ACT:'Australia/Canberra', NT:'Australia/Darwin' };
-const aliases: Record<string,string[]> = { Cranbourne:['Southside Cranbourne','Cranbourne'], Randwick:['Royal Randwick','Randwick'], Rosehill:['Rosehill Gardens','Rosehill'], Sandown:['Sportsbet Sandown Hillside','Sportsbet Sandown Lakeside','Sandown Hillside','Sandown Lakeside'] };
-const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function normal(name:string) { return name.normalize('NFKC').replace(/\s*\([A-Za-z]{2,3}\)\s*$/g,'').replace(/[^\p{L}\p{N}]/gu,'').toUpperCase(); }
-function localDate(date:string,zone:string) { const p = new Intl.DateTimeFormat('en-GB',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(date)); const get=(t:string)=>p.find(x=>x.type===t)?.value ?? ''; return `${get('year')}-${get('month')}-${get('day')}`; }
-function priorDate(date:string) { const d=new Date(date+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-1); return d.toISOString().slice(0,10); }
-function meetingUrl(date:string,state:string,course:string) { const [y,m,d]=date.split('-'); const url=new URL('https://www.racingaustralia.horse/FreeFields/Form.aspx'); url.searchParams.set('Key',`${y}${months[Number(m)-1]}${d},${state},${course}`); return url; }
-function parse(html:string) {
- const $=cheerio.load(html); const races=new Map<number,Map<string,string|null>>();
- for(const node of $('table.race-title').toArray()) {
-  const title=$(node); const n=Number((title.find('.raceNum').first().text()||title.find('th').first().text()).match(/\b(?:race|r)\s*(?:no\.?\s*)?(\d{1,2})\b/i)?.[1]);
-  if(!n||races.has(n)) continue;
-  let strip=title.next(); while(strip.length&&!strip.is('table.race-title,table.race-strip-fields')) strip=strip.next();
-  if(!strip.is('table.race-strip-fields')) continue;
-  const header=strip.find('tr').filter((_i,e)=>$(e).children('th,td').toArray().some(c=>/^last\s*10$/i.test($(c).text().trim()))).first();
-  const idx=header.children('th,td').toArray().findIndex(c=>/^last\s*10$/i.test($(c).text().trim()));
-  const runners=new Map<string,string|null>();
-  strip.find('tr').each((_i,e)=>{ const row=$(e); const name=normal(row.find('td.horse a').first().text()); if(!name)return; const raw=(idx>=0?row.children('td').eq(idx).text():row.find('td.last10,td.last-10,td.Last10').first().text()).replace(/\s+/g,'').replace(/x/gi,'-'); const form=/^[0-9-]+$/.test(raw)&&/[0-9]/.test(raw)?raw.slice(-5):null; runners.set(name,runners.has(name)?null:form); });
-  races.set(n,runners);
- }
- return races;
+const PRICE_LEVELS: [number, number][] = [
+  [30000000,800000],[25000000,750000],[20000000,700000],[18000000,680000],
+  [16000000,660000],[14000000,640000],[12000000,620000],[10000000,600000],
+  [9000000,590000],[8000000,580000],[7000000,570000],[6000000,560000],
+  [5000000,550000],[4500000,540000],[4000000,530000],[3500000,520000],
+  [3000000,510000],[2500000,500000],[2000000,480000],[1500000,450000],
+  [1000000,420000],[950000,400000],[900000,380000],[850000,360000],
+  [800000,340000],[750000,320000],[700000,300000],[650000,270000],
+  [600000,240000],[550000,220000],[500000,210000],[450000,200000],
+  [400000,190000],[375000,180000],[350000,170000],[325000,160000],
+  [300000,150000],[275000,140000],[250000,130000],[225000,120000],
+  [200000,110000],[175000,100000],[150000,90000],[125000,80000],
+  [100000,70000],[75000,60000],[50000,50000],[25000,40000],[0,30000],
+];
+type Runner = { name: string; profileUrl: string | null; silkUrl: string | null; raceNumber: number; prizeMoney: number | null; saddleclothNumber: number | null; barrier: number | null; scratched: boolean; recentForm: string | null };
+type SiteRace = { number: number; runners: Runner[] };
+type DbRace = { id: string; race_number: number; race_name: string | null; racecourse_id: string | null };
+type Review = { name: string; reason: string };
+function normal(name: string): string {
+  return name.normalize("NFKC").replace(/\s*\([A-Za-z]{2,3}\)\s*$/g, "").replace(/[^\p{L}\p{N}]/gu, "").toUpperCase();
 }
-async function fetchMeeting(url:URL) { const r=await fetch(url,{cache:'no-store',redirect:'manual',signal:AbortSignal.timeout(7000),headers:{Accept:'text/html','User-Agent':'RacecourseFantasyImporter/1.0'}}); if(!r.ok||!r.headers.get('content-type')?.includes('text/html')) throw new Error(`Meeting unavailable (${r.status})`); const html=await r.text(); if(html.length>3000000)throw new Error('Meeting too large'); return parse(html); }
-export async function POST(request:NextRequest) {
- try {
- const url=process.env.NEXT_PUBLIC_SUPABASE_URL, anon=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, key=process.env.SUPABASE_SERVICE_ROLE_KEY;
- if(!url||!anon||!key)throw new Error('Missing Supabase configuration');
- const token=request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1]; if(!token)return NextResponse.json({error:'Sign in required'},{status:401});
- const auth=createClient(url,anon,{auth:{persistSession:false}}); const identity=await auth.auth.getUser(token); if(identity.error||!identity.data.user)return NextResponse.json({error:'Invalid session'},{status:401});
- const admin=createClient(url,key,{auth:{persistSession:false}}); const profile=await admin.from('profiles').select('is_admin').eq('id',identity.data.user.id).single(); if(profile.error||profile.data?.is_admin!==true)return NextResponse.json({error:'Administrator access required'},{status:403});
- const body=await request.json(); const roundId=String(body.roundId??''); if(!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(roundId))return NextResponse.json({error:'Invalid round'},{status:400});
- const round=await admin.from('rounds').select('id,season_id').eq('id',roundId).single(); if(round.error)throw round.error; const seasonId=round.data.season_id;
- const rr=await admin.from('races').select('id,race_number,scheduled_start,status,racecourse_id').eq('round_id',roundId); if(rr.error)throw rr.error;
- const courses=await admin.from('racecourses').select('id,name,state,country').in('id',[...new Set(rr.data.map(r=>r.racecourse_id))]); if(courses.error)throw courses.error;
- const review:string[]=[]; const candidates=new Map<string,{horse_id:string;season_id:string;baseline_form:string;baseline_date:string}>(); const ambiguous=new Set<string>(); const checked=new Set<string>(); const cache=new Map<string,ReturnType<typeof fetchMeeting>>();
- for(const race of rr.data) {
- const course=courses.data.find(c=>c.id===race.racecourse_id); if(!course||course.country!=='Australia'||!zones[course.state]){review.push(`Race ${race.race_number}: unsupported course`);continue;}
- if(race.status==='official'||Date.parse(race.scheduled_start)<=Date.now()){review.push(`${course.name} race ${race.race_number}: started or completed`);continue;}
- const entries=await admin.from('race_entries').select('horse_id,horse:horses(name)').eq('race_id',race.id); if(entries.error)throw entries.error;
- const names=entries.data.map(e=>({id:e.horse_id,name:normal(String((Array.isArray(e.horse)?e.horse[0]:e.horse)?.name??''))})); names.forEach(e=>checked.add(e.id)); if(!names.length)continue;
- const date=localDate(race.scheduled_start,zones[course.state]); if(date!==localDate(new Date().toISOString(),zones[course.state])&&date<localDate(new Date().toISOString(),zones[course.state]))continue;
- // A same-day meeting may have already produced results for another horse. Never refresh once any race in this meeting has started.
- if(rr.data.some(r=>r.racecourse_id===race.racecourse_id&&localDate(r.scheduled_start,zones[course.state])===date&&Date.parse(r.scheduled_start)<=Date.now())){review.push(`${course.name}: meeting already started`);continue;}
- const pages=await Promise.all((aliases[course.name]??[course.name]).map(async name=>{const u=meetingUrl(date,course.state,name); const k=u.toString(); if(!cache.has(k))cache.set(k,fetchMeeting(u)); try{return (await cache.get(k))?.get(race.race_number);}catch{return undefined;}}));
- const valid=pages.filter(p=>p&&names.every(n=>n.name&&p.has(n.name))); if(!valid.length){review.push(`${course.name} race ${race.race_number}: no fully matched field`);continue;}
- for(const horse of names){const forms=[...new Set(valid.map(p=>p?.get(horse.name)))]; if(forms.length!==1||!forms[0]){review.push(`${horse.name}: missing or ambiguous form`);continue;} const row={horse_id:horse.id,season_id:seasonId,baseline_form:forms[0],baseline_date:priorDate(date)}; const old=candidates.get(horse.id); if(old&&(old.baseline_form!==row.baseline_form||old.baseline_date!==row.baseline_date))ambiguous.add(horse.id); else candidates.set(horse.id,row);}
- }
- let updated=0,unchanged=0; for(const id of ambiguous){candidates.delete(id);review.push(`${id}: conflicting meeting form`);}
- for(const row of candidates.values()) { const existing=await admin.from('horse_form_display_baselines').select('baseline_date,baseline_form').eq('horse_id',row.horse_id).eq('season_id',seasonId).maybeSingle(); if(existing.error){review.push(existing.error.message);continue;} if((existing.data?.baseline_date??'')>row.baseline_date||(existing.data?.baseline_date===row.baseline_date&&existing.data?.baseline_form===row.baseline_form)){unchanged++;continue;} const result=await admin.from('horse_form_display_baselines').upsert({...row,updated_at:new Date().toISOString()},{onConflict:'horse_id,season_id'}); if(result.error)review.push(result.error.message);else updated++; }
- return NextResponse.json({checked:checked.size,updated,unchanged,review});
- } catch(error){return NextResponse.json({error:error instanceof Error?error.message:String((error as {message?:string})?.message??error)},{status:500});}
+// Display names in title case while preserving the original matching key.
+function formatHorseName(name: string): string {
+  return name.replace(/\s*\([A-Za-z]{2,3}\)\s*$/g, "").trim().toLocaleLowerCase("en-AU").replace(/(^|[^\p{L}])([\p{L}])/gu, (_match, prefix: string, letter: string) =>
+    prefix + letter.toLocaleUpperCase("en-AU")
+  );
+}
+function priceFor(money: number): number {
+  return PRICE_LEVELS.find(([threshold]) => money >= threshold)?.[1] ?? 30000;
+}
+function sourceUrl(raw: string, kind: "meeting" | "profile" | "image"): URL {
+  const url = new URL(raw);
+  if (url.protocol !== "https:" || !(kind === "image" ? ["www.racingaustralia.horse", "racingaustralia.horse"].includes(url.hostname.toLowerCase()) : url.hostname.toLowerCase() === "www.racingaustralia.horse") || url.username || url.password || url.port) {
+    throw new Error("Only HTTPS Racing Australia URLs are permitted.");
+  }
+  if (kind === "meeting") {
+    if (!/^\/FreeFields\/(Form|Acceptances)\.aspx$/i.test(url.pathname) ||
+        !/^\d{4}[A-Za-z]{3}\d{2},[A-Za-z]{2,3},.+$/.test(url.searchParams.get("Key") ?? "")) {
+      throw new Error("Provide a Racing Australia Form.aspx or Acceptances.aspx meeting URL with a valid Key.");
+    }
+  } else if (kind === "profile" && !/^\/InteractiveForm\/HorseFullForm\.aspx$/i.test(url.pathname)) {
+    throw new Error("Unsupported horse profile URL.");
+  } else if (kind === "image" && !/\.(png|jpe?g|webp)(?:$)/i.test(url.pathname)) {
+    throw new Error("Unsupported silks image URL.");
+  }
+  return url;
+}
+async function getHtml(url: URL): Promise<string> {
+  const response = await fetch(url.toString(), {
+    headers: { Accept: "text/html", "User-Agent": "RacecourseFantasyImporter/1.0" },
+    redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(12000),
+  });
+  if (!response.ok) throw new Error(`Racing Australia returned HTTP ${response.status}.`);
+  if (!(response.headers.get("content-type") ?? "").toLowerCase().includes("text/html")) throw new Error("Source did not return HTML.");
+  if (Number(response.headers.get("content-length") ?? 0) > 3_000_000) throw new Error("HTML is too large.");
+  const html = await response.text();
+  if (html.length > 3_000_000) throw new Error("HTML is too large.");
+  return html;
+}
+function absoluteSource(href: string | undefined, base: URL, kind: "profile" | "image"): string | null {
+  if (!href) return null;
+  try { return sourceUrl(new URL(href, base).toString(), kind).toString(); } catch { return null; }
+}
+function raceNumber(text: string): number | null {
+  const match = text.match(/\b(?:race|r)\s*(?:no\.?\s*)?(\d{1,2})\b/i);
+  return match ? Number(match[1]) : null;
+}
+// Racing Australia Form.aspx places each race in a race-title table followed by
+// race-strip-fields and individual horse-form-table siblings. These are NOT nested.
+// Extract each runner only from its own form table, never from historical form links.
+function parseMeeting(html: string, base: URL): SiteRace[] {
+  const $ = cheerio.load(html);
+  const found = new Map<number, SiteRace>();
+  for (const titleNode of $("table.race-title").toArray()) {
+    const title = $(titleNode);
+    const number = raceNumber(title.find(".raceNum").first().text() || title.find("th").first().text());
+    if (!number || found.has(number)) continue;
+    const runners: Runner[] = [];
+    let sibling = title.next();
+    while (sibling.length && !sibling.is("table.race-title")) {
+      if (sibling.is("table.horse-form-table")) {
+        const nameLink = sibling.find(".horse-info .horse-name a[href]").first();
+        const name = nameLink.text().replace(/\s+/g, " ").trim();
+        const profileUrl = absoluteSource(nameLink.attr("href"), base, "profile");
+        if (name && name.length <= 80) {
+          const silkUrl = absoluteSource(sibling.find(".Silks img[src]").first().attr("src"), base, "image");
+          const prizeMoney = prizeMoneyFromText(sibling.text());
+          const saddleclothText = sibling.find(".horse-number").first().text().trim();
+          const saddleclothNumber = Number(saddleclothText.match(/^\d+/)?.[0] ?? NaN);
+          const barrierMatch = sibling.text().match(/\bBarrier\s*:\s*(\d+)/i);
+          const barrier = barrierMatch ? Number(barrierMatch[1]) : null;
+          const stripRow = title.nextAll("table.race-strip-fields").first().find("tr").filter((_i, el) =>
+            normal($(el).find("td.horse a").first().text()) === normal(name)
+          ).first();
+          const scratched = stripRow.hasClass("Scratched");
+          const strip = stripRow.closest("table");
+          const header = strip.find("tr").filter((_i, el) => $(el).children("th").toArray().some(cell => /^last\s*10$/i.test($(cell).text().trim()))).first();
+          const formIndex = header.children("th,td").toArray().findIndex(cell => /^last\s*10$/i.test($(cell).text().trim()));
+          const rawForm = (formIndex >= 0 ? stripRow.children("td").eq(formIndex).text() : stripRow.find("td.last10,td.last-10,td.Last10").first().text()).trim().replace(/\s+/g, "").replace(/x/gi, "-");
+          const recentForm = /^[0-9-]+$/.test(rawForm) && /[0-9]/.test(rawForm) ? rawForm.slice(-5) : null;
+          runners.push({ name, profileUrl, silkUrl, raceNumber: number, prizeMoney,
+            saddleclothNumber: Number.isInteger(saddleclothNumber) ? saddleclothNumber : null,
+            barrier, scratched, recentForm });
+        }
+      }
+      sibling = sibling.next();
+    }
+    if (runners.length) {
+      found.set(number, { number, runners: [...new Map(runners.map(r => [normal(r.name), r])).values()] });
+    }
+  }
+  return [...found.values()];
+}
+function prizeMoneyFromText(text: string): number | null {
+
+  // Racing Australia uses different career-prizemoney labels across pages.
+
+  // Only match an explicitly labelled amount; never confuse race prize pools
+
+  // or an unlabelled dollar amount with a horse's career earnings.
+
+  const clean = text.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+
+  const patterns = [
+
+    /\b(?:career\s+)?prize\s*money\s*[:\-]?\s*(?:AUD\s*)?(?:A\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)/i,
+
+    /\b(?:career\s+)?prizemoney\s*[:\-]?\s*(?:AUD\s*)?(?:A\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)/i,
+
+    /\bcareer\s+(?:stakes|earnings)\s*[:\-]?\s*(?:AUD\s*)?(?:A\s*)?\$\s*([\d,]+(?:\.\d{1,2})?)/i,
+
+    /\b(?:career\s+)?prize\s*money\s*[:\-]?\s*(?:AUD\s*)?([\d,]+(?:\.\d{1,2})?)/i,
+
+    /\b(?:career\s+)?prizemoney\s*[:\-]?\s*(?:AUD\s*)?([\d,]+(?:\.\d{1,2})?)/i,
+
+  ];
+
+  for (const pattern of patterns) {
+
+    const match = clean.match(pattern);
+
+    if (!match) continue;
+
+    const money = Number(match[1].replace(/,/g, ""));
+
+    if (Number.isFinite(money) && money >= 0) return money;
+
+  }
+
+  return null;
+
+}
+function profileDetails(html: string, base: URL): { prizeMoney: number | null; silkUrl: string | null } {
+  const $ = cheerio.load(html);
+  const img = $(".Silks img[src]").first();
+  return { prizeMoney: prizeMoneyFromText($("body").text()), silkUrl: absoluteSource(img.attr("src"), base, "image") };
+}
+export async function POST(request: NextRequest) {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !anonKey || !serviceKey) throw new Error("Missing server Supabase environment variables.");
+    const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!token) return NextResponse.json({ error: "Sign in before importing." }, { status: 401 });
+    const auth = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } });
+    const { data: identity, error: authError } = await auth.auth.getUser(token);
+    if (authError || !identity.user) return NextResponse.json({ error: "Invalid session." }, { status: 401 });
+    const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    const { data: profile, error: profileError } = await admin.from("profiles").select("is_admin").eq("id", identity.user.id).single();
+    if (profileError || profile?.is_admin !== true) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+    const body = await request.json();
+    const seasonId = String(body?.seasonId ?? "");
+    const roundId = String(body?.roundId ?? "");
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuid.test(seasonId) || !uuid.test(roundId)) return NextResponse.json({ error: "Select a valid season and round." }, { status: 400 });
+    const meetingUrl = sourceUrl(String(body?.url ?? body?.meetingUrl ?? ""), "meeting");
+    const dateKey = (meetingUrl.searchParams.get("Key") ?? "").split(",")[0];
+    const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+    const month = months.indexOf(dateKey.slice(4,7).toLowerCase());
+    const meetingDate = new Date(Date.UTC(Number(dateKey.slice(0,4)), month, Number(dateKey.slice(7,9))));
+    if (month < 0 || meetingDate.getUTCMonth() !== month || meetingDate.getUTCDate() !== Number(dateKey.slice(7,9))) throw new Error("Invalid meeting date.");
+    // Baseline is pre-race: include competition results from the meeting day.
+    meetingDate.setUTCDate(meetingDate.getUTCDate() - 1);
+    const baselineDate = meetingDate.toISOString().slice(0,10);
+    const [{ data: round, error: roundError }, { data: dbRaces, error: racesError }] = await Promise.all([
+      admin.from("rounds").select("id,season_id,name").eq("id", roundId).eq("season_id", seasonId).single(),
+      admin.from("races").select("id,race_number,race_name,racecourse_id").eq("round_id", roundId),
+    ]);
+    if (roundError || !round) return NextResponse.json({ error: "Round does not belong to the selected season." }, { status: 400 });
+    if (racesError) throw racesError;
+    const races = (dbRaces ?? []) as DbRace[];
+    if (!races.length) return NextResponse.json({ error: "No races have been entered for this round." }, { status: 422 });
+    const courseIds = [...new Set(races.map(r => r.racecourse_id).filter((id): id is string => Boolean(id)))];
+    const { data: courseRows, error: courseError } = await admin.from("racecourses").select("id,name").in("id", courseIds.length ? courseIds : ["00000000-0000-0000-0000-000000000000"]);
+    if (courseError) throw courseError;
+    const courseNameById = new Map((courseRows ?? []).map(c => [String(c.id), String(c.name)]));
+    const meetingCourse = (meetingUrl.searchParams.get("Key") ?? "").split(",").slice(2).join(",").trim();
+    // Racing Australia uses "Royal Randwick" while the app may store "Randwick".
+    // Keep this alias explicit so unrelated racecourses cannot be matched accidentally.
+    const racecourseAliases: Record<string, string> = {
+      ROYALRANDWICK: "RANDWICK",
+
+      ROSEHILLGARDENS: "ROSEHILL",
+
+      SOUTHSIDECRANBOURNE: "CRANBOURNE",
+
+      SPORTSBETSANDOWNHILLSIDE: "SANDOWN",
+
+      SANDOWNHILLSIDE: "SANDOWN",
+
+      SANDOWNLAKESIDE: "SANDOWN",
+    };
+    const canonicalCourse = (name: string): string => {
+      const key = normal(name);
+      return racecourseAliases[key] ?? key;
+    };
+    const meetingCourseKey = canonicalCourse(meetingCourse);
+    const courseRaces = races.filter(r => r.racecourse_id && canonicalCourse(courseNameById.get(r.racecourse_id) ?? "") === meetingCourseKey);
+    if (!courseRaces.length) return NextResponse.json({ error: `No races in this round match the meeting racecourse (${meetingCourse}). Check the racecourse values in Supabase.` }, { status: 422 });
+    const counts = new Map<number, number>();
+    for (const race of courseRaces) counts.set(Number(race.race_number), (counts.get(Number(race.race_number)) ?? 0) + 1);
+    const uniqueRaceNumbers = courseRaces.filter(r => Number.isInteger(Number(r.race_number)) && counts.get(Number(r.race_number)) === 1);
+    if (!uniqueRaceNumbers.length) return NextResponse.json({ error: "The selected round has no unambiguous race numbers." }, { status: 422 });
+    const siteRaces = parseMeeting(await getHtml(meetingUrl), meetingUrl);
+    const byNumber = new Map(siteRaces.map(r => [r.number, r]));
+    const matchedRaces = uniqueRaceNumbers.filter(r => byNumber.has(Number(r.race_number)));
+    const unmatchedRaces = races.filter(r => !matchedRaces.some(m => m.id === r.id)).map(r => `${r.race_name ?? "Race"} (${r.race_number})`);
+    if (!matchedRaces.length) return NextResponse.json({ error: "No numbered races could be matched. No horses were imported.", unmatchedRaces }, { status: 422 });
+    const raceEntriesToImport = matchedRaces.flatMap(dbRace => (byNumber.get(Number(dbRace.race_number))?.runners ?? []).map(runner => ({ raceId: dbRace.id, runner })));
+    const runners = [...new Map(raceEntriesToImport.map(({runner}) => [normal(runner.name), runner])).values()];
+    const { data: existing, error: existingError } = await admin.from("horses").select("id,name,silks_url,current_price");
+    if (existingError) throw existingError;
+    type KnownHorse = { id: string; name: string; silks_url: string | null; current_price: number };
+    const known = new Map<string, KnownHorse>((existing ?? []).map(h => [normal(h.name), h as KnownHorse]));
+    const added: { name: string; prizeMoney: number; price: number; silksImported: boolean }[] = [];
+    const skipped: string[] = [];
+    const review: Review[] = [];
+    const silksUpdated: string[] = [];
+    const startedAt = Date.now();
+    // Process a bounded number of runners per request. Re-running the same URL
+    // resumes safely because existing horses and entries are not overwritten.
+    const MAX_RUNNERS_PER_REQUEST = 18;
+    const pending = [
+      ...runners.filter(r => !known.has(normal(r.name))),
+      ...runners.filter(r => known.has(normal(r.name)) && !known.get(normal(r.name))?.silks_url),
+    ];
+    const selected = pending.slice(0, MAX_RUNNERS_PER_REQUEST);
+    const unprocessedCount = Math.max(0, runners.filter(r => !known.has(normal(r.name))).length - selected.length);
+    async function uploadSilks(horseId: string, urlString: string): Promise<string> {
+      const url = sourceUrl(urlString, "image");
+      const response = await fetch(url.toString(), { redirect: "manual", signal: AbortSignal.timeout(6500), cache: "no-store" });
+      if (!response.ok) throw new Error(`Silks image returned HTTP ${response.status}`);
+      const mime = (response.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+      const extensions: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+      const extension = extensions[mime];
+      if (!extension) throw new Error("Silks image is not PNG, JPEG or WebP.");
+      if (Number(response.headers.get("content-length") ?? 0) > 5_000_000) throw new Error("Silks image exceeds 5 MB.");
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength > 5_000_000) throw new Error("Silks image exceeds 5 MB.");
+      const storagePath = `${horseId}/silks.${extension}`;
+      const { error } = await admin.storage.from("horse-silks").upload(storagePath, bytes, { contentType: mime, upsert: true });
+      if (error) throw error;
+      return admin.storage.from("horse-silks").getPublicUrl(storagePath).data.publicUrl;
+    }
+    // Bounded concurrency avoids dozens of sequential 12-second network waits.
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(5, selected.length) }, async () => {
+      while (cursor < selected.length) {
+        const runner = selected[cursor++];
+        const key = normal(runner.name);
+        const existingHorse = known.get(key);
+        let prizeMoney = runner.prizeMoney;
+        let silkUrl = runner.silkUrl;
+        if (runner.profileUrl && (prizeMoney === null || !silkUrl)) {
+          try {
+            const details = profileDetails(await getHtml(sourceUrl(runner.profileUrl, "profile")), new URL(runner.profileUrl));
+            prizeMoney = prizeMoney ?? details.prizeMoney;
+            silkUrl = silkUrl ?? details.silkUrl;
+          } catch (error) { review.push({ name: runner.name, reason: `Profile retrieval: ${error instanceof Error ? error.message : "failed"}` }); }
+        }
+        if (existingHorse) {
+          skipped.push(runner.name);
+          if (!silkUrl) { review.push({ name: runner.name, reason: "Existing horse has no silks; source image not found." }); continue; }
+          try {
+            const publicUrl = await uploadSilks(existingHorse.id, silkUrl);
+            const { error } = await admin.from("horses").update({ silks_url: publicUrl }).eq("id", existingHorse.id).is("silks_url", null);
+            if (error) throw error;
+            silksUpdated.push(runner.name);
+          } catch (error) { review.push({ name: runner.name, reason: `Silks: ${error instanceof Error ? error.message : "upload failed"}` }); }
+          continue;
+        }
+        if (prizeMoney === null) { review.push({ name: runner.name, reason: runner.profileUrl ? "Career prizemoney not found in meeting or horse profile; horse not inserted." : "Career prizemoney unavailable and no supported horse profile link found; horse not inserted." }); continue; }
+        const price = priceFor(prizeMoney);
+        const { data: inserted, error: insertError } = await admin.from("horses").insert({
+          name: formatHorseName(runner.name), starting_price: price, current_price: price,
+          career_prize_money: prizeMoney, racing_australia_url: runner.profileUrl,
+          eligible_starts: 0, total_fantasy_points: 0, is_active: true,
+        }).select("id").single();
+        if (insertError || !inserted) { review.push({ name: runner.name, reason: insertError?.message ?? "Insert failed" }); continue; }
+        const horse: KnownHorse = { id: inserted.id, name: formatHorseName(runner.name), silks_url: null, current_price: price };
+        known.set(key, horse);
+        let silksImported = false;
+        if (silkUrl) {
+          try {
+            const publicUrl = await uploadSilks(inserted.id, silkUrl);
+            const { error } = await admin.from("horses").update({ silks_url: publicUrl }).eq("id", inserted.id);
+            if (error) throw error;
+            silksImported = true;
+          } catch (error) { review.push({ name: runner.name, reason: `Horse added but silks failed: ${error instanceof Error ? error.message : "unknown error"}` }); }
+        } else review.push({ name: runner.name, reason: "Horse added; no verifiable silks image found." });
+        added.push({ name: horse.name, prizeMoney, price, silksImported });
+      }
+    });
+    await Promise.all(workers);
+    const { data: existingEntries, error: entriesError } = await admin.from("race_entries").select("id,race_id,horse_id").in("race_id", matchedRaces.map(r => r.id));
+    if (entriesError) throw entriesError;
+    const entryKeys = new Set((existingEntries ?? []).map(e => `${e.race_id}:${e.horse_id}`));
+    const raceEntriesAdded: { raceId: string; horse: string }[] = [];
+    const raceEntriesSkipped: { raceId: string; horse: string; reason: string }[] = [];
+    const rows: Array<{ race_id: string; horse_id: string; saddlecloth_number: number | null; barrier: number | null; price_at_entry: number; entry_status: string }> = [];
+    for (const { raceId, runner } of raceEntriesToImport) {
+      const horse = known.get(normal(runner.name));
+      if (!horse) { raceEntriesSkipped.push({ raceId, horse: runner.name, reason: "Horse not yet imported or missing prizemoney." }); continue; }
+      const key = `${raceId}:${horse.id}`;
+      if (entryKeys.has(key)) { raceEntriesSkipped.push({ raceId, horse: runner.name, reason: "Entry already exists; left unchanged." }); continue; }
+      entryKeys.add(key);
+      rows.push({ race_id: raceId, horse_id: horse.id, saddlecloth_number: runner.saddleclothNumber, barrier: runner.barrier, price_at_entry: horse.current_price, entry_status: runner.scratched ? "scratched_before_lockout" : "runner" });
+      raceEntriesAdded.push({ raceId, horse: horse.name });
+    }
+    // A single database request replaces one price lookup + insert per runner.
+    // Fallback to individual inserts when a row conflicts with an existing manual entry.
+    if (rows.length) {
+      const { error: batchError } = await admin.from("race_entries").insert(rows);
+      if (batchError) {
+        raceEntriesAdded.length = 0;
+        for (const row of rows) {
+          const { error } = await admin.from("race_entries").insert(row);
+          const horse = [...known.values()].find(h => h.id === row.horse_id);
+          if (error) raceEntriesSkipped.push({ raceId: row.race_id, horse: horse?.name ?? row.horse_id, reason: `Insert failed: ${error.message}` });
+          else raceEntriesAdded.push({ raceId: row.race_id, horse: horse?.name ?? row.horse_id });
+        }
+      }
+    }
+    const formCandidates = runners.flatMap(runner => {
+      const horse = known.get(normal(runner.name));
+      return horse && runner.recentForm ? [{ horse_id: horse.id, season_id: seasonId, baseline_form: runner.recentForm, baseline_date: baselineDate }] : [];
+    });
+    let formsImportedCount = 0;
+    if (formCandidates.length) {
+      const ids = [...new Set(formCandidates.map(row => row.horse_id))];
+      const [seeds, baselines] = await Promise.all([
+        admin.from("horse_recent_form_seeds").select("horse_id").eq("season_id", seasonId).in("horse_id", ids),
+        admin.from("horse_form_display_baselines").select("horse_id").eq("season_id", seasonId).in("horse_id", ids),
+      ]);
+      if (seeds.error || baselines.error) {
+        review.push({ name: "Recent form", reason: seeds.error?.message ?? baselines.error?.message ?? "Form lookup failed" });
+      } else {
+        const protectedIds = new Set([...(seeds.data ?? []), ...(baselines.data ?? [])].map(row => row.horse_id));
+        const missing = [...new Map(formCandidates.filter(row => !protectedIds.has(row.horse_id)).map(row => [row.horse_id, row])).values()];
+        if (missing.length) {
+          const result = await admin.from("horse_form_display_baselines").upsert(missing, { onConflict: "horse_id,season_id", ignoreDuplicates: true }).select("horse_id");
+          if (result.error) review.push({ name: "Recent form", reason: result.error.message });
+          else formsImportedCount = result.data?.length ?? 0;
+        }
+      }
+    }
+    return NextResponse.json({
+      formsImportedCount, raceEntriesAddedCount: raceEntriesAdded.length, raceEntriesSkippedCount: raceEntriesSkipped.length,
+      raceEntriesAdded, raceEntriesSkipped, checked: runners.length, alreadyExists: skipped.length,
+      addedCount: added.length, needsReview: review.length,
+      eligibleRaces: matchedRaces.map(r => r.race_name ?? `Race ${r.race_number}`),
+      matchedRaces: matchedRaces.map(r => ({ id: r.id, name: r.race_name, number: r.race_number })),
+      unmatchedRaces, silksUpdated, added, skipped, review,
+      incomplete: unprocessedCount > 0, remainingHorses: unprocessedCount,
+      message: unprocessedCount > 0 ? `Partial import completed. Run the same URL again to process ${unprocessedCount} remaining horses.` : "Import completed.",
+      elapsedMs: Date.now() - startedAt,
+    });
+  } catch (error: unknown) {
+    console.error("[import-horses] Unhandled import error:", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+  }
 }
