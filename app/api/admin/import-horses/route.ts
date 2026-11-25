@@ -234,10 +234,21 @@ export async function POST(request: NextRequest) {
     if (!matchedRaces.length) return NextResponse.json({ error: "No numbered races could be matched. No horses were imported.", unmatchedRaces }, { status: 422 });
     const raceEntriesToImport = matchedRaces.flatMap(dbRace => (byNumber.get(Number(dbRace.race_number))?.runners ?? []).map(runner => ({ raceId: dbRace.id, runner })));
     const runners = [...new Map(raceEntriesToImport.map(({runner}) => [normal(runner.name), runner])).values()];
-    const { data: existing, error: existingError } = await admin.from("horses").select("id,name,silks_url,current_price");
-    if (existingError) throw existingError;
     type KnownHorse = { id: string; name: string; silks_url: string | null; current_price: number };
-    const known = new Map<string, KnownHorse>((existing ?? []).map(h => [normal(h.name), h as KnownHorse]));
+    // Fetch all existing horses, not just the first Supabase response page.
+    const known = new Map<string, KnownHorse>();
+    const HORSE_PAGE_SIZE = 1000;
+    let horseOffset = 0;
+    while (true) {
+      const { data: existing, error: existingError } = await admin.from("horses")
+        .select("id,name,silks_url,current_price")
+        .order("id", { ascending: true })
+        .range(horseOffset, horseOffset + HORSE_PAGE_SIZE - 1);
+      if (existingError) throw existingError;
+      if (!existing?.length) break;
+      for (const horse of existing) known.set(normal(horse.name), horse as KnownHorse);
+      horseOffset += existing.length;
+    }
     const added: { name: string; prizeMoney: number; price: number; silksImported: boolean }[] = [];
     const skipped: string[] = [];
     const review: Review[] = [];
